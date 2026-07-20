@@ -1,0 +1,47 @@
+_format_version: "3.0"
+
+services:
+  - name: service-a
+    url: http://service-a:8000
+    routes:
+      - name: service-a-route
+        paths:
+          - /api/a
+        strip_path: true
+        plugins:
+          - name: acl
+            config:
+              allow:
+                - service-a-access
+
+  - name: service-b
+    url: http://service-b:8000
+    routes:
+      - name: service-b-route
+        paths:
+          - /api/b
+        strip_path: true
+        plugins:
+          - name: acl
+            config:
+              allow:
+                - service-b-access
+
+plugins:
+  - name: jwt
+
+consumers:
+  - username: poc-user
+    jwt_secrets:
+      - key: poc-issuer
+        secret: mysecret123
+    acls:
+      - group: service-a-access
+
+  - username: poc-user-b
+    jwt_secrets:
+      - key: poc-issuer-b
+        secret: mysecret456
+    acls:
+      - group: service-b-access
+

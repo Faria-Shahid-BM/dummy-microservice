@@ -1,0 +1,4 @@
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T05:56:23.943598"}
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T06:09:35.182039"}
+{"user_id": "poc-user", "service": "service-a", "action": "admin_only.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T06:09:35.400077"}
+{"user_id": "poc-user-b", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T06:09:39.569930"}
