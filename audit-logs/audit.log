@@ -1,0 +1,11 @@
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:10:11.237374"}
+{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:10:21.520925"}
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T08:44:28.686859"}
+{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T08:45:02.997053"}
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T15:36:41.119837"}
+{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T15:41:50.637597"}
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T15:41:57.628441"}
+{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T05:35:45.932793"}
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:08:26.881529"}
+{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:16:57.398975"}
+{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:17:01.060369"}

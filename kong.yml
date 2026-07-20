@@ -1,0 +1,60 @@
+_format_version: "3.0"
+
+services:
+  - name: service-a
+    url: http://service-a:8000
+    routes:
+      - name: service-a-route
+        paths:
+          - /api/a
+        strip_path: true
+        plugins:
+          - name: jwt
+
+  - name: service-b
+    url: http://service-b:8000
+    routes:
+      - name: service-b-route
+        paths:
+          - /api/b
+        strip_path: true
+        plugins:
+          - name: jwt
+
+  - name: auth-service
+    url: http://auth-service:8000
+    routes:
+      - name: auth-route
+        paths:
+          - /api/auth
+        strip_path: true
+
+  - name: audit-service
+    url: http://audit-service:8000
+    routes:
+      - name: audit-route
+        paths:
+          - /api/audit
+        strip_path: true
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+      exposed_headers:
+        - X-Consumer-Username
+      max_age: 3600
+
+consumers:
+  - username: poc-user
+    jwt_secrets:
+      - key: poc-issuer
+        secret: mysecret123

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Gateway POC</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 20px 32px;
+    border-bottom: 1px solid #1e2535;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo {
+    width: 32px; height: 32px;
+    background: #6366f1;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #fff;
+  }
+
+  header h1 { font-size: 16px; font-weight: 600; color: #e2e8f0; }
+  header span { font-size: 13px; color: #64748b; margin-left: 4px; }
+
+  .status-dot {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #64748b;
+  }
+
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #334155;
+  }
+  .dot.online { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+  }
+
+  /* LEFT PANEL */
+  .left {
+    border-right: 1px solid #1e2535;
+    display: flex;
+    flex-direction: column;
+    grid-row: 1 / 3;
+  }
+
+  .panel-title {
+    padding: 20px 24px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #475569;
+    border-bottom: 1px solid #1e2535;
+  }
+
+  /* LOGIN */
+  .login-section { padding: 24px; border-bottom: 1px solid #1e2535; }
+
+  .login-section h2 {
+    font-size: 15px; font-weight: 600;
+    color: #e2e8f0; margin-bottom: 4px;
+  }
+
+  .login-section p {
+    font-size: 12px; color: #64748b; margin-bottom: 16px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px; font-weight: 500;
+    color: #94a3b8; margin-bottom: 5px;
+  }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    background: #1e2535;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: #e2e8f0;
+    margin-bottom: 12px;
+    outline: none;
+    transition: border-color .15s;
+  }
+
+  input:focus { border-color: #6366f1; }
+
+  button {
+    width: 100%;
+    padding: 10px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, opacity .15s;
+  }
+
+  button:hover { background: #4f51e0; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: #1e2535;
+    color: #94a3b8;
+    border: 1px solid #2d3748;
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { background: #263047; }
+
+  /* TOKEN BADGE */
+  .token-badge {
+    display: none;
+    margin-top: 14px;
+    background: #0d2718;
+    border: 1px solid #166534;
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+
+  .token-badge.visible { display: block; }
+
+  .token-badge .badge-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .token-badge .badge-label {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: #22c55e;
+  }
+
+  .token-badge .badge-user {
+    font-size: 12px; color: #86efac;
+  }
+
+  .token-badge .token-preview {
+    font-size: 10px; font-family: monospace;
+    color: #4ade80; word-break: break-all;
+    opacity: .7;
+  }
+
+  /* SERVICE CALLS */
+  .service-section { padding: 24px; flex: 1; }
+
+  .service-section h2 {
+    font-size: 15px; font-weight: 600;
+    color: #e2e8f0; margin-bottom: 4px;
+  }
+
+  .service-section p {
+    font-size: 12px; color: #64748b; margin-bottom: 16px;
+  }
+
+  .service-btn-group { display: flex; flex-direction: column; gap: 8px; }
+
+  .service-btn {
+    background: #1e2535;
+    border: 1px solid #2d3748;
+    color: #e2e8f0;
+    text-align: left;
+    padding: 12px 14px;
+    border-radius: 8px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 500;
+    transition: border-color .15s, background .15s;
+    width: 100%;
+  }
+
+  .service-btn:hover:not(:disabled) {
+    border-color: #6366f1;
+    background: #1a1f30;
+  }
+
+  .service-badge {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+
+  .badge-a { background: #1e3a5f; color: #60a5fa; }
+  .badge-b { background: #2d1f5e; color: #a78bfa; }
+  .badge-audit { background: #1f2f1f; color: #86efac; }
+
+  .service-btn .btn-path {
+    font-family: monospace; font-size: 12px;
+    color: #64748b; margin-left: auto;
+  }
+
+  /* RIGHT PANEL TOP — response */
+  .response-panel {
+    border-bottom: 1px solid #1e2535;
+    padding: 20px 24px;
+  }
+
+  .response-panel .panel-title {
+    border: none; padding: 0 0 12px 0;
+  }
+
+  .response-box {
+    background: #1a1f2e;
+    border: 1px solid #1e2535;
+    border-radius: 8px;
+    padding: 16px;
+    min-height: 120px;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #94a3b8;
+    white-space: pre-wrap;
+    word-break: break-word;
+    position: relative;
+  }
+
+  .response-box .placeholder {
+    color: #334155;
+    font-style: italic;
+  }
+
+  .response-box .status-line {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px; padding-bottom: 10px;
+    border-bottom: 1px solid #1e2535;
+  }
+
+  .status-200 { color: #22c55e; font-weight: 700; }
+  .status-401 { color: #ef4444; font-weight: 700; }
+  .status-other { color: #f59e0b; font-weight: 700; }
+
+  .response-url { font-size: 11px; color: #475569; }
+
+  .response-body { color: #e2e8f0; }
+
+  .key { color: #60a5fa; }
+  .str { color: #a3e635; }
+  .num { color: #f59e0b; }
+
+  /* RIGHT PANEL BOTTOM — audit log */
+  .audit-panel {
+    padding: 20px 24px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .audit-panel .panel-title {
+    border: none; padding: 0 0 12px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .audit-count {
+    background: #1e2535;
+    border: 1px solid #2d3748;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+  }
+
+  .audit-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 280px;
+  }
+
+  .audit-list::-webkit-scrollbar { width: 4px; }
+  .audit-list::-webkit-scrollbar-track { background: transparent; }
+  .audit-list::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 2px; }
+
+  .audit-entry {
+    background: #1a1f2e;
+    border: 1px solid #1e2535;
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn .2s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .audit-service-tag {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .audit-action {
+    font-size: 12px; font-family: monospace;
+    color: #94a3b8;
+  }
+
+  .audit-user {
+    font-size: 11px; color: #475569;
+    white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .audit-time {
+    font-size: 10px; color: #334155;
+    font-family: monospace;
+    white-space: nowrap;
+  }
+
+  .empty-audit {
+    font-size: 12px; color: #334155;
+    font-style: italic; padding: 8px 0;
+  }
+
+  /* ALERT */
+  .alert {
+    display: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+  .alert.visible { display: block; }
+  .alert.error { background: #2d0f0f; border: 1px solid #7f1d1d; color: #fca5a5; }
+  .alert.success { background: #0d2718; border: 1px solid #166534; color: #86efac; }
+
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid #334155;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">K</div>
+  <h1>API Gateway POC <span>— Kong + FastAPI</span></h1>
+  <div class="status-dot">
+    <div class="dot" id="gateway-dot"></div>
+    <span id="gateway-status">checking...</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- LEFT PANEL -->
+  <div class="left">
+    <div class="panel-title">Authentication</div>
+
+    <div class="login-section">
+      <h2>Sign in</h2>
+      <p>Get a JWT token from the auth service, then call protected routes.</p>
+
+      <div class="alert" id="login-alert"></div>
+
+      <label>Username</label>
+      <input type="text" id="username" value="admin" placeholder="admin" />
+
+      <label>Password</label>
+      <input type="password" id="password" value="password123" placeholder="password123" />
+
+      <button id="login-btn" onclick="login()">Sign in</button>
+
+      <div class="token-badge" id="token-badge">
+        <div class="badge-row">
+          <span class="badge-label">✓ Authenticated</span>
+          <span class="badge-user" id="badge-username"></span>
+        </div>
+        <div class="token-preview" id="token-preview"></div>
+      </div>
+
+      <button class="btn-secondary" id="logout-btn" style="display:none" onclick="logout()">Sign out</button>
+    </div>
+
+    <div class="service-section">
+      <h2>Call a service</h2>
+      <p>Each request goes through Kong. Auth required for services A and B.</p>
+
+      <div class="service-btn-group">
+        <button class="service-btn" onclick="callService('a')">
+          <span class="service-badge badge-a">GET</span>
+          Service A — hello
+          <span class="btn-path">/api/a/hello</span>
+        </button>
+        <button class="service-btn" onclick="callService('b')">
+          <span class="service-badge badge-b">GET</span>
+          Service B — hello
+          <span class="btn-path">/api/b/hello</span>
+        </button>
+        <button class="service-btn" onclick="loadAuditLog()">
+          <span class="service-badge badge-audit">GET</span>
+          Refresh audit log
+          <span class="btn-path">/api/audit/audit</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT TOP — response -->
+  <div class="response-panel">
+    <div class="panel-title">Response</div>
+    <div class="response-box" id="response-box">
+      <span class="placeholder">Make a request to see the response here.</span>
+    </div>
+  </div>
+
+  <!-- RIGHT BOTTOM — audit log -->
+  <div class="audit-panel">
+    <div class="panel-title">
+      Audit log
+      <span class="audit-count" id="audit-count">0 events</span>
+    </div>
+    <div class="audit-list" id="audit-list">
+      <div class="empty-audit">No audit events yet. Call a service to generate one.</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const KONG = 'http://localhost'
+  let token = null
+
+  // Check gateway health on load
+  async function checkGateway() {
+    try {
+      await fetch(KONG + '/api/auth/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' })
+      setGatewayStatus(true)
+    } catch {
+      setGatewayStatus(false)
+    }
+  }
+
+  function setGatewayStatus(online) {
+    document.getElementById('gateway-dot').className = 'dot' + (online ? ' online' : '')
+    document.getElementById('gateway-status').textContent = online ? 'Gateway online' : 'Gateway offline'
+  }
+
+  async function login() {
+    const btn = document.getElementById('login-btn')
+    const alert = document.getElementById('login-alert')
+    const user = document.getElementById('username').value.trim()
+    const pass = document.getElementById('password').value
+
+    alert.className = 'alert'
+    btn.disabled = true
+    btn.innerHTML = '<span class="spinner"></span> Signing in...'
+
+    try {
+      const res = await fetch(KONG + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass })
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        showAlert('login-alert', 'error', data.error || 'Invalid credentials')
+        return
+      }
+
+      token = data.token
+      showAlert('login-alert', 'success', 'Signed in successfully')
+
+      document.getElementById('token-badge').className = 'token-badge visible'
+      document.getElementById('badge-username').textContent = data.username
+      document.getElementById('token-preview').textContent = token.substring(0, 40) + '...'
+      document.getElementById('logout-btn').style.display = 'block'
+      setGatewayStatus(true)
+
+      showResponse(200, KONG + '/api/auth/login', data)
+      loadAuditLog()
+
+    } catch (e) {
+      showAlert('login-alert', 'error', 'Could not reach Kong. Is it running?')
+      setGatewayStatus(false)
+    } finally {
+      btn.disabled = false
+      btn.textContent = 'Sign in'
+    }
+  }
+
+  function logout() {
+    token = null
+    document.getElementById('token-badge').className = 'token-badge'
+    document.getElementById('logout-btn').style.display = 'none'
+    document.getElementById('login-alert').className = 'alert'
+    document.getElementById('response-box').innerHTML = '<span class="placeholder">Signed out.</span>'
+  }
+
+  async function callService(name) {
+    const url = KONG + '/api/' + name + '/hello'
+    const headers = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = 'Bearer ' + token
+
+    try {
+      const res = await fetch(url, { headers })
+      const data = await res.json()
+      showResponse(res.status, url, data)
+      if (res.ok) loadAuditLog()
+    } catch (e) {
+      showResponse(0, url, { error: 'Could not reach Kong. Is docker compose up?' })
+    }
+  }
+
+  async function loadAuditLog() {
+    try {
+      const res = await fetch(KONG + '/api/audit/audit')
+      const events = await res.json()
+      renderAuditLog(events)
+    } catch {
+      // silent fail — audit log is best-effort
+    }
+  }
+
+  function renderAuditLog(events) {
+    const list = document.getElementById('audit-list')
+    const count = document.getElementById('audit-count')
+
+    if (!events.length) {
+      list.innerHTML = '<div class="empty-audit">No audit events yet. Call a service to generate one.</div>'
+      count.textContent = '0 events'
+      return
+    }
+
+    count.textContent = events.length + (events.length === 1 ? ' event' : ' events')
+
+    // Show newest first
+    const reversed = [...events].reverse()
+    list.innerHTML = reversed.map(e => {
+      const tagClass = e.service === 'service-a' ? 'badge-a' : e.service === 'service-b' ? 'badge-b' : 'badge-audit'
+      const time = new Date(e.timestamp).toLocaleTimeString()
+      return `
+        <div class="audit-entry">
+          <span class="audit-service-tag service-badge ${tagClass}">${e.service}</span>
+          <span class="audit-action">${e.action}</span>
+          <span class="audit-user">user: ${e.user_id}</span>
+          <span class="audit-time">${time}</span>
+        </div>`
+    }).join('')
+  }
+
+  function showResponse(status, url, data) {
+    const box = document.getElementById('response-box')
+    const statusClass = status === 200 ? 'status-200' : status === 401 ? 'status-401' : 'status-other'
+    const statusText = status === 0 ? 'ERROR' : status
+
+    const formatted = syntaxHighlight(JSON.stringify(data, null, 2))
+
+    box.innerHTML = `
+      <div class="status-line">
+        <span class="${statusClass}">${statusText}</span>
+        <span class="response-url">${url}</span>
+      </div>
+      <div class="response-body">${formatted}</div>`
+  }
+
+  function syntaxHighlight(json) {
+    return json
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) return '<span class="key">' + match + '</span>'
+          return '<span class="str">' + match + '</span>'
+        }
+        return '<span class="num">' + match + '</span>'
+      })
+  }
+
+  function showAlert(id, type, msg) {
+    const el = document.getElementById(id)
+    el.className = 'alert ' + type + ' visible'
+    el.textContent = msg
+  }
+
+  checkGateway()
+</script>
+</body>
+</html>
