@@ -11,23 +11,23 @@ One shared audit service records business events — no per-service audit infras
 Adding a new microservice requires no changes to auth, audit, or the frontend flow.  
 
 
-**Architectur**  
+**Architecture**  
 
 
-Browser (frontend/index.html) \
-        │\
-        ▼\
-   Kong (port 80)\
-        │\
-        ├── /api/auth  ──────────────► auth-service     (issues JWT tokens)\
-        │
-        ├── /api/a  ── JWT check ────► service-a        (FastAPI microservice)\\
-        │                                   │
-        ├── /api/b  ── JWT check ────► service-b        (FastAPI microservice)\\\
-        │                                   │
-        └── /api/audit ─────────────► audit-service ◄──┘\
-                                            │
-                                      audit-logs/audit.log\
+Browser (frontend/index.html)
+        |
+        v
+   Kong (port 80)
+        |
+        +-- /api/auth  -------------> auth-service     (issues JWT tokens)
+        |
+        +-- /api/a  -- JWT check ---> service-a        (FastAPI microservice)
+        |                                  |
+        +-- /api/b  -- JWT check ---> service-b        (FastAPI microservice)
+        |                                  |
+        +-- /api/audit -------------> audit-service <--+
+                                           |
+                                     audit-logs/audit.log
 
 
 **Containers**\
