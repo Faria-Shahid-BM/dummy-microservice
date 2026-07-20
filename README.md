@@ -21,9 +21,9 @@ Browser (frontend/index.html) \
         │\
         ├── /api/auth  ──────────────► auth-service     (issues JWT tokens)\
         │
-        ├── /api/a  ── JWT check ────► service-a        (FastAPI microservice)\
+        ├── /api/a  ── JWT check ────► service-a        (FastAPI microservice)\\
         │                                   │
-        ├── /api/b  ── JWT check ────► service-b        (FastAPI microservice)\
+        ├── /api/b  ── JWT check ────► service-b        (FastAPI microservice)\\\
         │                                   │
         └── /api/audit ─────────────► audit-service ◄──┘\
                                             │
