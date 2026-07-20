@@ -1,0 +1,112 @@
+<div class="page">
+  <header>
+    <h1>API Gateway POC — Demo Console</h1>
+    <p class="subtitle">Kong · JWT auth · claims-based entitlements · role checks · audit trail</p>
+  </header>
+
+  <section class="card" *ngIf="!session">
+    <h2>1. Log in</h2>
+    <form (ngSubmit)="login()">
+      <label class="field">
+        <span>Username</span>
+        <input type="text" [(ngModel)]="username" name="username" autocomplete="username" />
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          autocomplete="current-password"
+        />
+      </label>
+      <button type="submit" [disabled]="loggingIn || !username || !password">
+        {{ loggingIn ? 'Logging in…' : 'Log in' }}
+      </button>
+    </form>
+    <p class="error" *ngIf="loginError">{{ loginError }}</p>
+    <p class="hint">
+      Demo accounts — <code>alice / alicepw</code> (service-a, admin) or
+      <code>bob / bobpw</code> (service-b, viewer)
+    </p>
+  </section>
+
+  <section class="card" *ngIf="session">
+    <h2>1. Session</h2>
+    <div class="active-as">
+      Logged in as <strong>{{ session.username }}</strong> — role
+      <strong>{{ session.role }}</strong>, entitled to
+      <strong>{{ session.services.join(', ') }}</strong>
+    </div>
+    <button class="clear" (click)="logout()">Log out</button>
+  </section>
+
+  <section class="card">
+    <h2>2. Call an endpoint</h2>
+    <div class="button-grid">
+      <button (click)="call('/api/a/hello', 'GET /api/a/hello')">GET /api/a/hello</button>
+      <button (click)="call('/api/a/admin-only', 'GET /api/a/admin-only')">
+        GET /api/a/admin-only
+      </button>
+      <button (click)="call('/api/b/hello', 'GET /api/b/hello')">GET /api/b/hello</button>
+      <button (click)="call('/api/b/admin-only', 'GET /api/b/admin-only')">
+        GET /api/b/admin-only
+      </button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="log-header">
+      <h2>3. Results</h2>
+      <button class="clear" (click)="clearLog()" *ngIf="log.length">Clear</button>
+    </div>
+
+    <p class="empty" *ngIf="!log.length">
+      No requests yet — log in (or stay logged out to see a 401), then hit a button above.
+    </p>
+
+    <div class="log-entry" *ngFor="let entry of log" [ngClass]="entry.kind">
+      <div class="log-line">
+        <span class="status">{{ entry.status }}</span>
+        <span class="label">{{ entry.label }}</span>
+        <span class="time">{{ entry.time }}</span>
+      </div>
+      <pre class="body">{{ entry.body }}</pre>
+    </div>
+  </section>
+
+  <section class="card" *ngIf="session">
+    <div class="log-header">
+      <h2>4. Audit trail <span class="badge">admin only</span></h2>
+      <button class="clear" (click)="loadAudit()" [disabled]="loadingAudit">
+        {{ loadingAudit ? 'Loading…' : 'Refresh' }}
+      </button>
+    </div>
+
+    <p class="error" *ngIf="auditError">{{ auditError }}</p>
+
+    <p class="empty" *ngIf="!auditError && !auditEntries.length">
+      No entries loaded yet — click Refresh. (Only an admin-role token can read this;
+      <code>bob</code> will get a 403.)
+    </p>
+
+    <table class="audit-table" *ngIf="auditEntries.length">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>User</th>
+          <th>Service</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let entry of auditEntries">
+          <td>{{ entry.timestamp }}</td>
+          <td>{{ entry.user_id }}</td>
+          <td>{{ entry.service }}</td>
+          <td>{{ entry.action }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</div>

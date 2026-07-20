@@ -9,10 +9,7 @@ services:
           - /api/a
         strip_path: true
         plugins:
-          - name: acl
-            config:
-              allow:
-                - service-a-access
+          - name: jwt
 
   - name: service-b
     url: http://service-b:8000
@@ -22,26 +19,48 @@ services:
           - /api/b
         strip_path: true
         plugins:
-          - name: acl
-            config:
-              allow:
-                - service-b-access
+          - name: jwt
+
+  - name: auth-service
+    url: http://auth-service:8000
+    routes:
+      - name: auth-route
+        paths:
+          - /api/auth
+        strip_path: true
+        # no jwt plugin here — you can't need a token to get a token
+
+  - name: audit-service
+    url: http://audit-service:8000
+    routes:
+      - name: audit-read-route
+        paths:
+          - /api/audit
+        methods:
+          - GET
+        strip_path: true
+        plugins:
+          - name: jwt
+        # only GET is routed here — audit-service's own /audit POST stays
+        # reachable only from service-a/b over the internal Docker network,
+        # never through Kong
 
 plugins:
-  - name: jwt
+  - name: cors
+    config:
+      origins:
+        - http://localhost:4200
+      methods:
+        - GET
+        - POST
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+      credentials: true
 
 consumers:
-  - username: poc-user
+  - username: app-consumer
     jwt_secrets:
-      - key: poc-issuer
-        secret: mysecret123
-    acls:
-      - group: service-a-access
-
-  - username: poc-user-b
-    jwt_secrets:
-      - key: poc-issuer-b
-        secret: mysecret456
-    acls:
-      - group: service-b-access
-
+      - key: poc-app
+        secret: supersecretkey
