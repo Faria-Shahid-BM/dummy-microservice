@@ -8,20 +8,40 @@ A proof-of-concept showing Kong as a single API gateway in front of a set of dum
 - JWT authentication vs. claims-based authorization as two distinct, separable concerns
 - Defense-in-depth reasoning (why a service might re-verify a signature even though Kong already did)
 - Role-based permission checks living inside a service, separate from "can you reach this service at all"
+- A custom Kong plugin, written once, reused across routes with different config instead of copy-pasted logic
+- A shared internal library so every service imports the same auth/audit code instead of duplicating it
 - Docker multi-container orchestration with Docker Compose
 - A frontend (Angular) driving a real login flow against the above, not hardcoded tokens
 
 ## Containers
 
-- **kong** — the gateway. Every external request goes through it first. Verifies JWTs are genuine; does *not* decide who can do what.
+- **kong** — the gateway. Every external request goes through it first. Verifies JWTs are genuine (`jwt` plugin) and checks per-route service entitlement (a custom plugin, `service-entitlement` — see below). Does *not* decide role-based permissions; that's the one decision left to each service.
 - **auth-service** — issues tokens. `POST /login` checks a username/password and signs a JWT containing that user's `role` and `services` (what they're entitled to).
-- **service-a** / **service-b** — dummy FastAPI services. No login logic of their own, but each one *does* read the token's claims to decide whether it's the right destination and whether the caller's role allows a given action.
+- **service-a** / **service-b** — dummy FastAPI services. No login logic, and no service-entitlement logic either (Kong already rejected anything not entitled before it arrives) — the one thing they still decide for themselves is whether the caller's `role` allows a given action (e.g. `/admin-only`).
 - **audit-service** — internal-only. Receives events from service-a/b directly over the Docker network (never through Kong) and writes them to `audit-logs/audit.log`. Exposes exactly one thing through Kong: a `GET` route to read the log back, gated to admin-role tokens only.
 - **frontend** (`frontend/`, Angular, not in `docker-compose.yml`) — a demo console: log in, call an endpoint, watch the response, view the audit trail.
 
 ## Why one shared secret instead of one-secret-per-user
 
-Kong's JWT plugin can be set up with a separate secret per user (its `consumers` model), which was the first version of this POC. It got replaced with a single shared secret because it maps better to how real systems actually work: **one issuer signs every token**, and *what that token grants* — which services, what role — is data carried inside the token's claims, decided at login time by checking a real subscriptions table (a `USERS` dict, here). Kong's job shrinks to one question: *is this signature genuine?* Every other decision — "can this token reach service-b," "does this role allow admin actions" — happens inside the service that receives the request, by reading the claims itself.
+Kong's JWT plugin can be set up with a separate secret per user (its `consumers` model), which was the first version of this POC. It got replaced with a single shared secret because it maps better to how real systems actually work: **one issuer signs every token**, and *what that token grants* — which services, what role — is data carried inside the token's claims, decided at login time by checking a real subscriptions table (a `USERS` dict, here). Kong's job is to answer *is this signature genuine, and is this token entitled to be here at all* — the second half now lives in a custom plugin (below), not hand-copied into every service.
+
+## Why a custom Kong plugin instead of per-service checks
+
+The entitlement check ("is `service-a` in this token's `services` claim?") originally lived inside `service-a`/`service-b` themselves — fine for two services, but it doesn't scale: at 25 services, that's 25 copies of the same JWT-decoding logic, all needing to be fixed in sync if a bug ever turns up. Kong's `pre-function`/`post-function` plugins can run inline Lua per route, but they don't let you write the logic **once** and reuse it with different parameters — you'd just be copy-pasting the same problem into `kong.yml` instead of into Python files.
+
+A real custom Kong plugin (`kong-plugins/kong/plugins/service-entitlement/`) solves this properly: `handler.lua` contains the check exactly once, and `schema.lua` declares one config field (`required_service`) that each route sets independently:
+
+```yaml
+- name: service-entitlement
+  config:
+    required_service: service-a
+```
+
+No image rebuild needed — the plugin folder is volume-mounted into Kong (`docker-compose.yml`), the same way `kong.yml` itself is. It runs at `PRIORITY = 899`, deliberately lower than the `jwt` plugin's (1005) — Kong runs higher-priority plugins first, so the signature is already verified by the time this plugin trusts the claims inside it.
+
+## Why a shared library instead of per-service copies
+
+`audit()` and `get_claims()` used to be copy-pasted into every service too. Same problem, same fix: `common/authlib.py` holds both, and each service's Dockerfile copies that one file in alongside its own `main.py` (`COPY common/authlib.py .`). Unlike the entitlement check, `audit()` couldn't move into Kong — Kong has no way to know that a request means `"hello.called"` versus `"admin_only.called"`; that's business-specific context only the service itself has at the moment it happens. A shared library gets the deduplication benefit without needing the gateway to understand application-level events.
 
 ## Flow 1 — Logging in (issuing a token)
 
@@ -58,40 +78,37 @@ Kong's JWT plugin can be set up with a separate secret per user (its `consumers`
    BROWSER
         │  Authorization: Bearer <token>
         ▼
-   ┌──────────────────────────┐
-   │           KONG            │
-   │   jwt plugin (per-route)  │
-   │   - verify signature      │
-   │     against the ONE       │
-   │     registered secret     │
-   └──────────────────────────┘
-        │
-   ┌────┴─────┐
-   │           │
- missing/    valid
- invalid     signature
-   │           │
-   ▼           ▼
-  401     forwarded to service-a (or service-b)
-"who even        │
- are you"         ▼
+   ┌────────────────────────────────┐
+   │              KONG                │
+   │                                    │
+   │  1) jwt plugin                     │
+   │     - verify signature against     │
+   │       the ONE registered secret    │
+   │       missing/invalid → 401        │
+   │                                    │
+   │  2) service-entitlement plugin     │
+   │     (custom, written once, PRIORITY│
+   │     899 — runs AFTER jwt)          │
+   │     - read the "services" claim    │
+   │       straight out of the token    │
+   │     - required_service in it?      │
+   │         no  → 403 not entitled     │
+   │         yes → continue             │
+   └────────────────────────────────┘
+                    │
+                    ▼
+      forwarded to service-a (or service-b)
+                    │
+                    ▼
          ┌──────────────────────────────┐
          │      service-a / service-b     │
          │                                  │
-         │ 1) read claims straight out of  │
-         │    the token (Kong already      │
-         │    verified it — no need to     │
-         │    re-check the signature)      │
-         │                                  │
-         │ 2) "service-a" in services?      │
-         │      no  → 403 not entitled      │
-         │      yes → continue              │
-         │                                  │
-         │ 3) (role-gated routes only,      │
-         │    e.g. /admin-only)             │
-         │    role == "admin"?              │
-         │      no  → 403 wrong role        │
-         │      yes → continue              │
+         │  (role-gated routes only,       │
+         │   e.g. /admin-only)              │
+         │   read claims via authlib.py    │
+         │   role == "admin"?              │
+         │      no  → 403 wrong role       │
+         │      yes → continue             │
          └──────────────────────────────┘
                         │
                         ▼
@@ -110,7 +127,7 @@ Kong's JWT plugin can be set up with a separate secret per user (its `consumers`
                audit-logs/audit.log
 ```
 
-The two `403`s look identical from outside but come from different checks: step 2 means *"you're not entitled to this service at all"* (a plan/subscription problem); step 3 means *"you're entitled to be here, you just don't have the right role for this specific action"* (a permissions problem). A `401` is different again — Kong rejecting before anyone even knows who's asking.
+The two `403`s look identical from outside but come from different layers now: Kong's `service-entitlement` plugin means *"you're not entitled to this service at all"* (a plan/subscription problem, rejected before ever reaching a service); a `403` from inside a service means *"you're entitled to be here, you just don't have the right role for this specific action"* (a permissions problem). A `401` is different again — Kong rejecting before anyone even knows who's asking.
 
 ## Flow 3 — Reading the audit trail (admin only)
 
@@ -165,10 +182,10 @@ Log in as `alice` to see `/api/a/hello`, `/api/a/admin-only`, and the audit trai
 | Method & path (through Kong) | Behind it | Guarded by |
 |---|---|---|
 | `POST /api/auth/login` | `auth-service` | nothing — this *is* the login |
-| `GET /api/a/hello`, `GET /api/b/hello` | `service-a`/`service-b` | valid token + `services` claim |
-| `GET /api/a/admin-only`, `GET /api/b/admin-only` | `service-a`/`service-b` | valid token + `services` claim + `role: admin` |
-| `GET /api/a/health-a`, `GET /api/b/health-b` | `service-a`/`service-b` | valid token + `services` claim (same route-level `jwt` plugin covers everything under `/api/a`, `/api/b`) |
-| `GET /api/audit` | `audit-service` | valid token + `role: admin` |
+| `GET /api/a/hello`, `GET /api/b/hello` | `service-a`/`service-b` | Kong: valid token + `service-entitlement` plugin (`services` claim) |
+| `GET /api/a/admin-only`, `GET /api/b/admin-only` | `service-a`/`service-b` | Kong: same as above, **plus** the service's own `role: admin` check |
+| `GET /api/a/health-a`, `GET /api/b/health-b` | `service-a`/`service-b` | Kong: valid token + `service-entitlement` plugin (same route-level plugins cover everything under `/api/a`, `/api/b`) |
+| `GET /api/audit` | `audit-service` | Kong: valid token only; `audit-service` itself checks `role: admin` |
 
 ## Production considerations
 

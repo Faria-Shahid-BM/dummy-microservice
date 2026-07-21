@@ -10,6 +10,9 @@ services:
         strip_path: true
         plugins:
           - name: jwt
+          - name: service-entitlement
+            config:
+              required_service: service-a
 
   - name: service-b
     url: http://service-b:8000
@@ -20,6 +23,9 @@ services:
         strip_path: true
         plugins:
           - name: jwt
+          - name: service-entitlement
+            config:
+              required_service: service-b
 
   - name: auth-service
     url: http://auth-service:8000

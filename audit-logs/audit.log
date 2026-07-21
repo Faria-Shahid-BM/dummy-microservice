@@ -8,3 +8,5 @@
 {"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T07:54:47.659473"}
 {"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T07:58:09.404184"}
 {"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:01:20.508536"}
+{"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-21T04:38:24.934320"}
+{"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-21T04:38:24.973671"}

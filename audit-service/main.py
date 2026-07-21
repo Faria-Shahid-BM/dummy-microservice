@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from datetime import datetime
 import json, os
-import jwt
+from authlib import get_claims
 
 app = FastAPI()
 
@@ -26,11 +26,7 @@ def log_event(event: AuditEvent):
         f.write(json.dumps(entry) + "\n")
     return {"status": "logged"}
 
-def require_admin(request: Request) -> dict:
-    auth = request.headers.get("authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=403, detail="admin role required")
-    claims = jwt.decode(auth.split(" ", 1)[1], options={"verify_signature": False})
+def require_admin(claims: dict = Depends(get_claims)) -> dict:
     if claims.get("role") != "admin":
         raise HTTPException(status_code=403, detail="admin role required")
     return claims
