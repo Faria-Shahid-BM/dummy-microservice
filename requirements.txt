@@ -1,4 +1,12 @@
 fastapi
 uvicorn
 httpx
-pyjwt
+# [crypto] pulls in `cryptography`, which PyJWT needs for RS256. Plain `pyjwt`
+# raises "Algorithm 'RS256' could not be found" at runtime.
+pyjwt[crypto]
+python-multipart
+python-docx
+pdfplumber
+PyMuPDF
+mammoth
+beautifulsoup4

@@ -1,40 +1,67 @@
 _format_version: "3.0"
 
 services:
-  - name: service-a
-    url: http://service-a:8000
-    routes:
-      - name: service-a-route
-        paths:
-          - /api/a
-        strip_path: true
-        plugins:
-          - name: jwt
-          - name: service-entitlement
-            config:
-              required_service: service-a
-
-  - name: service-b
-    url: http://service-b:8000
-    routes:
-      - name: service-b-route
-        paths:
-          - /api/b
-        strip_path: true
-        plugins:
-          - name: jwt
-          - name: service-entitlement
-            config:
-              required_service: service-b
-
   - name: auth-service
     url: http://auth-service:8000
     routes:
-      - name: auth-route
+      - name: auth-login-route
         paths:
           - /api/auth
         strip_path: true
         # no jwt plugin here — you can't need a token to get a token
+
+      - name: auth-admin-route
+        paths:
+          - /api/auth/users
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              # Without claims_to_verify the plugin ignores `exp` entirely and
+              # accepts expired tokens. auth-service sets exp; this enforces it.
+              claims_to_verify:
+                - exp
+        # user management — Kong just confirms the token is genuine; the
+        # admin-role check itself happens inside auth-service (same pattern
+        # as every other role-gated endpoint in this project). Kong picks
+        # this route over auth-login-route for anything under /api/auth/users
+        # because it's the more specific path match.
+
+  - name: document-reviewer
+    url: http://document-reviewer:8000
+    routes:
+      - name: document-reviewer-route
+        paths:
+          - /api/documents
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              # Without claims_to_verify the plugin ignores `exp` entirely and
+              # accepts expired tokens. auth-service sets exp; this enforces it.
+              claims_to_verify:
+                - exp
+          - name: service-entitlement
+            config:
+              required_service: document-reviewer
+
+  - name: collateral-reviewer
+    url: http://collateral-reviewer:8000
+    routes:
+      - name: collateral-reviewer-route
+        paths:
+          - /api/collateral
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              # Without claims_to_verify the plugin ignores `exp` entirely and
+              # accepts expired tokens. auth-service sets exp; this enforces it.
+              claims_to_verify:
+                - exp
+          - name: service-entitlement
+            config:
+              required_service: collateral-reviewer
 
   - name: audit-service
     url: http://audit-service:8000
@@ -47,9 +74,14 @@ services:
         strip_path: true
         plugins:
           - name: jwt
+            config:
+              # Without claims_to_verify the plugin ignores `exp` entirely and
+              # accepts expired tokens. auth-service sets exp; this enforces it.
+              claims_to_verify:
+                - exp
         # only GET is routed here — audit-service's own /audit POST stays
-        # reachable only from service-a/b over the internal Docker network,
-        # never through Kong
+        # reachable only from the other services over the internal Docker
+        # network (see common/audit.py), never through Kong
 
 plugins:
   - name: cors
@@ -59,6 +91,7 @@ plugins:
       methods:
         - GET
         - POST
+        - PUT
         - OPTIONS
       headers:
         - Authorization
@@ -66,7 +99,25 @@ plugins:
       credentials: true
 
 consumers:
+  # RS256: auth-service signs with the private key in keys/jwt-private.pem
+  # (gitignored, mounted into that container only); Kong verifies with the
+  # matching public key below. A public key is not a secret, so it lives here
+  # in plain sight and can be committed safely.
+  #
+  # Generate both halves with `python scripts/generate_jwt_keys.py`, which
+  # writes the private key and rewrites the block below to match. Kong reads
+  # this file at startup, so restart Kong after rotating keys.
   - username: app-consumer
     jwt_secrets:
       - key: poc-app
-        secret: supersecretkey
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsrnpO7ylzHh88VtxDrP4
+          zErQXYJYLjVC13a1D4BI+L0F9+LV0nmweeefbE2HRj6Xm6NO6FbbDzBjB1XP5e8z
+          3g2OYK4C8nSjTWz2gODqkq0bbJvdqnHi9/OB/k67ATMHi50sUjsPpFR9N5qfWeuc
+          QTcWcW9s0G/6zY2I1ydL7L0diRyN+vYvkZ5NwUYS2+6kb/ZyDTp/m8zyNDulH8/p
+          7qyMUPljCNDAx9TRdV7ErC1IdhsBHsZKWKEny0d5vuZnxuHoldNKUNNtQ1X9UV9y
+          nCeycI8MrtaGpcgM9xvcLZflqBMq4WvMfrGwD0vgXRjdgeloOxzkjVeeYYrXDLkt
+          ywIDAQAB
+          -----END PUBLIC KEY-----

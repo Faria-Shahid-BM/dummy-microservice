@@ -9,9 +9,13 @@ services:
       KONG_LOG_LEVEL: "info"
       KONG_PLUGINS: "bundled,service-entitlement"
       KONG_LUA_PACKAGE_PATH: "/custom-plugins/?.lua;/custom-plugins/?/init.lua;;"
-    ports:
-      - "80:80"
-      - "8001:8001"
+    # No published ports: the frontend/nginx container is the only public
+    # entry point and reaches Kong internally as http://kong:80. (The Admin
+    # API on 8001 is likewise internal-only — never expose it. See
+    # DEPLOYMENT.md §4e.)
+    expose:
+      - "80"
+      - "8001"
     volumes:
       - ./kong.yml:/kong.yml
       - ./kong-plugins:/custom-plugins:ro
@@ -20,22 +24,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  service-a:
-    build:
-      context: .
-      dockerfile: service-a/Dockerfile
-    depends_on:
-      kong:
-        condition: service_healthy
-
-  service-b:
-    build:
-      context: .
-      dockerfile: service-b/Dockerfile
-    depends_on:
-      kong:
-        condition: service_healthy
 
   audit-service:
     build:
@@ -48,6 +36,51 @@ services:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
+    environment:
+      JWT_PRIVATE_KEY_PATH: /app/keys/jwt-private.pem
+      # Access token lifetime. Kong enforces it via claims_to_verify in kong.yml.
+      JWT_TTL_SECONDS: "3600"
+    volumes:
+      - ./auth-data:/app/data
+      # Read-only, and mounted into this container only — it is the sole
+      # service that signs tokens. Kong needs just the public key, which is
+      # inlined in kong.yml. Generate both with scripts/generate_jwt_keys.py.
+      - ./keys:/app/keys:ro
+    depends_on:
+      kong:
+        condition: service_healthy
+
+  document-reviewer:
+    build:
+      context: .
+      dockerfile: document-reviewer/Dockerfile
+    depends_on:
+      kong:
+        condition: service_healthy
+
+  collateral-reviewer:
+    build:
+      context: .
+      dockerfile: collateral-reviewer/Dockerfile
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL_EXTRACTION: ${LLM_MODEL_EXTRACTION:-gpt-4o-mini}
+      LLM_MODEL_VISION: ${LLM_MODEL_VISION:-gpt-4o-mini}
+    depends_on:
+      kong:
+        condition: service_healthy
+
+  # Public entry point: serves the built Angular app and reverse-proxies
+  # /api/* to Kong (see frontend/nginx.conf). This is the only container that
+  # publishes a host port. For TLS, terminate here or at a load balancer in
+  # front — see DEPLOYMENT.md §6.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
     depends_on:
       kong:
         condition: service_healthy

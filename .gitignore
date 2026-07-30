@@ -1,0 +1,10 @@
+.env
+
+# JWT signing keys. The private key must never be committed; generate a
+# keypair per environment with scripts/generate_jwt_keys.py. The public key is
+# not sensitive but lives inline in kong.yml, so it isn't needed here either.
+keys/
+
+# Runtime state, not source. auth.db holds real accounts with password hashes
+# and salts — it must never be committed. Created automatically on first start.
+auth-data/

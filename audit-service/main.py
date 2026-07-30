@@ -1,8 +1,8 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from datetime import datetime
 import json, os
-from authlib import get_claims
+from claims import require_role
 
 app = FastAPI()
 
@@ -26,14 +26,11 @@ def log_event(event: AuditEvent):
         f.write(json.dumps(entry) + "\n")
     return {"status": "logged"}
 
-def require_admin(claims: dict = Depends(get_claims)) -> dict:
-    if claims.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="admin role required")
-    return claims
-
 @app.get("/")
-def get_logs(claims: dict = Depends(require_admin)):
+def get_logs(claims: dict = Depends(require_role("admin")), limit: int = 20, offset: int = 0):
     if not os.path.exists(LOG_FILE):
-        return []
+        return {"items": [], "total": 0}
     with open(LOG_FILE) as f:
-        return [json.loads(line) for line in f.readlines()]
+        entries = [json.loads(line) for line in f.readlines()]
+    entries.reverse()  # most recent first
+    return {"items": entries[offset:offset + limit], "total": len(entries)}

@@ -1,6 +1,5 @@
-from fastapi import Request
+from fastapi import Request, HTTPException, Depends
 import base64
-import httpx
 import json
 
 
@@ -16,12 +15,10 @@ def get_claims(request: Request) -> dict:
         return {}
 
 
-def audit(user: str, service: str, action: str, resource: str = None):
-    try:
-        httpx.post(
-            "http://audit-service:8000/audit",
-            json={"user_id": user, "service": service, "action": action, "resource": resource},
-            timeout=1.0,
-        )
-    except Exception:
-        pass
+def require_role(role: str):
+    def checker(claims: dict = Depends(get_claims)) -> dict:
+        if claims.get("role") != role:
+            raise HTTPException(status_code=403, detail=f"{role} role required")
+        return claims
+
+    return checker

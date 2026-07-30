@@ -10,3 +10,57 @@
 {"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:01:20.508536"}
 {"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-21T04:38:24.934320"}
 {"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-21T04:38:24.973671"}
+{"user_id": "alice", "service": "auth-service", "action": "user.created", "resource": "carol", "metadata": null, "timestamp": "2026-07-21T10:28:42.026895"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "carol", "metadata": null, "timestamp": "2026-07-21T10:28:58.777249"}
+{"user_id": "carol", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-21T10:29:03.110362"}
+{"user_id": "alice", "service": "auth-service", "action": "user.created", "resource": "Faria Shahid", "metadata": null, "timestamp": "2026-07-21T10:35:51.434239"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "alice", "metadata": null, "timestamp": "2026-07-21T10:36:12.571704"}
+{"user_id": "Faria Shahid", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-21T10:36:37.241184"}
+{"user_id": "alice", "service": "auth-service", "action": "user.created", "resource": "faria", "metadata": null, "timestamp": "2026-07-22T11:51:12.458121"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "alice", "metadata": null, "timestamp": "2026-07-22T11:51:19.645447"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "alice", "metadata": null, "timestamp": "2026-07-22T11:51:20.949282"}
+{"user_id": "faria", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T11:52:26.836351"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T12:16:00.797779"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T12:33:35.207906"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "alice", "metadata": null, "timestamp": "2026-07-22T12:50:06.163696"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T12:50:15.573738"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T12:52:07.893046"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T12:53:52.271130"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T12:57:54.229993"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T12:59:01.575348"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:00:29.318900"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:08:50.469640"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:08:54.599414"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:09:12.685306"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:16:48.307023"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:17:31.001178"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:18:55.943281"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:22:15.776530"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:24:22.248477"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-22T13:40:50.254015"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "Faria Shahid", "metadata": null, "timestamp": "2026-07-23T04:27:21.319457"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "Faria Shahid", "metadata": null, "timestamp": "2026-07-23T04:27:22.386003"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "Faria Shahid", "metadata": null, "timestamp": "2026-07-23T04:27:24.736572"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T04:28:07.010253"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T04:30:31.731384"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "faria", "metadata": null, "timestamp": "2026-07-23T06:39:23.028314"}
+{"user_id": "alice", "service": "auth-service", "action": "user.services_updated", "resource": "faria", "metadata": null, "timestamp": "2026-07-23T06:39:23.466292"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T06:42:47.675000"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T08:25:40.835951"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T08:35:43.377432"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T10:05:16.434248"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T10:07:54.603576"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T10:11:42.369400"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T10:13:18.517859"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T10:21:41.740860"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-23T10:26:46.735217"}
+{"user_id": "alice", "service": "document-reviewer", "action": "compare.called", "resource": null, "metadata": null, "timestamp": "2026-07-28T04:54:37.964060"}
+{"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-29T12:26:43.038559"}
+{"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-29T12:26:47.553304"}
+{"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-29T12:31:37.612717"}
+{"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-29T12:31:37.971330"}
+{"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-30T05:10:07.560021"}
+{"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-30T05:10:07.847722"}
+{"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-30T05:10:16.334222"}
+{"user_id": "alice", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-30T05:10:17.095771"}
+{"user_id": "bob", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-30T05:10:17.604822"}

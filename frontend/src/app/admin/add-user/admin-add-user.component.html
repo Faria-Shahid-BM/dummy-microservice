@@ -1,0 +1,31 @@
+<section class="card">
+  <h2>Add a user</h2>
+  <form (ngSubmit)="create()" class="add-user-form">
+    <label class="field">
+      <span>Username</span>
+      <input type="text" [(ngModel)]="username" name="username" />
+    </label>
+    <label class="field">
+      <span>Password</span>
+      <input type="password" [(ngModel)]="password" name="password" />
+    </label>
+    <label class="field">
+      <span>Role</span>
+      <select [(ngModel)]="role" name="role">
+        <option value="viewer">viewer</option>
+        <option value="admin">admin</option>
+      </select>
+    </label>
+    <div class="field">
+      <span>Services</span>
+      <label class="option" *ngFor="let s of knownServices">
+        <input type="checkbox" [checked]="services.includes(s)" (change)="toggleService(s)" />
+        <span>{{ s }}</span>
+      </label>
+    </div>
+    <button type="submit" [disabled]="creating || !username || !password">
+      {{ creating ? 'Creating…' : 'Create user' }}
+    </button>
+  </form>
+  <p class="error" *ngIf="error">{{ error }}</p>
+</section>

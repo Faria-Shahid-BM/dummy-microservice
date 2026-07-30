@@ -1,0 +1,6 @@
+{
+  // Dockerfiles flatten common/*.py into /app next to main.py, so services
+  // import them as top-level modules (`from claims import ...`). Mirror that
+  // search path for the editor's analyzer.
+  "python.analysis.extraPaths": ["common"]
+}

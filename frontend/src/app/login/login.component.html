@@ -1,0 +1,32 @@
+<div class="page">
+  <header>
+    <h1>API Gateway POC — Demo Console</h1>
+    <p class="subtitle">Kong · JWT auth · claims-based entitlements · role checks · audit trail</p>
+  </header>
+
+  <section class="card">
+    <h2>Log in</h2>
+    <form (ngSubmit)="login()">
+      <label class="field">
+        <span>Username</span>
+        <input type="text" [(ngModel)]="username" name="username" autocomplete="username" />
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          autocomplete="current-password"
+        />
+      </label>
+      <button type="submit" [disabled]="loggingIn || !username || !password">
+        {{ loggingIn ? 'Logging in…' : 'Log in' }}
+      </button>
+    </form>
+    <p class="error" *ngIf="loginError">{{ loginError }}</p>
+    <p class="hint">
+      Demo accounts — <code>alice / alicepw</code> (admin) or <code>bob / bobpw</code> (viewer)
+    </p>
+  </section>
+</div>
