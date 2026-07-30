@@ -8,3 +8,7 @@ keys/
 # Runtime state, not source. auth.db holds real accounts with password hashes
 # and salts — it must never be committed. Created automatically on first start.
 auth-data/
+
+# Internal gap assessment — kept locally, deliberately not in the repo since it
+# catalogues known security weaknesses and is not for client distribution.
+POC_TO_PRODUCTION.md

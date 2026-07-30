@@ -92,9 +92,12 @@ This writes `keys/jwt-private.pem` (gitignored, mounted read-only into `auth-ser
 
 Rotation: `--force`, then `docker compose up -d --force-recreate`. All existing tokens become invalid.
 
-> Do not try to move the key into an environment variable read by `kong.yml`. Neither `${{ env "..." }}`
-> nor `{vault://env/...}` resolves in that field on Kong 3.9.3, and both fail silently. See
-> [POC_TO_PRODUCTION.md](POC_TO_PRODUCTION.md) §2 for the test results.
+> Do not try to move the key into an environment variable read by `kong.yml`. Both mechanisms were
+> tested against Kong 3.9.3 and neither works for the `rsa_public_key` field:
+> `${{ env "..." }}` is stored as that literal text and used as the key, while
+> `{vault://env/...}` causes correctly-signed tokens to be rejected with 401. Kong starts normally and
+> reports a valid config either way, so the failure is silent. The key must be inline — which is safe,
+> since a public key cannot sign.
 
 ### 4b. Point the frontend at the server
 
