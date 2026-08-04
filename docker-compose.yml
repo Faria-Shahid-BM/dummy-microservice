@@ -19,20 +19,79 @@ services:
       timeout: 5s
       retries: 5
 
-  service-a:
-    build: ./service-a
-    depends_on:
-      kong:
-        condition: service_healthy
+  collateral-service:
+    build:
+      context: .
+      dockerfile: collateral-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_EXTRACTION: google/gemini-2.5-Flash
+      # MODEL_VISION: anthropic/claude-sonnet-4.6
+      MODEL_VISION: google/gemini-2.5-Flash
+      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
 
-  service-b:
-    build: ./service-b
-    depends_on:
-      kong:
-        condition: service_healthy
+  document-diff-service:
+    build:
+      context: .
+      dockerfile: doc_rev-service/Dockerfile
+    environment:
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+
+  valuation-service:
+    build:
+      context: .
+      dockerfile: valuation-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_EXTRACTION: google/gemini-2.5-Flash
+      # MODEL_VISION: anthropic/claude-sonnet-4.6
+      MODEL_VISION: google/gemini-2.5-Flash
+      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+  insurance-service:
+    build:
+      context: .
+      dockerfile: insurance-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_EXTRACTION: google/gemini-2.5-Flash
+      # MODEL_VISION: anthropic/claude-sonnet-4.6
+      MODEL_VISION: google/gemini-2.5-Flash
+      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+
+  policyqa-service:
+    build:
+      context: .
+      dockerfile: policyqa-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_CHAT: google/gemini-2.5-Flash
+      MODEL_EMBEDDING: openai/text-embedding-3-large
+      MODEL_VISION: google/gemini-2.5-Flash 
+      DATA_DIR: /app/data    
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+    volumes:
+      - policyqa-data:/app/data   
 
   auth-service:
     build: ./auth-service
+    environment:
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+      USERS_DB: /app/data/users.db      # on a volume so admin edits survive restarts
+    volumes:
+      - auth-data:/app/data
     depends_on:
       kong:
         condition: service_healthy
@@ -44,3 +103,7 @@ services:
     depends_on:
       kong:
         condition: service_healthy
+
+volumes:
+  auth-data:
+  policyqa-data:     

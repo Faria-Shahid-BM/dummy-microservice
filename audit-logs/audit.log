@@ -1,11 +1,26 @@
-{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:10:11.237374"}
-{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:10:21.520925"}
-{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T08:44:28.686859"}
-{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T08:45:02.997053"}
-{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T15:36:41.119837"}
-{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T15:41:50.637597"}
-{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-17T15:41:57.628441"}
-{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T05:35:45.932793"}
-{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:08:26.881529"}
-{"user_id": "poc-user", "service": "service-a", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:16:57.398975"}
-{"user_id": "poc-user", "service": "service-b", "action": "hello.called", "resource": null, "metadata": null, "timestamp": "2026-07-20T08:17:01.060369"}
+{"user_id": "current_user", "service": "collateral-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-07-22T08:11:27.961653"}
+{"user_id": "current_user", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-22T08:20:16.101184"}
+{"user_id": "current_user", "service": "collateral-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-07-22T08:25:41.759103"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-22T16:26:36.224471"}
+{"user_id": "dave", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-22T16:29:55.453209"}
+{"user_id": "carol", "service": "collateral-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-07-23T06:45:11.800196"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-27T05:58:23.779652"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-07-27T06:04:43.806441"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-27T06:13:52.023918"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-07-30T04:35:08.068211"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-30T04:36:28.743034"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-07-30T06:33:19.295388"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:34:06.253675"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:46:03.619143"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:54:34.526192"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:55:29.943000"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:57:42.792663"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T06:03:01.162070"}
+{"user_id": "admin", "service": "policyqa-service", "action": "ingest", "resource": "efu insurance.pdf", "metadata": null, "timestamp": "2026-08-04T07:12:10.369890"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:12:35.807073"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:13:25.416106"}
+{"user_id": "admin", "service": "policyqa-service", "action": "delete_index", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:13:42.095609"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:13:45.719552"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:30:16.719040"}
+{"user_id": "admin", "service": "policyqa-service", "action": "ingest", "resource": "efu insurance.pdf", "metadata": null, "timestamp": "2026-08-04T07:31:22.015221"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:34:23.174352"}

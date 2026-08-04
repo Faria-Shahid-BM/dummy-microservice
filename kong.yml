@@ -1,22 +1,62 @@
 _format_version: "3.0"
 
 services:
-  - name: service-a
-    url: http://service-a:8000
+  - name: collateral-service
+    url: http://collateral-service:8000
+    # LLM pipeline (vision OCR + extraction + observations) can run for
+    # minutes; default upstream timeouts are 60s, which caused Kong 504s.
+    # provider.py uses a 300s httpx timeout, so give Kong headroom past that.
+    connect_timeout: 60000
+    write_timeout: 310000          # large multipart uploads
+    read_timeout: 310000           # wait for the slow LLM response
     routes:
-      - name: service-a-route
-        paths:
-          - /api/a
+      - name: collateral
+        paths: ["/api/collateral"]
+        strip_path: true          # /api/collateral/review → /review
+    plugins:
+      - name: jwt                  # edge JWT signature check (services re-check scope)
+
+  - name: document-diff-service
+    url: http://document-diff-service:8000
+    routes:
+      - name: docdiff
+        paths: ["/api/docdiff"]
+        strip_path: true
+    plugins:
+      - name: jwt
+
+  - name: valuation-service
+    url: http://valuation-service:8000
+    connect_timeout: 60000
+    write_timeout: 310000          # large multipart uploads
+    read_timeout: 310000  
+    routes:
+      - name: valuation
+        paths: ["/api/valuation"]
         strip_path: true
         plugins:
           - name: jwt
 
-  - name: service-b
-    url: http://service-b:8000
+  - name: insurance-service
+    url: http://insurance-service:8000
+    connect_timeout: 60000
+    write_timeout: 310000          # large multipart uploads
+    read_timeout: 310000  
     routes:
-      - name: service-b-route
-        paths:
-          - /api/b
+      - name: insurance
+        paths: ["/api/insurance"]
+        strip_path: true
+        plugins:
+          - name: jwt
+
+  - name: policyqa-service
+    url: http://policyqa-service:8000
+    connect_timeout: 60000
+    read_timeout: 310000
+    write_timeout: 310000
+    routes:
+      - name: policyqa
+        paths: ["/api/policyqa"]
         strip_path: true
         plugins:
           - name: jwt
@@ -45,6 +85,8 @@ plugins:
       methods:
         - GET
         - POST
+        - PUT
+        - DELETE
         - OPTIONS
       headers:
         - Authorization
