@@ -29,16 +29,17 @@ ISSUER = os.environ.get("JWT_ISSUER", "poc-issuer")
 DB_PATH = Path(os.environ.get("USERS_DB", "/app/users.db"))
 
 # The scopes an admin may assign. "admin" unlocks this user-management API;
-# "collateral"/"docdiff" grant the respective services (enforced in security.py).
-ALLOWED_SCOPES = ["collateral", "docdiff", "valuation", "insurance", "admin", "policy_qa", "doc_gen"]
+ALLOWED_SCOPES = ["collateral", "docdiff", "valuation", "insurance", "policy_qa", "docgen", "docgen_check", "admin"]
 
 
 # Seed data: the POC users and the scopes each may hold.
 SEED_USERS = {
-    "admin": {"password": "password123", "scopes": ["admin", "collateral", "docdiff", "valuation", "insurance", "policy_qa", "doc_gen"]},
-    "carol": {"password": "carolpass",   "scopes": ["collateral", "valuation"]},
-    "dave":  {"password": "davepass",    "scopes": ["docdiff", "insurance"]},
+    "admin":   {"password": "password123",  "scopes": ["admin", "collateral", "docdiff", "valuation", "insurance", "policy_qa", "docgen"]},
+    "checker": {"password": "checkerpass",   "scopes": ["docgen", "docgen_check"]},   # ← approves docgen work
+    "carol":   {"password": "carolpass",     "scopes": ["collateral", "valuation"]},
+    "dave":    {"password": "davepass",      "scopes": ["docdiff", "insurance"]},
 }
+
 
 
 # ── Password hashing (PBKDF2-HMAC-SHA256, stdlib only) ──────────────────────

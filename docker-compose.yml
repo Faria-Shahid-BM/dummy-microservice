@@ -23,6 +23,25 @@ services:
       timeout: 5s
       retries: 5
 
+  docgen-service:
+    build:
+      context: .
+      dockerfile: docgen-service/Dockerfile
+    environment:
+      DATABASE_URL: sqlite:///./data/app.db
+      DATA_DIR: ./data
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL_EXTRACTION: google/gemini-2.5-Flash
+      LLM_MODEL_VISION: google/gemini-2.5-Flash
+      LLM_MODEL_SELECTION: google/gemini-2.5-Flash
+      LLM_MODEL_FILL: google/gemini-2.5-Flash
+      LLM_MODEL_ANALYSIS: google/gemini-2.5-Flash
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+    volumes:
+      - docgen-data:/app/backend/data     # DB + all file storage, persisted
+
   collateral-service:
     build:
       context: .
@@ -124,3 +143,4 @@ services:
 volumes:
   auth-data:
   policyqa-data:
+  docgen-data:

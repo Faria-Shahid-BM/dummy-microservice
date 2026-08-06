@@ -1,0 +1,312 @@
+Collateral Management & Controls
+
+**9.3 Takaful / Insurance Coverage Instructions**
+For Hypothecated / Pledged Stock / Fixed Assets (SE/ME / Commercial / Corporate) 
+
+**9.3.1 Introduction**
+All movables & immovable hypothecated / pledged / leased / mortgaged assets must be fully
+insured (i.e. coverage value not less than outstanding finance plus approved margin or operative
+limit whichever is higher) against all risks pertinent to the assets keeping in view area / storage
+conditions at customer's premises and 3rd party godowns during complete tenor of outstanding
+liabilities through Takaful / Insurance policies issued by companies on Banks approved list. Beirg an Islamic Bank it is ESSENTIAL to obtain TAKAFUL Policy, however, in the absence of Islamic Insurance alternatives in the country / area of operation, the Bank may obtain conventional form of Insurance on the basis of genuine need / extreme necessity (any deviation to be accorded as prescribed in Annexure FM: 9.17)
+
+Details of assets to be insured are mentioned below:
+* Movable hypothecated stocks
+* Movable pledged stocks
+
+* Leased assets / Diminishing Musharakah assets
+* Movable hypothecated / (plant & machinery)
+* Mortgage (building / structure / fittings) 
+
+For financing up to Rs 2 million in case of both Small Enterprise and Medium Enterprise, the finance approving authority may waive the condition to obtain Takaful/Insurance Cover of hypothecated stock/other securities, keeping in view the creditworthiness of the customers, his/her past experience and financial strength.
+Takaful / Insurance Coverage against financing facilities extended by Consumer Banking Group to be applicable as per instructions mentioned under different approved Product Program Manuals.
+
+**9.3.2 Risk Coverage**
+Takaful / Insurance should be arranged for stock / movable & immovable assets including in transit (where applicable) to cover transportation by sea vessel (marine insurance as mandatory), Road and Air. 
+
+Following ALL RISKS should be covered at customers cost and Bank to be beneficiary of this Takaful / Insurance policy:
+1. Fire
+2. Riot & Strike Damage (RSD)
+3. Malicious Damage
+4. Burglary / Theft (for residential assets excluding buildings).
+5. Earthquake
+6. Atmospheric Disturbance
+7. Impact Damage
+8. Aircraft Damage
+9. Electrical Clause
+10. Explosion
+11. Terrorism
+
+A chart as per Annexure FM: 9.16 is provided as guidance to identify minimum risk coverage. Business Units / Branches should assess the pertinent risk(s) on a case-to-case basis in relation to nature of assets, storage condition, and atmospheric condition of the area etc where these assets are held as security.
+
+EXCEPTIONS / WAIVERS may be extended for SPECIFIC RISK COVERAGE based on Joint / Individual Insurance Policy, location and strong footing of customer (please refer to Annexure FM: 9.17).
+
+**9.3.3 Basic Risk Coverage Requirements**
+Appended below are basic risk coverage requirements provided as a guidance, nevertheless, business unit and CAD to ensure all requirements under Para(s) 9.3.4, 9.3.5, 9.3.6 & 9.3.19 are complied in all aspects (where applicable):
+
+* Cover Note to be acceptable for a period of up to 30 days following validity / Expiry of Insurance/Takaful Policy subject to approval by Regional Corporate Head/Head-SME & Commercial Implementation Approval for beyond 30 days and up-to 60 days in the presence of Cover Note will be given by Group Head- Business.
+* Assignment of Takaful / Insurance policy in Bank's favor is appearing as follows:
+ * Hypothecated Assets: bank as "Mortgagor" / Loss Payee
+ * Ijarah/Leased Assets: bank as "Owner and Lessor" & Customer as "User and Lessee" OR bank as "insured on account of customer"
+ * Mortgage (land & building): bank as "Mortgagee" and customer as "Mortgagor"
+* Comprehensive Takaful / Insurance policy covering Risks as per finance approval or in case
+approval is silent all risks as stated in Para# 9.3.2 MUST be covered except where approval of competent authority obtained as per Annexure FM: 9.17.
+* Description of property / leased assets / goods (stocks, plant & machinery, building etc.) matches as per credit approval.
+* The location(s) of Assets (i.e. Pledged / Leased / Mortgaged/Hypothecated) mentioned in the Takaful/Insurance Policy should match with the location(s) mentioned in the Memorandum of
+Deposit of Title Deeds, Lease / Diminishing Musharakah agreement Stock and Pledge report (to mention specific address(es) or anywhere in Pakistan).
+* Assets which are frequently moved from one site to another site or situated in various locations (such as pipelines, transmission lines etc) must be insured with jurisdiction clause of insurance coverage "various locations / anywhere in Pakistan".
+* Value of Takaful / Insurance is adequate to cover bank's exposure (i.e. outstanding) / operative limit with security margin.
+* Adhesive stamps of required value are affixed on the face of original insurance policy.
+* Business Unit & CAD to ensure Any restrictive clause (the clauses which comes specifically under the specific heading of restrictive clauses) or specific storage conditions (particularly for commodity financing) mentioned in Takaful / Insurance policy are complied to avoid any dispute in the event of any claim or alternatively unachievable requirements to be removed through endorsement .
+* There are no Exclusion Clauses which excludes the risk(s) required to be covered as mandated under Para 9.3.2 (unless deviation has been accorded as prescribed under Annexure FM: 9.17)
+
+**9.3.4 Industry-Wise Risk Coverage**
+Please refer to Annexure FM: 9.16 reflecting industry-wise risk coverage for hypothecated / leased / pledged stocks, plant & machinery and buildings (residential, commercial, factory and warehouse). Business Unit to provide comprehensive Takaful / Insurance covering ALL risks for customer not part of industry reflected in this Annexure FM: unless specific waiver for a particular RISK is OBTAINED.
+
+EXCEPTIONS TO ANNEXURE FM: 9.16 IS APPENDED BELOW:
+It is ESSENTIAL to seek coverage against Aircraft Damage in the event the assets under bank's charge are in close proximity to Air force Base / Airport / Flying Zone.
+Risk coverage against Atmospheric Disturbance is ESSENTIAL wherever bank's encumbered assets are located in geographical areas where heavy rainfall is a norm / close proximity to coastal areas (e.g. Hawks bay and Sea View, Karachi).
+Risk Coverage against Impact Damage is ESSENTIAL in the event bank's encumbered assets are in close proximity to highways or fast moving heavy vehicle / automotive traffic
+Risk Coverage against Earthquake Shock / Fire Damage is ESSENTIAL in the event bank's
+encumbered assets are in geographical areas with prior history of earthquakes / earthquake
+declared zones.
+RISK COVERAGE against Aircraft Damage, Atmospheric Disturbance, Earthquake Shock / Fire
+Damage and Impact Damage is ESSENTIAL as mentioned above (any deviation to be accorded as prescribed under Annexure FM: 9.17).
+
+For finance size up to Rs 1 million in case of Small Enterprise only, it will be at the discretion of the approving authority as per DOA to obtain Insurance Cover of hypothecated stock/ other securities, keeping in view the creditworthiness of the borrower, his past experience and financial strength.
+
+**9.3.5 Salient Features**
+Salient features of Takaful / Insurance Policy acceptable to bank:
+* Genuineness confirmation of Takaful/Insurance and PPR should be confirmed by CAD within one month of receipt of insurance policy/PPR from the Takaful/Insurance Company.
+* Submission of partial premium payment receipts to be acceptable in the event the premium amount matches with that reflected in the payment schedule provided by the respective insurance company. In the event PPR is subject to/ conditional upon realization of cheque CAD / Business Unit to seek confirmation from respective Takaful / Insurance Company on its REALIZATION (since Takaful / Insurance coverage becomes effective upon realization of cheque).
+* Deferred Payment Schedule (for acceptance please refer to Annexure FM: # 9.17).
+Amount insured by Takaful / Insurance company / co-insurers is within the approved per risk limits circulated by Fl’s. (Any deviation to be waived through FI’s).
+* Per Party limit of Insurance/Takaful Company and that of co-insurers to be within per risk limits approved by Fl's before implementing limits.
+* In case of co-insurance/Takaful, share of each Insurance/Takaful company is authenticated by co-insurers.
+* No deductable Clause (any deviation to be accorded as prescribed in Annexure FM: # 9.17)
+* The share of each insurance company as part of a Takaful / Insurance policy must be mentioned and authenticated in case of Joint Policy and share of individual Takaful / Insurance Company not to exceed Per Risk Limit circulated by Financial Institutions Department.
+In case of Ijarah Assets the cost of Insurance / Takaful coverage to be borne by bank (Lessor) and the same recovered from Lessee (customer) through Ijarah rentals.
+* In addition to coverage of risks mentioned in Para 9.3.2 and 9.3.3 the financing approving authority may require additional risks to be covered on case-to-case basis depending upon the nature of business and risk profile of the customer.
+FULL COVERGAE of BANKS INVENTORY under SPOT Murabaha, Tijarah. Istisna, DM & Ijarah etc. (any deviation to be accorded as prescribed under Annexure FM: # 9.17)
+Business Unit to provide endorsement in the event of any Change in location of security from that reflecting in the Insurance/Takaful policy.
+* Open Pledge MUST be adequately covered through Takaful / Insurance policy and policy should clearly mention stocks/assets are stored in open and there should be no restrictive clause regarding such storage arrangement to avoid any dispute in the event of a claim
+Business Unit must provide proper justifications/reasoning for any waiver in Takaful/Insurance Policy to respective approving authority.
+CAD to maintain and update Proper log of amendments on record.
+Coverage of stocks in process to be obtained, wherever applicable.
+Coverage of stocks in transit to be obtained, wherever applicable.
+* In case of pari-passu status involving multiple financers, the policy must be assigned in favor of the financing banks. In case of any amendments, the same must be communicated/updated to
+the co-bankers.
+In case of syndicate / sukuk financing where held security is insured in favor of lead bank / agent bank, without joint charge of other consortium banks, the certified true copy (CTC) of insurance/takaful policy must be obtained from lead arranger for assessment and record. Exception in such policies must be conferred with the lead arranger by business unit.
+CAD to ensure ALL Excess Over Limits are allowed subject to confirmation that
+Insurance/Takaful coverage adequately covers assets securing the enhanced BOL amount for the extended time period.
+Customer to get Takaful / Insurance coverage for all stocks/assets held so that in case of any mishap their loss may be minimized. Where customers do not get the remaining assets/stocks insured, an undertaking should be obtained from customers that Takaful claim received shall be first available towards adjustment of Bank’s financing and balance if any shall be repaid / paid from their own sources (Subject to SCD concurrence in case of banks own assets)
+As per existing standard clause in Takaful / Insurance policies covering Assets "If the Asset /
+property hereby covered shall at the breaking out of any fire be collectively of greater value than
+the sum covered thereon then the Participant shall be considered as bearing the Risk himself for
+the difference and shall bear a rate able proportion of the loss or damage accordingly. Every item, if more than one of the Policy shall be separately taken into consideration subject to this
+condition".
+To further explain this clause we may assume Assets held by customer for Rs. 100 million while
+Takaful / Insurance shall be sought for Rs. 50 million to adequately secure Assets against financing facilities availed from bank. In event of claim due to a destruction of Assets of Rs. 50
+million the insurer shall provide Claim to customer up to Rs. 25 million calculated on proportion of loss to insured amount.
+In view of the above it is therefore mandatory for business units to ensure that Customer obtains Takaful / Insurance coverage for all Stocks/Assets held so that in case of any mishap claim is sufficient to cover bank finance (any deviation to be accorded as only on exceptional basis as prescribed in Annexure FM: 9.17).
+
+* CAD to advise Business Units to write to the customer at least One (1) Month before the expiry of the Insurance/Takaful Policy requesting them to issue renewal instructions to the Insurance/Takaful company under copy to the Bank.
+Takaful / Insurance policies to be renewed prior to expiry date
+* A reminder letter must be sent to the customer by the business unit on the advice from CAD at least 15 days before the expiry date of Insurance/Takaful policy.
+Business unit to ensure outstanding exposure is covered under Takaful/Insurance policy (where applicable) in case of expired limits and where client is not ready to pay the Takaful / Insurance charges, approval for payment of premium to be also obtained from the DCEO / CEO through RAMD or Business Department (wherever the account is parked).
+CAD/business unit/RAMD to ensure Takaful / Insurance coverage is in place on non- performing assets including which have been referred to legal counsel for recovery suit filed by Bank. CAD / Business Unit to seek advice of legal counsel contesting the case on Bank's behalf to seek court's permission to debit cost of this coverage to outstanding balances because the matter is subjudice or alternatively approval to pay premium from expense account to be obtained from DCEO / CEO through RAMD Department.
+
+**9.3.6 Fixed Assets**
+Takaful / Insurance cover for building (including fixtures & fittings) to be for amount equivalent to market value appraised by bank approved valuator above plinth level. Value of land shall be
+excluded to calculate the amount of Takaful / Insurance required. 
+
+**9.3.7 Fire Coverage**
+It is one of the Main Insurance Policy document. Fire Policy provides Takaful /Insurance coverage to the Property / Assets insured if destroyed or damaged by Fire and / or Lightening.
+
+In case of property the Takaful / Insurance Company may pay at market value at the time of
+destruction / damage or at its option reinstate / replace such property or any part thereof. It is necessary to obtain a Fire policy as all other risks under FIRE COVERAGE are covered by extensions to this main policy and as such its terms & conditions apply to extensions as well, unless varied other-wise.
+
+Loss caused by Spontaneous combustion is not covered by Fire Policy unless an extension to this
+effect is sought so it is prudent to obtain a Fire Policy with extension to cover loss caused by Spontaneous Fire (i.e. against Cotton, gasoline etc.)
+
+**9.3.8 RSD Coverage**
+Riot and Strike Endorsement is an extension of Fire Policy and provides risk coverage due to damage or loss caused by following acts:
+a) Strike or Lock-out
+b) Action of any lawful constituted authority in suppressing or attempting to suppress any such disturbance or in minimizing the consequences of any such disturbance or in preventing or attempting to prevent any such act or in minimizing the consequences of any such act
+c) The willful act of any striker or locked-out worker done in furtherance of a strike or in resistance to a lock-out
+Loss to property caused by an employee in collusion with external assistance (i.e. outside customer’s premises) shall be covered by a separate terrorism policy.
+
+RSD coverage is particularly required in the below-mentioned instances:
+* Stocks /Assets stored in Factory Premises
+* Disturbed areas / Shopping centers or during periods of political unrest
+* All other situations, where chances of loss due to such peril is significant
+
+RSD endorsement DOES NOT provide coverage against loss caused by War, Mutiny, Hostilities, Civil Commotion and Terrorism.
+
+**9.3.9 Malicious Damage**
+Malicious damage shall mean all physical loss or damage resulting from a malicious act caused by anyone whether or not the aforesaid act is committed during a disturbance of public peace, and shall include loss caused by sabotage and terrorism meaning an act, including the use of force or violence, of any person or group(s) of persons, whether acting alone or on behalf of or in connection with any organization(s), committed for political, religious or ideological purposes including the intention to influence any government and/or to put the public in fear for such purposes.
+Malicious damage endorsement is an extension of RSD and extends coverage for loss or damage to property directly caused by the malicious act of any person not due to War / Invasion / Civil commotion / Terrorism etc.
+Malicious Damage is particularly required in the following instances:
+a) Flammable items or liquid cargo stored in drums / less durable tanks or where security system
+is inadequate.
+b) Finance extended to traders / shopkeepers
+c) Mortgaged property
+d) Areas where feudal / competitive rivalry is significant
+
+**9.3.10 Aircraft Damage Endorsement**
+This endorsement includes coverage due to loss or damage to property insured (by fire or otherwise) directly caused by Aircraft and other aerial devices and / or articles dropped there from.
+This coverage to remain in force provided the Main Fire Policy is valid and loss deemed to be by
+fire. This endorsement is particularly required for coverage of the following:
+a) Location of Mortgaged Property / Stocks pledged or hypothecated is near to an Airport (civil or
+military) or if in the direction of flying course
+b) Damage / Loss due to vibration of Aircraft's low flight over the premises
+This endorsement DOES NOT provide coverage against any loss or damage caused by any Aircraft to which permission to land has been extended by the Insured / loss exceeding insured amount.
+
+**9.3.11 Electric Clause ‘A’**
+Electrical A clause provides coverage against loss or damage to any electrical machine, apparatus,
+fixture or fitting (including electric fans, electric household or domestic appliances, wireless sets and
+radios) or to any portion of the electrical installation, arising from overrunning, excessive pressure,
+short circuiting, arcing, self-heating or leakage of electricity, from whatever cause (lightning, Included); provided that this exemption shall apply only to the particular electrical machine, apparatus, fixture, fitting or portion of the electrical installation so affected and not to other
+machines, fixtures, fitting or portion of the electrical installation which may be destroyed or damaged by fire.
+This endorsement does not provide coverage against overrunning, excessive pressure, short circuiting, arcing, self-heating or leakage of electricity, but any loss to other machinery covered
+under policy due fire created on account of aforesaid reason shall be compensated.
+
+**Electric Clause ‘B’**
+This clause provides coverage against loss or damage by fire to electrical appliances and installations by overrunning excessive pressure, short circuiting arcing self-heating or leakage of electricity, from whatever cause (lightning included).
+No liability exists under this policy for loss or damage to any electrical machine, apparatus, fixture or fitting or to any portion of the electrical installation unless caused by fire or lightning.
+
+**9.3.12 Impact Damage endorsement**
+This endorsement provides coverage against loss or damage to Building & / or its contents, gate, boundary wall due to impact by any road vehicle not belonging to or under the control of the
+insured.
+It should be noted that any damage or loss caused to property by impact of road vehicle, belonging to or under the control of the insured, is not covered under this extension.
+
+**9.3.13 Atmospheric Disturbance Endorsement**
+This endorsement provides coverage against damage or loss from Heavy Rain, Snow, Hail, Wind, Hurricane, Cyclone, Tornado, Flood and Typhoon.
+This clause DOES NOT provide coverage against loss or damage due to
+* Normal rain or flood on account of normal water course or leakage from pipe / tap etc.
+* Goods in open and / or in open sided sheds / building and Underground tanks in the open containing solvents, fuel, oils, chemicals or any other liquid.
+Therefore, it is imperative that movable and immovable assets are safe from normal rain.
+
+**9.3.14 Standard Explosion endorsement**
+Standard Explosion Endorsement provides coverage for loss or damage to property by fire caused by explosion, occasioned by or through or in consequence, directly, of acts of terrorism (use of violence for political ends and includes any use of violence for the purpose of putting the public or any section of the public in fear.) committed by a person or persons acting on behalf of or in connection with any organization
+This policy should be used where probability of explosion is significant or in those industries where obtaining of coverage for such peril is customary.
+Please note that loss of or damage to boilers, economizers, or other vessels, machinery or apparatus in which pressure is used or their contents resulting from their explosion is not covered. More relevant to storage of flammable liquid or liquids stored in premises.
+
+**9.3.15 Earthquake Shock Endorsement**
+Business Units are advised to ensure coverage particularly against this risk for areas falling in
+earthquake zones or scientific reports reflecting possibility of earthquake.
+
+**9.3.16 Earthquake Fire Endorsement**
+This Endorsement covers loss or damage by fire to any of the property insured by this policy occasioned by or through or in consequence of earthquake.
+
+**9.3.17 Burglary**
+Endorsement against burglary covers loss or damage by following acts:
+* Theft / Burglary or Housebreaking accompanied by actual forcible and violent breaking into or out of the premises provided the premises are guarded by armed guards.
+Coverage against burglary is Only against those thefts which are followed by / consequent to burglary. The deployment of round the clock Chowkidar / Guard with the standard condition that Armed Chowkidar / Guard be posted by insured goods every night from 9.00 p.m. to 6.00 am may be mandatory by the insurer.
+
+Burglary endorsement is particularly required for coverage of the following:
+a) Hypothecated / Pledge of stocks (including but not limited to stocks of sugar, cotton & other
+bulky items).
+b) All Moveable goods or Unmovable / Assets which may be easily removed.
+Burglary endorsement DOES NOT provide coverage against loss caused by Theft or any attempt by
+any member of the insured’s family, business staff, domestic servants, or any persons enters lawfully on the premises whether such person or persons are concerned as principals or accessories.
+
+**9.3.18 Terrorism Coverage**
+Terrorism is an extension of RSD and Takaful / Insurance companies are now providing two separate policies for Terrorism coverage (details of Policy T3 and LPO 437) as mentioned below:
+
+**9.3.18.1 Terrorism Policy LPO 437**
+Terrorism Policy LPO 437 provides coverage in the event of Physical loss or damage arising from riots and/or strikes and/or civil commotions including fire damage and loss by looting following
+riots and/or strikes and/or civil commotion and/or malicious damage (e.g. riot & strikes that commenced on Dec 27, 2007).
+
+**9.3.18.2 Terrorism Policy T3**
+Terrorism Policy T3 provides coverage in the event of Physical loss or damage by use of force or violence whether acting alone or on behalf or in conjunction with any organization, committed for political, religious or ideological purposes including the intention to influence any government and/or or to put the public in fear for such purposes (e.g. Marriot hotel explosion in Islamabad).
+
+**9.3.19 Approved Panel of Takaful/ Insurance Companies**
+Takaful / insurance companies on bank's panel to be reviewed on an annual basis by Financial
+Institutions department as per the "F. Criteria for Limit Allocation of Insurance Companies". Any enlistment / delisting of a Takaful / Insurance company shall be duly approved through Financial Institutions Dept. and updated list of Takaful / Insurance companies to be maintained with CAD and Business Units.
+Compliance with "Per Party Per Risk Limit" assigned to each Insurance company to be ensured by
+CAD. The Per Party Per Risk limit is specific for General and Marine Coverage separately against a Single Insurance Company.
+
+The two Takaful /Insurance categories are mentioned below:
+1) General Takaful / Insurance is any insurance other than Marine Insurance.
+2) Marine Takaful / Insurance covers the loss or damage of ships, cargo, terminals, and any transport or cargo by which goods /assets is transferred, acquired, or held between the points of origin and final destination.
+
+Please note that Limit Allocation to each Takaful / Insurance Company is mainly based on Credit Rating, Financial Analysis, and Reinsurance Treaties as per approved policy followed by Fl’s.
+
+**9.3.20 Approval of Deductible Clause**
+In case of Corporate Customers, Approval to accept the policies with Deductible Clause shall be considered on a case to case basis for decision. The discretionary powers against Deductible clause/ per corporate client are as under:
+1. Group Head Corporate Banking: Up-to PKR 0.100 Million
+2. Deputy Chief Executive Officer: Above PKR 0.100 Million and up-to PKR 5.0 Million
+3. President & Chief Executive Officer: Above PKR 5.0 Million
+
+
+****
+**9.4 Deferral Management**
+
+**9.4.1 Deferral Policy:**
+It is the bank’s policy to obtain complete, legally executed security documentation from obligors
+prior to disbursement of facilities. All finances will be disbursed after completion of the required security/ support documents. Therefore, deferral of finance documents will generally be
+discouraged. There may however be genuine situations where deferral of financing documents may
+be considered for disbursal of approved finance facilities for specific situation. The documentation requirements have been classified in following three categories:
+1. Documents providing evidence to legal claim
+2. Documents required by the regulatory body; and
+3. Support documents.
+The first two categories represent "essential" documents and their deferral will not be allowed. A
+brief list of such documents is mentioned in Annexure FM: 9.15.1. Support documents deferral may be approved as mentioned in the preceding paragraphs.
+
+**9.4.2 Documentation Categories**
+**1. Documents providing evidence to legal claim**
+All documents that establish the Bank’s rights and/or claims, evidence of disbursement of facilities
+and creation of relevant securities are essential.
+As a policy, all such documents that provide evidence to legal claim are not deferrable.
+
+**2. Documents required by regulatory bodies**
+All documents that are required to be obtained as per instructions issued by SBP/ any other
+regulatory body are not deferrable.
+
+**3. Support documents**
+Documents that do not provide evidence to legal claim and are obtained to further strengthen security interest or to monitor performance of the borrower are deferrable. A list of deferrable documents is available at Annexure FM: 9.15.2.
+
+**9.4.3 Guidelines for Deferral Approving Authority other than CC:**
+While granting approval, it will be ensured that:
+* Deferral document do not fall under document category 1 & 2
+* Deferrals will not expose the Bank to any pecuniary risk and Bank's security position is not weakened. The deferral does not jeopardize the rights and remedies available to the Bank. While allowing deferrals, the approving authorities may obtain the advice of In-house Legal Department on need basis so as to ensure that deferrals do not result in compromising the Bank's interest. 
+* Deferral does not violate Shar’iah guidelines issued by SCD from time to time. In case of any doubt/confusion in Shar’iah compliance issue, guidelines/approval to be obtained from SCD.
+* The deferral does not violate any of the regulatory requirements.
+* The customer has proven positive track record.
+* The customer has undertaken in writing to regularize the deferred documents within the stipulated time.
+* Completion of deferred documentation is certain/ most probable.
+* Deviation from SBP prudential regulations / any other regulations will require waiver from SBP. Such waiver request to be signed off by respective Business/Group Head & will be
+forwarded through Compliance Group for onward submission to SBP.
+* For deviation from SBP PRs / any other regulations, where bank at its own discretion can allow relaxation, approval/ review from President & CEO/ Credit Committee will be
+obtained.
+
+**9.4.4 Deferral Approval Authority:**
+Deferral Approval authorities are mentioned in the Annexure 9.15.2.
+1st Deferrals will be allowed by relevant approving authority as per delegation matrix mentioned in the annexure. If documentation is not perfected within the time frame conveyed for 1st deferral, Business unit may elevate request for 2nd and/or 3rd deferral providing adequate justification in this regard. Maximum time for 2nd & 3rd deferral would be same as specified in Annexure 9.15.2. No deferral will be allowed by the higher level approving authority for the maximum number of days within his authority without expiry of previous deferral e.g., no deferral may be allowed for maximum 90 days in one go by the relevant approving authority without expiry of 1st and 2nd deferrals of 30 days each.
+Upon expiry of deferral, any deficiency in deferred documents will result in automatic limit
+freezing.
+Deferral for classified finances will be approved by CEO & DCEO on recommendation of RAMD/
+Business Groups.
+
+**9.4.5 Deferral Requests**
+Relationship Managers/ branches may use the attached format (Annexure FM: 9.15.3) for obtaining deferral of any document. Proper reasons for deferral requirement should be provided with the request. In case request is forwarded electronically, they should incorporate all relevant information.
+
+**9.4.6 Procedural Requirements:**
+The responsibility for obtaining complete documents from an obligor/ group lie with the respective Relationship manager/ Branch Manager, whereas CAD is responsible for lodgment and control of
+security documents. When accepting security documentation from an obligor, the CAD must ensure that documents are executed on the Bank's standard approved forms, and checks the same for
+completeness and enforceability. Where security documentation is incomplete, or any discrepancies, and only as exception, a deferral/ waiver may be requested from the appropriate authority by
+Business Unit.
+While initiating a deferral, the RM will prepare a Deferral Request Form (DRF) as per attached format wherein reasons / justifications for the proposed deferral should be clearly identified. The
+deferral should be routed to the approval authority supported by CAD intimation for the requested deferral. After approval, the DRF will be forwarded to the CAD.
+
+**9.4.7 Monitoring & Reporting:**
+*  The deferral approval will be forwarded to CAD who would allow disbursement after confirming that all documentation including any required deferrals is in place.
+* The CAD will maintain a record of deferrals and intimate concerned RM/ Business unit of outstanding deferral through the monthly documentation deferred status report.
+* All deferrals will be reported in the monthly Documentation Deferral Reports generated by CAD.
+* CAD will submit a consolidated documentation deferral status report on a monthly basis for
+review by CC.
+
+FINANCING PROCEDURE MANUAL
+Version: 2
+Page 420-432

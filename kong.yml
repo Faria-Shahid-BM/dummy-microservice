@@ -61,6 +61,34 @@ services:
         plugins:
           - name: jwt
 
+  - name: docgen-service
+    url: http://docgen-service:8000
+    connect_timeout: 60000
+    read_timeout: 310000
+    write_timeout: 310000
+    routes:
+      - name: docgen-profiles
+        paths: ["/api/profiles"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-jobs
+        paths: ["/api/jobs"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-templates
+        paths: ["/api/templates"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-approvals
+        paths: ["/api/approvals"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-notifications
+        paths: ["/api/notifications"]
+        strip_path: false
+        plugins:
+        - name: jwt
+
   - name: auth-service
     url: http://auth-service:8000
     routes:

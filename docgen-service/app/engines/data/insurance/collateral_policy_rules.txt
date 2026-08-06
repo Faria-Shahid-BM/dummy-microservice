@@ -1,0 +1,165 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART A — COLLATERAL TYPE CLASSIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Identify collateral from: property_description, goods_description,
+policy_type, policy_class, BANK_POLICY_TEXT.
+A single policy may cover multiple categories.
+
+  [A] Building
+      → Factory building, warehouse, commercial building,
+        residential property
+
+  [B] Plant & Machinery
+      → Manufacturing machinery, production equipment,
+        industrial plant, boilers, compressors
+
+  [C] Inventory / Stock
+      → Raw materials, finished goods, trading stock,
+        inventory in storage, inventory in transit
+
+  [D] Life Insurance – Borrower
+      → Life policy assigned to bank, credit life,
+        WBCA, key person life
+
+  [E] Movable Assets
+      → Vehicles, equipment, mobile assets, furniture
+        & fixtures, portable machinery
+
+If collateral type cannot be determined → classify as "Unknown",
+status "Info Not Available", add Data Gap, apply all requirements
+as "Info Not Available".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART B — POLICY TYPE CLASSIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Classify into exactly one code from INSURANCE_JSON:
+
+  [P1]  Fire & Allied Perils
+  [P2]  Property All Risks
+  [P3]  Inland Transit
+  [P4]  Marine Cargo Open Policy
+  [P5]  Machinery Breakdown
+  [P6]  Comprehensive Motor
+  [P7]  Floater Policy
+  [P8]  Life Insurance
+  [P9]  Credit Life / WBCA
+  [P10] Unknown
+
+If undetermined → assign [P10], status "Info Not Available",
+add Data Gap, apply all requirements as "Info Not Available".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART C — COLLATERAL ↔ POLICY MATCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Expected mapping:
+
+  Building                → P1, P2
+  Plant & Machinery       → P1, P2, P5
+  Inventory (Storage)     → P1, P2
+  Inventory (Transit)     → P3, P4
+  Life Insurance Borrower → P8, P9
+  Movable Assets          → P6, P7, P3 (if in movement)
+
+If policy type NOT in expected mapping for detected collateral:
+  → Non-Compliant | Critical | category: "Wrong Policy Type"
+  → Raise dedicated issue_id
+
+If either type is "Unknown" → policy_match_status:
+"Info Not Available", no issue, add Data Gap.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART D — COLLATERAL-SPECIFIC RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[A] BUILDING
+   - Apply full peril checklist from BANK_POLICY_TEXT
+     (Fire, Lightning, Explosion, Earthquake, RSD, SRCC,
+      Atmospheric Disturbance, Aircraft Damage, etc.)
+   - Check insured value vs. reinstatement / replacement value
+   - Check bank named as mortgagee / beneficiary
+
+[B] PLANT & MACHINERY
+   - Apply full peril checklist from BANK_POLICY_TEXT
+   - If Machinery Breakdown policy also present, check
+     sudden & accidental breakdown coverage
+   - Check bank named as loss payee
+
+[C] INVENTORY / STOCK
+   Storage:
+   - Apply full peril checklist from BANK_POLICY_TEXT
+   - Check sum insured vs. stock value / operative limit
+   - Check bank named as beneficiary / loss payee
+
+   Transit (if covered):
+   - Apply transit-specific rules per Part E — P3/P4 below
+
+[D] LIFE INSURANCE – BORROWER
+   - Verify borrower is the life assured
+   - Verify policy is assigned / endorsed to bank
+   - Verify policy is active and not lapsed
+   - Verify sum assured vs. outstanding facility amount
+   - Check for surrender value restrictions
+
+[E] MOVABLE ASSETS
+   - Verify comprehensive cover (not third-party only)
+   - Check bank named as loss payee
+   - If assets moved between locations, check transit
+     coverage applies
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART E — POLICY-SPECIFIC RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[P1] FIRE & ALLIED PERILS / [P2] PROPERTY ALL RISKS
+   - Check each required peril individually against risk_clauses
+     per BANK_POLICY_TEXT peril list
+   - Do NOT apply transit peril rules to storage policies
+
+[P3] INLAND TRANSIT
+   1. "Road/Rail Cargo Clauses A" = all-risks for inland transit.
+      If present → mark comprehensive peril coverage Compliant.
+      Do NOT create individual rows for Fire, Earthquake, RSD,
+      Burglary, Atmospheric Disturbance, Aircraft Damage,
+      Electrical, or Explosion — storage requirements only.
+
+   2. SRCC: check for "Road/Rail Strikes Clauses Cargo" or
+      equivalent. Absent → Non-Compliant, raise issue.
+
+   3. Transit Terrorism: check for "Cargo Termination of Transit
+      Clause (Terrorism)" or equivalent. Absent → Non-Compliant,
+      raise issue.
+
+   4. SEA VESSEL RULE: Inland Transit = within-country road/rail/
+      air movement. Sea vessel coverage NOT applicable.
+      Mark as "N/A". Never raise as issue or data gap.
+      Only flag missing sea vessel coverage for international /
+      ocean marine policies.
+
+[P4] MARINE CARGO OPEN POLICY
+   - Check Institute Cargo Clauses (A / B / C) or equivalent
+   - Check sea vessel coverage (IS applicable and must be checked)
+   - Check SRCC and War / Terrorism clauses
+
+[P5] MACHINERY BREAKDOWN
+   - Check sudden & accidental mechanical / electrical breakdown
+   - Check business interruption extension if required by
+     BANK_POLICY_TEXT
+
+[P6] COMPREHENSIVE MOTOR
+   - Verify comprehensive (not third-party only)
+   - Check bank named as loss payee
+   - Check no restrictive clauses excluding bank's interest
+
+[P7] FLOATER POLICY
+   - Check all asset locations are included
+   - Check per-location and per-item limits are adequate
+   - Check bank named as beneficiary / loss payee
+
+[P8] LIFE INSURANCE / [P9] CREDIT LIFE / WBCA
+   - Verify assignment to bank is endorsed on policy
+   - Verify no lapse or premium default
+   - Verify borrower is the life assured
+
+[P10] UNKNOWN POLICY TYPE
+   - Mark all peril and coverage checks "Info Not Available"
+   - Add Data Gap entry
