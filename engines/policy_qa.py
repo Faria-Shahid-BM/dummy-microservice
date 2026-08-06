@@ -329,6 +329,7 @@ def answer(
     embed_model: str,
     *,
     system_prompt: str | None = None,
+    emit: EmitFn | None = None,
 ) -> dict[str, Any]:
     """One grounded Q&A turn: retrieve, then answer strictly from the context.
 
@@ -337,6 +338,14 @@ def answer(
     continuity; temperature 0.1. Returns ``{"answer": str, "sources": [str]}``.
     ``system_prompt`` overrides the shipped grounding system prompt (None ->
     ``SYSTEM_PROMPT``).
+
+    When ``emit`` is provided AND the provider exposes a ``stream`` method,
+    the reply is streamed and each content delta is forwarded as a
+    ``("content", delta)`` event (same contract as
+    ``collateral.generate_observations``), so the frontend can show the
+    answer live. The full text is still accumulated and returned exactly as
+    the non-streaming path, so callers that don't pass ``emit`` are
+    unaffected. Any streaming failure falls back to the plain ``call``.
     """
     if not question or not question.strip():
         return {"answer": "", "sources": []}
@@ -360,7 +369,20 @@ def answer(
             messages.append({"role": role, "content": msg["content"]})
     messages.append({"role": "user", "content": question})
 
-    reply = provider.call(chat_model, messages, temperature=0.1)
+    reply: str | None = None
+    stream_fn = getattr(provider, "stream", None)
+    if emit is not None and callable(stream_fn):
+        try:
+            chunks: list[str] = []
+            for delta in stream_fn(chat_model, messages, temperature=0.1):
+                chunks.append(delta)
+                emit("content", delta)
+            reply = "".join(chunks)
+        except Exception:
+            reply = None
+
+    if reply is None:
+        reply = provider.call(chat_model, messages, temperature=0.1)
 
     sources: list[str] = []
     for c in retrieved:

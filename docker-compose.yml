@@ -8,9 +8,13 @@ services:
       KONG_PROXY_LISTEN: "0.0.0.0:80"
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
       KONG_LOG_LEVEL: "info"
-    ports:
-      - "80:80" #All incoming traffic on port 80 goes into Kong first. 
-      - "8001:8001"
+      KONG_PLUGINS: "bundled"
+    # No published ports: the frontend/nginx container below is the only
+    # public entry point and reaches Kong internally as http://kong:80. The
+    # Admin API on 8001 is likewise internal-only — never expose it.
+    expose:
+      - "80"
+      - "8001"
     volumes:
       - ./kong.yml:/kong.yml
     healthcheck:
@@ -104,6 +108,19 @@ services:
       kong:
         condition: service_healthy
 
+  # Public entry point: serves the built Angular app and reverse-proxies
+  # /api/* to Kong (see frontend/nginx.conf). This is the only container that
+  # publishes a host port.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      kong:
+        condition: service_healthy
+
 volumes:
   auth-data:
-  policyqa-data:     
+  policyqa-data:

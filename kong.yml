@@ -72,10 +72,22 @@ services:
   - name: audit-service
     url: http://audit-service:8000
     routes:
-      - name: audit-route
+      # GET only, and jwt-gated here at the edge: unlike every other service,
+      # audit-service has no scope check of its own (see audit-service/main.py)
+      # — anyone with a Kong-valid token could otherwise read the whole log.
+      # POST stays reachable only from other services over the internal
+      # Docker network, never through this route.
+      - name: audit-read-route
         paths:
           - /api/audit
+        methods:
+          - GET
         strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
 
 plugins:
   - name: cors

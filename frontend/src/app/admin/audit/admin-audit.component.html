@@ -1,0 +1,38 @@
+<section class="card">
+  <div class="log-header">
+    <h2>Audit trail</h2>
+    <button class="clear" (click)="load()" [disabled]="loading">
+      {{ loading ? 'Loading…' : 'Refresh' }}
+    </button>
+  </div>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="empty" *ngIf="!error && !entries.length && !loading">No audit entries yet.</p>
+
+  <table class="audit-table" *ngIf="entries.length">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>User</th>
+        <th>Service</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let entry of entries">
+        <td>{{ entry.timestamp }}</td>
+        <td>{{ entry.user_id }}</td>
+        <td>{{ entry.service }}</td>
+        <td>{{ entry.action }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="log-header pagination" *ngIf="entries.length">
+    <span class="hint">Page {{ page }} of {{ totalPages }} ({{ total }} total)</span>
+    <div class="button-row">
+      <button class="clear" (click)="prevPage()" [disabled]="page <= 1 || loading">Previous</button>
+      <button class="clear" (click)="nextPage()" [disabled]="page >= totalPages || loading">Next</button>
+    </div>
+  </div>
+</section>

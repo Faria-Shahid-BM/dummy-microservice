@@ -9,11 +9,16 @@ Five business services sit behind the gateway: **collateral review**, **document
 ## Architecture
 
 ```
-   Browser (frontend/index.html + activity.js)
+   Browser
           │  http://localhost
           ▼
   ┌──────────────────────────────────────────────────────────┐
-  │                        Kong  (:80)                          │
+  │        frontend (nginx) — Angular app + /api/* proxy        │
+  └──────────────────────────────────────────────────────────┘
+          │  http://kong:80 (internal only)
+          ▼
+  ┌──────────────────────────────────────────────────────────┐
+  │                        Kong                                  │
   │        routing · JWT signature check · CORS                 │
   └──────────────────────────────────────────────────────────┘
      │        │          │          │          │          │
@@ -33,8 +38,8 @@ Five business services sit behind the gateway: **collateral review**, **document
   SQLite (auth-data vol)        audit-service → audit-logs/audit.log
 ```
 
-- All traffic enters through **Kong** on port `80`.
-- Kong verifies the **JWT signature** on every protected route (`/api/collateral`, `/api/docdiff`, `/api/valuation`, `/api/insurance`, `/api/policyqa`).
+- The **frontend** container (Angular, built to static files, served by nginx) is the only container that publishes a host port; it reverse-proxies everything under `/api/*` to Kong over the internal Docker network. Kong itself publishes no host ports.
+- Kong verifies the **JWT signature** on every protected route (`/api/collateral`, `/api/docdiff`, `/api/valuation`, `/api/insurance`, `/api/policyqa`, and the audit read route).
 - **Defence in depth:** each protected service *also* re-verifies the JWT and checks the caller's **scope** (`security.py`) — a validly-signed token still can't reach a service the user isn't authorized for (403).
 - **auth-service** issues tokens and hosts an **admin-only** user-management API backed by SQLite.
 - The business services emit best-effort **audit events** to **audit-service**, which appends them to a host-mounted log file.
@@ -51,8 +56,9 @@ Five business services sit behind the gateway: **collateral review**, **document
 | `valuation-service`     | `valuation-service/` | `/api/valuation/*`        | JWT  | LLM review of a valuation report vs approved-valuer panel + policy rules. |
 | `insurance-service`     | `insurance-service/` | `/api/insurance/*`        | JWT  | LLM compliance check of an insurance policy vs bank policy + rules.       |
 | `policyqa-service`      | `policyqa-service/`  | `/api/policyqa/*`         | JWT  | Retrieval-augmented policy Q&A; per-user document ingestion (RAG).        |
-| `audit-service`         | `audit-service/`     | `/api/audit/*`            | none | Append-only JSON-lines audit log.                                        |
-| `kong`                  | (image `kong:3`)     | `:80` proxy, `:8001` admin| —    | API gateway, DB-less declarative config (`kong.yml`).                     |
+| `audit-service`         | `audit-service/`     | `/api/audit/audit` (GET) | JWT (edge only)  | Append-only JSON-lines audit log. The one route with no self-check inside the service — Kong's JWT+`exp` check at the edge is the only gate. |
+| `kong`                  | (image `kong:3`)     | internal only (`http://kong:80`)| —    | API gateway, DB-less declarative config (`kong.yml`). No host port — reached only via the `frontend` container's nginx proxy. |
+| `frontend`              | `frontend/`          | `:80` (public)            | —    | Angular app built to static files and served by nginx; reverse-proxies `/api/*` to Kong. The only container that publishes a host port. |
 
 > **`strip_path: true`** — Kong removes the route prefix before forwarding. So `POST /api/collateral/review` reaches the service as `POST /review`, `POST /api/auth/login` → `POST /login`, etc.
 >
@@ -76,7 +82,7 @@ Five business services sit behind the gateway: **collateral review**, **document
 | `POST /api/policyqa/chat`               | `policy_qa`   | `{query, history}` → `{answer, sources}` (RAG).           |
 | `POST /api/policyqa/ingest`             | `policy_qa`   | multipart `file` → builds the caller's own index.         |
 | `DELETE /api/policyqa/index`            | `policy_qa`   | Deletes the caller's index (chat falls back to bundled).  |
-| `GET /api/audit/audit`                  | none          | Returns all audit events.                                 |
+| `GET /api/audit/audit`                  | JWT (edge)    | Returns all audit events. Gated by Kong's JWT+`exp` check only — audit-service has no scope check of its own, unlike every other business route. |
 
 The admin endpoints have **no Kong JWT plugin** (login must be reachable), so auth-service enforces the `admin` scope itself.
 
@@ -102,7 +108,7 @@ These are only the **seed**. An `admin` can add/remove users and toggle any user
 
 ### Three enforcement layers (defence in depth)
 
-1. **UI (UX only)** — [`frontend/index.html`](frontend/index.html) shows only the service cards / admin dashboard the user's scopes allow.
+1. **UI (UX only)** — the [Angular frontend](frontend/src/app/dashboard/dashboard.component.ts) shows only the service tiles / admin dashboard the user's scopes allow.
 2. **Gateway** — Kong verifies the JWT **signature** on all business routes.
 3. **Service (the real boundary)** — [`security.py`](security.py) re-verifies the JWT and returns **403** unless the required scope is present; the admin API requires the `admin` scope. A route called directly (e.g. `curl`) is still enforced.
 
@@ -123,7 +129,7 @@ The collateral pipeline runs several LLM calls and can take a while, so it strea
 
 - **Backend:** [`collateral-service`](collateral-service/main.py) exposes `POST /review/stream`. [`streaming.py`](streaming.py) runs the blocking engine on a worker thread and bridges its `emit()` progress callback into **Server-Sent Events** (`text/event-stream`, with `X-Accel-Buffering: no` so Kong/nginx doesn't buffer).
 - **Token streaming:** [`provider.py`](provider.py) has a `stream()` method; the human-readable **observations** step streams tokens live. Scanned-PDF OCR reports **page-level** progress instead (pages transcribe in parallel).
-- **Frontend:** [`frontend/activity.js`](frontend/activity.js) is a standalone, dependency-free widget that consumes the SSE stream and renders a live stage checklist + a live "LLM output" panel, then resolves with the final result.
+- **Frontend:** the Angular app's collateral panel currently calls the plain `POST /review` endpoint (single blocking response, same as the other review panels) rather than consuming `/review/stream` — the SSE endpoint is available on the backend but not yet wired up to a live progress UI.
 
 **SSE event contract** (each `data:` payload is valid JSON): `open` (connect ack) · `event` (stage/page progress) · `content` (live LLM tokens) · `result` (final object) · `error`.
 
@@ -164,7 +170,7 @@ The document/LLM logic lives in the [`engines/`](engines/) package — copied in
 - **FastAPI** + **Uvicorn** (Python 3.12)
 - **PyJWT** (HS256), **SQLite** + **PBKDF2** (stdlib) for the user store
 - **pdfplumber**, **PyMuPDF (fitz)**, **python-docx** for text/OCR extraction; **openpyxl** (valuation panel) + **python-dateutil**; **httpx** for LLM calls (OpenRouter-compatible, streaming + embeddings)
-- **Docker Compose** for orchestration; vanilla **HTML/CSS/JS** frontend (no build step)
+- **Docker Compose** for orchestration; **Angular** frontend, built to static files and served by **nginx** (also proxies `/api/*` to Kong)
 
 ---
 
@@ -192,13 +198,13 @@ Models are set per service in [`docker-compose.yml`](docker-compose.yml): the re
 docker compose up --build
 ```
 
-Kong becomes healthy first, then the services start.
+Kong becomes healthy first, then the services start, then `frontend` builds the Angular app and starts nginx.
 
 ### 3. Open the frontend
 
-Open [`frontend/index.html`](frontend/index.html) directly in your browser (it's static — not served by Docker). It talks to Kong at `http://localhost`. Sign in (e.g. `admin` / `password123`); you'll see the service cards and admin dashboard your role allows.
+Open `http://localhost` in your browser — the `frontend` container serves the built Angular app there and reverse-proxies `/api/*` to Kong internally. Sign in (e.g. `admin` / `password123`); you'll see the service tiles and admin dashboard your scopes allow.
 
-> After editing `index.html`/`activity.js`, just refresh the browser. Backend/Dockerfile/`requirements` changes need a rebuild (`docker compose up --build`); `kong.yml` changes need `docker compose restart kong` (it's mounted, not baked in).
+> Frontend source changes need a rebuild of just that container (`docker compose up --build frontend`). Backend/Dockerfile/`requirements` changes need a rebuild of the affected service; `kong.yml` changes need `docker compose restart kong` (it's mounted, not baked in).
 
 ### 4. Or use the API directly
 
@@ -245,7 +251,8 @@ Key values (hard-coded for the POC — change before any real use):
 | LLM upstream timeouts         | 310 s read/write (LLM services)    | `kong.yml`                                |
 | CORS methods                  | GET, POST, PUT, DELETE, OPTIONS    | `kong.yml`                                |
 | LLM base URL / key            | OpenRouter / `LLM_API_KEY`         | `docker-compose.yml`, `.env`              |
-| Kong proxy / admin ports      | `80` / `8001`                      | `docker-compose.yml`                      |
+| Public port                   | `80` (`frontend` container only)   | `docker-compose.yml`                      |
+| Kong proxy / admin ports      | `80` / `8001` (internal only)      | `docker-compose.yml`                      |
 | Volumes                       | `auth-data`, `policyqa-data` (+ `./audit-logs` bind) | `docker-compose.yml`    |
 
 \* `doc_gen` is a reserved scope; no service is wired for it yet.

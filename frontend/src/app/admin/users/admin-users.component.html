@@ -1,0 +1,33 @@
+<section class="card">
+  <div class="log-header">
+    <h2>Users &amp; permissions</h2>
+    <div class="button-row">
+      <button class="clear" (click)="load()" [disabled]="loading">
+        {{ loading ? 'Loading…' : 'Refresh' }}
+      </button>
+      <a routerLink="/admin/users/new">
+        <button type="button">Add a user</button>
+      </a>
+    </div>
+  </div>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="empty" *ngIf="!error && !users.length && !loading">No users yet.</p>
+
+  <table class="audit-table" *ngIf="users.length">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th *ngFor="let s of knownServices">{{ s }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let user of users">
+        <td>{{ user.username }}</td>
+        <td *ngFor="let s of knownServices">
+          <input type="checkbox" [checked]="user.scopes.includes(s)" (change)="toggleUserService(user, s)" />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>

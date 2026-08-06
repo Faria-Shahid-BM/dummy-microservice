@@ -5,5 +5,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY engines/ ./engines/
 COPY provider.py .
 COPY security.py .
+COPY streaming.py .
 COPY policyqa-service/main.py .
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

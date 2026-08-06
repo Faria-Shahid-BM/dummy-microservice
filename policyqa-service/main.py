@@ -7,6 +7,7 @@ import httpx
 from engines import policy_qa, extraction
 from provider import Provider
 from security import require_scope
+from streaming import sse_stream
 
 app = FastAPI()
 _provider = Provider()
@@ -56,6 +57,29 @@ def chat(body: ChatBody, user=Depends(require_scope("policy_qa"))):
         chat_model=os.environ["MODEL_CHAT"],
         embed_model=os.environ["MODEL_EMBEDDING"],
     )
+
+# ── chat/stream: same answer, but the reply streams live as SSE ─────
+@app.post("/chat/stream")
+async def chat_stream(body: ChatBody, user=Depends(require_scope("policy_qa"))):
+    """Same contract as /chat, but the model's reply streams token-by-token
+    (event: content) instead of arriving as one blocking response. See
+    streaming.py for the SSE event contract; the final `answer`/`sources`
+    payload still arrives as a single `result` event at the end."""
+    username = user.get("sub", "unknown")
+    audit(username, "chat_stream")
+    idx = _user_index_dir(username)
+
+    def run(emit):
+        return policy_qa.answer(
+            body.query, body.history,
+            index_dir=idx if policy_qa.has_index(idx) else None,
+            provider=_provider,
+            chat_model=os.environ["MODEL_CHAT"],
+            embed_model=os.environ["MODEL_EMBEDDING"],
+            emit=emit,
+        )
+
+    return await sse_stream(run)
 
 # ── ingest: upload a policy → build THIS user's index ─────────────
 @app.post("/ingest")
