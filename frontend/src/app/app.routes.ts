@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminGuard, authGuard } from './auth.guard';
+import { adminGuard, authGuard, docgenGuard } from './auth.guard';
 
 export const routes: Routes = [
   {
@@ -29,6 +29,37 @@ export const routes: Routes = [
         path: 'users/new',
         loadComponent: () =>
           import('./admin/add-user/admin-add-user.component').then((m) => m.AdminAddUserComponent)
+      }
+    ]
+  },
+  {
+    path: 'docgen',
+    loadComponent: () => import('./docgen/docgen-shell.component').then((m) => m.DocgenShellComponent),
+    canActivate: [authGuard, docgenGuard],
+    children: [
+      { path: '', redirectTo: 'cases', pathMatch: 'full' },
+      {
+        path: 'cases',
+        loadComponent: () => import('./docgen/cases/case-list.component').then((m) => m.CaseListComponent)
+      },
+      {
+        path: 'cases/:caseId',
+        loadComponent: () => import('./docgen/cases/case-detail.component').then((m) => m.CaseDetailComponent)
+      },
+      {
+        path: 'templates',
+        loadComponent: () =>
+          import('./docgen/templates/template-list.component').then((m) => m.TemplateListComponent)
+      },
+      {
+        path: 'templates/:tid',
+        loadComponent: () =>
+          import('./docgen/templates/template-detail.component').then((m) => m.TemplateDetailComponent)
+      },
+      {
+        path: 'approvals',
+        loadComponent: () =>
+          import('./docgen/approvals/approvals-list.component').then((m) => m.ApprovalsListComponent)
       }
     ]
   },

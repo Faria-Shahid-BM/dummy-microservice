@@ -1,0 +1,72 @@
+<div class="topbar">
+  <h2>Approvals</h2>
+</div>
+
+<section class="card">
+  <div class="field">
+    <span>State</span>
+    <select [(ngModel)]="stateFilter" name="stateFilter" (ngModelChange)="load()">
+      <option value="">All</option>
+      <option value="draft">Draft</option>
+      <option value="pending">Pending</option>
+      <option value="approved">Approved</option>
+      <option value="rejected">Rejected</option>
+    </select>
+  </div>
+  <div class="field">
+    <span>Subject</span>
+    <select [(ngModel)]="subjectTypeFilter" name="subjectTypeFilter" (ngModelChange)="load()">
+      <option value="">All</option>
+      <option value="template_version">Template versions</option>
+      <option value="generated_document">Generated documents</option>
+    </select>
+  </div>
+  <button class="clear" (click)="load()" [disabled]="loading">
+    {{ loading ? 'Loading…' : 'Refresh' }}
+  </button>
+  <p class="error" *ngIf="error">{{ error }}</p>
+</section>
+
+<section class="card">
+  <p class="empty" *ngIf="!loading && !approvals.length">No approvals match these filters.</p>
+
+  <div *ngFor="let a of approvals" class="card approval-card">
+    <div class="log-header">
+      <span>
+        <strong>{{ a.subject.name }}</strong>
+        <span class="subject-type-tag">{{ a.subject_type }}</span>
+      </span>
+      <span [ngClass]="'status-' + (a.state === 'approved' ? 'match' : a.state === 'rejected' ? 'mismatch' : 'missing')">
+        {{ a.state }}
+      </span>
+    </div>
+    <p class="hint">
+      Maker: {{ a.maker }}<ng-container *ngIf="a.checker"> · Checker: {{ a.checker }}</ng-container>
+    </p>
+    <p class="hint" *ngIf="a.comment">Comment: {{ a.comment }}</p>
+
+    <div class="button-row" *ngIf="a.state === 'draft' || a.state === 'rejected'">
+      <button [disabled]="actingOn[a.id]" (click)="submit(a)">
+        {{ actingOn[a.id] ? 'Submitting…' : 'Submit for review' }}
+      </button>
+    </div>
+
+    <ng-container *ngIf="a.state === 'pending' && canDecide">
+      <p class="warning" *ngIf="isOwnSubmission(a)">
+        You submitted this — you can't review your own work.
+      </p>
+      <ng-container *ngIf="!isOwnSubmission(a)">
+        <div class="field">
+          <span>Comment (required to reject)</span>
+          <input type="text" [(ngModel)]="commentByApproval[a.id]" [name]="'comment-' + a.id" />
+        </div>
+        <div class="button-row">
+          <button [disabled]="actingOn[a.id]" (click)="decide(a, true)">Approve</button>
+          <button type="button" class="secondary" [disabled]="actingOn[a.id]" (click)="decide(a, false)">
+            Reject
+          </button>
+        </div>
+      </ng-container>
+    </ng-container>
+  </div>
+</section>

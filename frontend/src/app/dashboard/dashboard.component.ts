@@ -2,18 +2,22 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { SessionService, KONG_BASE } from '../session.service';
 import { JsonViewComponent } from '../json-view/json-view.component';
 import { StageDef, StageProgressComponent } from '../stage-progress/stage-progress.component';
 
-type ServiceKind = 'diff' | 'collateral' | 'valuation' | 'insurance' | 'policyqa';
+type ServiceKind = 'diff' | 'collateral' | 'valuation' | 'insurance' | 'policyqa' | 'docgen';
 
 interface ServiceMeta {
   key: string;
   label: string;
   kind: ServiceKind;
   path: string;
+  // When set, the sidebar renders a router link to this route instead of an
+  // inline panel — docgen is a whole multi-page mini-app (cases, templates,
+  // approvals), not a single-result panel like the others.
+  route?: string;
 }
 
 const SERVICE_CATALOG: ServiceMeta[] = [
@@ -21,7 +25,8 @@ const SERVICE_CATALOG: ServiceMeta[] = [
   { key: 'collateral', label: 'Collateral Reviewer', kind: 'collateral', path: '/api/collateral' },
   { key: 'valuation', label: 'Valuation Review', kind: 'valuation', path: '/api/valuation' },
   { key: 'insurance', label: 'Insurance Review', kind: 'insurance', path: '/api/insurance' },
-  { key: 'policy_qa', label: 'Policy Q&A', kind: 'policyqa', path: '/api/policyqa' }
+  { key: 'policy_qa', label: 'Policy Q&A', kind: 'policyqa', path: '/api/policyqa' },
+  { key: 'docgen', label: 'Document Generation', kind: 'docgen', path: '/api/profiles', route: '/docgen' }
 ];
 
 // Stage keys/order come straight from each engine's _emit_event() calls
@@ -171,7 +176,7 @@ export class DashboardComponent {
   policyError = '';
   policyChatError = '';
 
-  constructor(public session: SessionService, private http: HttpClient, private router: Router) {}
+  constructor(public session: SessionService, private http: HttpClient) {}
 
   get entitledServices(): ServiceMeta[] {
     const granted = this.session.session?.scopes ?? [];
@@ -198,11 +203,6 @@ export class DashboardComponent {
     if (meta.kind === 'policyqa') {
       this.loadPolicyStatus();
     }
-  }
-
-  logout(): void {
-    this.session.logout();
-    this.router.navigate(['/login']);
   }
 
   // --- document-reviewer (docdiff-service) ---

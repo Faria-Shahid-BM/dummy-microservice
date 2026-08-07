@@ -16,7 +16,16 @@ export const KONG_BASE = '';
 // Matches the scopes issued by auth-service (see auth-service/main.py seed
 // users) and required by each backend service via security.py's
 // require_scope(). "admin" is just another scope, not a separate role.
-export const KNOWN_SERVICES = ['collateral', 'docdiff', 'valuation', 'insurance', 'policy_qa', 'admin'];
+export const KNOWN_SERVICES = [
+  'collateral',
+  'docdiff',
+  'valuation',
+  'insurance',
+  'policy_qa',
+  'docgen',
+  'docgen_check',
+  'admin'
+];
 
 @Injectable({ providedIn: 'root' })
 export class SessionService {

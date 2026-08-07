@@ -17,3 +17,12 @@ export const adminGuard: CanActivateFn = () => {
   router.navigate(['/dashboard']);
   return false;
 };
+
+export const docgenGuard: CanActivateFn = () => {
+  const session = inject(SessionService);
+  const router = inject(Router);
+  const scopes = session.session?.scopes ?? [];
+  if (scopes.includes('docgen') || scopes.includes('admin')) return true;
+  router.navigate(['/dashboard']);
+  return false;
+};

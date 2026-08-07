@@ -111,7 +111,8 @@ h3 {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -123,8 +124,14 @@ h3 {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .field input:focus,
 .field select:focus,
+.field textarea:focus,
 input[type='file']:focus,
 input[type='text']:focus {
   outline: none;
@@ -698,12 +705,150 @@ button:disabled {
 }
 
 /* ---------------------------------------------------------------- */
+/* Top bar: app-wide, mounted once in app.component.html              */
+/* ---------------------------------------------------------------- */
+
+.topbar-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-brand {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.topbar-item {
+  position: relative;
+}
+
+.icon-button {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  box-shadow: none;
+  transform: none;
+}
+
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-error);
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.profile-circle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 260px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card), 0 8px 24px rgba(38, 48, 33, 0.12);
+  padding: 0.75rem;
+  z-index: 30;
+}
+
+.topbar-dropdown--right {
+  left: auto;
+  right: 0;
+}
+
+.profile-username {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.profile-scopes {
+  margin: 0.2rem 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+.topbar-dropdown .secondary {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- */
 /* App shell: sidebar + main content, used by dashboard & admin       */
 /* ---------------------------------------------------------------- */
 
+app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .app-shell {
   display: flex;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
 }
 
 .sidebar {
@@ -917,4 +1062,102 @@ input[type='file']::file-selector-button {
 
 .observation-list li {
   margin-bottom: 0.4rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* docgen: job status badge (job-status.component.ts)                */
+/* ---------------------------------------------------------------- */
+
+.job-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.job-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+}
+
+.job-dot.job-queued {
+  background: var(--color-text-faint);
+}
+
+.job-dot.job-running {
+  background: var(--color-primary);
+  animation: stage-pulse 1.2s ease-in-out infinite;
+}
+
+.job-dot.job-succeeded {
+  background: var(--color-success);
+}
+
+.job-dot.job-failed,
+.job-dot.job-cancelled {
+  background: var(--color-error);
+}
+
+.job-label {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------- */
+/* docgen: notifications panel (docgen-shell)                        */
+/* ---------------------------------------------------------------- */
+
+.notifications-panel {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  font-size: 0.8rem;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item.unread .notification-title {
+  font-weight: 700;
+  color: var(--color-primary-darker);
+}
+
+.notification-title {
+  color: var(--color-text);
+}
+
+.notification-body {
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------- */
+/* docgen: approvals queue                                            */
+/* ---------------------------------------------------------------- */
+
+.approval-card {
+  margin-bottom: 0.75rem;
+}
+
+.subject-type-tag {
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }

@@ -3,14 +3,12 @@
     <h1>CAD Workbench</h1>
     <p class="subtitle">Services available to you</p>
 
-    <button
-      *ngFor="let s of entitledServices"
-      class="sidebar-item"
-      [class.active]="selected?.key === s.key"
-      (click)="select(s)"
-    >
-      {{ s.label }}
-    </button>
+    <ng-container *ngFor="let s of entitledServices">
+      <a *ngIf="s.route" [routerLink]="s.route" class="sidebar-item">{{ s.label }}</a>
+      <button *ngIf="!s.route" class="sidebar-item" [class.active]="selected?.key === s.key" (click)="select(s)">
+        {{ s.label }}
+      </button>
+    </ng-container>
 
     <p class="empty" *ngIf="!entitledServices.length">
       No services granted yet — ask an admin.
@@ -19,11 +17,6 @@
     <a routerLink="/admin" *ngIf="session.isAdmin" class="sidebar-item sidebar-item--top">
       Admin dashboard
     </a>
-
-    <div class="sidebar-footer">
-      <div>{{ session.session?.username }} — {{ (session.session?.scopes ?? []).join(', ') }}</div>
-      <button (click)="logout()">Log out</button>
-    </div>
   </nav>
 
   <main class="main-content">

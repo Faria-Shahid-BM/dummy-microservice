@@ -13,11 +13,6 @@
     >
     <a routerLink="/admin/users/new" routerLinkActive="active" class="sidebar-item">Add a user</a>
     <a routerLink="/dashboard" class="sidebar-item sidebar-item--top">← Back to dashboard</a>
-
-    <div class="sidebar-footer">
-      <div>{{ session.session?.username }} — {{ (session.session?.scopes ?? []).join(', ') }}</div>
-      <button (click)="logout()">Log out</button>
-    </div>
   </nav>
 
   <main class="main-content">
