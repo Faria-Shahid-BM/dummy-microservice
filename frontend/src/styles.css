@@ -1,0 +1,1394 @@
+:root {
+  --color-bg: #f6f8f2;
+  --color-surface: #ffffff;
+  --color-sidebar: #eef2e7;
+  --color-border: #dfe6d3;
+  --color-border-soft: #ebefe3;
+
+  --color-text: #263021;
+  --color-text-muted: #74806a;
+  --color-text-faint: #94a086;
+
+  --color-primary: #87ae73;
+  --color-primary-dark: #5f8a4a;
+  --color-primary-darker: #4c7239;
+  --color-primary-light: #e7f0e0;
+
+  --color-success: #3f8f4f;
+  --color-error: #c0392b;
+  --color-warning: #b06a1a;
+  --color-warning-bg: #fbf1e2;
+  --color-warning-border: #eeddb8;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --shadow-card: 0 1px 2px rgba(38, 48, 33, 0.05), 0 1px 8px rgba(38, 48, 33, 0.04);
+  --shadow-button: 0 1px 2px rgba(76, 114, 57, 0.25);
+  --shadow-button-hover: 0 4px 10px rgba(76, 114, 57, 0.32);
+
+  --gradient-primary: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  --gradient-primary-hover: linear-gradient(135deg, #94ba81, var(--color-primary-darker));
+  --gradient-disabled: linear-gradient(135deg, #d3dccb, #c1cbb6);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- */
+/* Layout primitives                                                  */
+/* ---------------------------------------------------------------- */
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+}
+
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.35rem;
+}
+
+.subtitle {
+  color: var(--color-text-muted);
+  margin: 0 0 2rem;
+  font-size: 0.9rem;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  /* Nothing escapes a card: text wraps (see the table rules), and anything that
+     genuinely can't wrap — a wide fixed-column table, a long unbroken token —
+     scrolls inside the card rather than spilling over its edge. */
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* Long values must break rather than widen their container. `anywhere` (not
+   `break-word`) also lets the browser count the break when computing the
+   intrinsic width, which is what stops a table from growing in the first
+   place. */
+p,
+li,
+dd,
+.hint,
+.error,
+code {
+  overflow-wrap: anywhere;
+}
+
+.card h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 1.1rem;
+  color: var(--color-text);
+}
+
+h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 1.25rem 0 0.75rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Forms                                                              */
+/* ---------------------------------------------------------------- */
+
+.field {
+  display: block;
+  margin-bottom: 0.9rem;
+}
+
+.field span {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  /* Cards span the window now; a single-line input stretched to 1400px is
+     unusable, so cap the short controls. Textareas (descriptor editing) keep
+     the full width — see below. */
+  max-width: 560px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field textarea {
+  resize: vertical;
+  line-height: 1.5;
+  /* Long-form editing (template descriptors) wants all the room it can get. */
+  max-width: none;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+input[type='file']:focus,
+input[type='text']:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+input[type='checkbox'] {
+  accent-color: var(--color-primary-dark);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.add-user-form {
+  max-width: 340px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Status text                                                        */
+/* ---------------------------------------------------------------- */
+
+.error {
+  color: var(--color-error);
+  font-size: 0.85rem;
+  margin: 0.6rem 0 0;
+}
+
+.warning {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.85rem;
+  margin: 0 0 0.85rem;
+}
+
+.section-flag {
+  display: inline-block;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: 4px;
+  padding: 0.05rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  margin-left: 0.4rem;
+  white-space: nowrap;
+}
+
+tr.flagged-row {
+  background: var(--color-warning-bg);
+}
+
+.hint {
+  color: var(--color-text-faint);
+  font-size: 0.8rem;
+  margin: 0.85rem 0 0;
+}
+
+.hint code {
+  color: var(--color-text-muted);
+  background: var(--color-primary-light);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}
+
+.empty {
+  color: var(--color-text-faint);
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Buttons                                                            */
+/* ---------------------------------------------------------------- */
+
+button {
+  background: var(--gradient-primary);
+  border: none;
+  color: #ffffff;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: var(--shadow-button);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--gradient-primary-hover);
+  box-shadow: var(--shadow-button-hover);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-button);
+}
+
+button:disabled {
+  background: var(--gradient-disabled);
+  color: #f4f6f0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Small, secondary, flat action buttons (refresh, pagination …) */
+.clear {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.clear:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary-darker);
+  box-shadow: none;
+  transform: none;
+}
+
+/* Full-size secondary action — same padding/font as the default gradient
+   button (so it lines up next to one in a button row), just visually
+   quieter. Unlike .clear (small utility actions like Refresh/pagination),
+   this is for a secondary action with equal weight to a primary one. */
+.secondary {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  box-shadow: none;
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary-darker);
+  box-shadow: none;
+  transform: none;
+}
+
+.secondary:disabled {
+  background: var(--color-surface);
+  border-color: var(--color-border-soft);
+  color: var(--color-text-faint);
+}
+
+.button-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* Action clusters (Submit / Download / Details) sit in table cells — let them
+     stack on a narrow screen instead of setting a floor on the table's width. */
+  flex-wrap: wrap;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Log / activity entries (legacy widget, kept for compatibility)    */
+/* ---------------------------------------------------------------- */
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  /* Headers pair a subject name (a long file name, in approvals) with a status
+     or button row — wrap onto a second line rather than stretching the card. */
+  flex-wrap: wrap;
+}
+
+.log-header > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.log-entry {
+  border-left: 3px solid var(--color-text-faint);
+  padding: 0.5rem 0 0.5rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.log-entry.success {
+  border-left-color: var(--color-success);
+}
+
+.log-entry.unauthorized {
+  border-left-color: var(--color-error);
+}
+
+.log-entry.forbidden {
+  border-left-color: var(--color-warning);
+}
+
+.log-entry.error {
+  border-left-color: var(--color-text-faint);
+}
+
+.log-line {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.85rem;
+}
+
+.status {
+  font-weight: 700;
+}
+
+.log-entry.success .status {
+  color: var(--color-success);
+}
+
+.log-entry.unauthorized .status {
+  color: var(--color-error);
+}
+
+.log-entry.forbidden .status {
+  color: var(--color-warning);
+}
+
+.log-entry.error .status {
+  color: var(--color-text-faint);
+}
+
+.label {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.time {
+  margin-left: auto;
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+}
+
+.body {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+  background: var(--color-warning-bg);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+/* ---------------------------------------------------------------- */
+/* Tables                                                             */
+/* ---------------------------------------------------------------- */
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin-top: 0.5rem;
+}
+
+.audit-table th {
+  text-align: left;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 2px solid var(--color-border-soft);
+}
+
+.audit-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-soft);
+  color: var(--color-text);
+  /* Short values (dates, counts, statuses) read better on one line. Long ones
+     belong in a .wrap-cell; either way the card scrolls rather than letting a
+     row escape it. */
+  white-space: nowrap;
+}
+
+.audit-table th {
+  overflow-wrap: anywhere;
+}
+
+.audit-table tbody tr:hover {
+  background: var(--color-primary-light);
+}
+
+.audit-table td.wrap-cell {
+  white-space: normal;
+  /* `anywhere` breaks unbroken runs — file names like
+     ADIB-__Personal_Guarantee__Bilingual__.docx have no spaces to break at. */
+  overflow-wrap: anywhere;
+  /* Wide enough that a file name or note reads as a line or two instead of a
+     ragged 240px column, but still bounded so one long cell can't crowd out
+     every other column. */
+  max-width: 30ch;
+  min-width: 12ch;
+}
+
+/* A cell holding free-form nested content (a json-view of fill provenance)
+   rather than a single value: no nowrap, no clamp, and bounded by the table. */
+.audit-table td.detail-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.audit-table td.wrap-cell .cell-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pagination {
+  margin-top: 1rem;
+}
+
+.pagination .hint {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- */
+/* Stage progress checklist (collateral/valuation/insurance reviews)  */
+/* ---------------------------------------------------------------- */
+
+.stage-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.stage-step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: var(--color-text-faint);
+  transition: color 0.15s ease;
+}
+
+.stage-step.done {
+  color: var(--color-text);
+}
+
+.stage-step.active {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.stage-dot {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: #ffffff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.stage-step.done .stage-dot {
+  background: var(--gradient-primary);
+  border-color: transparent;
+}
+
+.stage-step.active .stage-dot {
+  border-color: var(--color-primary);
+  animation: stage-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes stage-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-primary-light);
+  }
+  50% {
+    box-shadow: 0 0 0 5px var(--color-primary-light);
+  }
+}
+
+.stage-detail {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-faint);
+  /* Engine stage payloads include file names and page counts; without these a
+     long one would widen the flex row rather than wrap in it. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- */
+/* Generic JSON result viewer (valuation/insurance panels)            */
+/* ---------------------------------------------------------------- */
+
+/* These tables nest one per JSON level and hold arbitrary backend strings (a
+   fill provenance's find/replace text runs to hundreds of characters), so the
+   default `auto` layout — which sizes columns to their content — let one deep
+   row widen every ancestor table. `fixed` makes each table take exactly the
+   width it is given and wrap inside it; the key column is a percentage so it
+   keeps scaling down as levels nest. */
+.json-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin: 0.25rem 0;
+}
+
+.json-table th {
+  /* Keys are short ("find", "value", "reasoning"); on a full-width card a 30%
+     key column wasted most of the row. Percentage rather than a fixed width so
+     it keeps shrinking as levels nest. */
+  width: 18%;
+  text-align: left;
+  vertical-align: top;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  padding: 0.4rem 0.75rem 0.4rem 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  /* Keys are identifiers like TOTAL_ECONOMIC_GROUP_PROPOSED_WORDS — they must
+     wrap, not run past the column. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.json-table td {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  color: var(--color-text);
+  vertical-align: top;
+  /* Required, not redundant: a json-view rendered inside a result table is also
+     matched by the descendant rule `.audit-table td`, which sets nowrap. Left
+     unset, these cells inherit that, report a huge min-content width, and widen
+     every ancestor table — the original overflow. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Block, so a nested viewer fills its cell and is bounded by it instead of
+   sizing as inline content. */
+app-json-view {
+  display: block;
+  min-width: 0;
+}
+
+.json-list {
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+  /* Bullets sit inside, so a deeply nested list can't indent itself off the
+     right edge. */
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- */
+/* Policy Q&A chat panel                                              */
+/* ---------------------------------------------------------------- */
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.chat-msg {
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-soft);
+  max-width: 80%;
+}
+
+.chat-user {
+  align-self: flex-end;
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.chat-msg-role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-faint);
+  margin-bottom: 0.25rem;
+}
+
+.chat-msg-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.chat-sources {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+}
+
+/* Typing indicator, shown until the first streamed token arrives */
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.15rem 0;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* Blinking cursor at the end of an in-progress streamed reply */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  background: var(--color-primary-dark);
+  vertical-align: text-bottom;
+  animation: cursor-blink 1s step-start infinite;
+}
+
+@keyframes cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Sleek pill-shaped chat composer */
+.chat-composer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.3rem 0.3rem 0.3rem 1.1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat-composer:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.chat-composer input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--color-text);
+}
+
+.chat-composer input::placeholder {
+  color: var(--color-text-faint);
+}
+
+.chat-send {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-send svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Top bar: app-wide, mounted once in app.component.html              */
+/* ---------------------------------------------------------------- */
+
+.topbar-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-brand {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.topbar-item {
+  position: relative;
+}
+
+.icon-button {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  box-shadow: none;
+  transform: none;
+}
+
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-error);
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.profile-circle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 260px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card), 0 8px 24px rgba(38, 48, 33, 0.12);
+  padding: 0.75rem;
+  z-index: 30;
+}
+
+.topbar-dropdown--right {
+  left: auto;
+  right: 0;
+}
+
+.profile-username {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.profile-scopes {
+  margin: 0.2rem 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+.topbar-dropdown .secondary {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- */
+/* App shell: sidebar + main content, used by dashboard & admin       */
+/* ---------------------------------------------------------------- */
+
+app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--color-sidebar);
+  border-right: 1px solid var(--color-border);
+  padding: 1.5rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar h1 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.3rem;
+}
+
+.sidebar .subtitle {
+  font-size: 0.75rem;
+  margin-bottom: 1.75rem;
+}
+
+.sidebar-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: none;
+  margin-bottom: 0.2rem;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.sidebar-item:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  box-shadow: none;
+  transform: none;
+}
+
+.sidebar-item.active {
+  background: var(--gradient-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar-item--top {
+  margin-top: 0.5rem;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+.sidebar-footer button {
+  width: 100%;
+  margin-top: 0.7rem;
+}
+
+.main-content {
+  flex: 1;
+  padding: 2.25rem 2.5rem 4rem;
+  /* Fill the window rather than sitting in a narrow 860px column: these pages
+     are mostly wide result tables, and cramming them into half the screen both
+     looked broken and forced everything to grow downwards. The cap only bites
+     on ultra-wide monitors, where unbounded line length hurts readability. */
+  width: 100%;
+  max-width: 1600px;
+  /* A flex item defaults to min-width:auto, i.e. it refuses to shrink below its
+     content's intrinsic width — so one wide table (a result table, a nested
+     json-view row) would stretch this past max-width and push content out past
+     the card and the viewport. min-width:0 lets it honour max-width instead,
+     and the overflow is then handled inside the card below. */
+  min-width: 0;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1.5rem;
+}
+
+.topbar h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.file-field {
+  margin-bottom: 0.9rem;
+}
+
+.file-field span {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 0.3rem;
+}
+
+input[type='file'] {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  width: 100%;
+  padding: 0.4rem 0;
+}
+
+input[type='file']::file-selector-button {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 0.75rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Result panels                                                     */
+/* ---------------------------------------------------------------- */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.7rem;
+  margin: 0.85rem 0 1.1rem;
+}
+
+.stat-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.85rem;
+}
+
+.stat-card .n {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-primary-darker);
+}
+
+.stat-card .l {
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.redline {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: 0.95rem 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.redline .seg-delete {
+  color: var(--color-error);
+  text-decoration: line-through;
+  background: rgba(192, 57, 43, 0.1);
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 1px;
+}
+
+.redline .seg-insert {
+  color: var(--color-success);
+  text-decoration: underline;
+  background: rgba(63, 143, 79, 0.12);
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 1px;
+}
+
+.redline .flash {
+  outline: 2px solid var(--color-primary);
+  transition: outline 0.2s;
+}
+
+.status-match {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.status-mismatch {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.status-missing {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.observation-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.observation-list li {
+  margin-bottom: 0.4rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* collateral: repeatable upload pairs + per-pair result tabs         */
+/* ---------------------------------------------------------------- */
+
+.pair-block {
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1.1rem 0.35rem;
+  margin-bottom: 0.9rem;
+  background: var(--color-bg);
+}
+
+.pair-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+
+.pair-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pair-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+
+/* A file input driven by a nearby button (…Input.click()) rather than shown. */
+.hidden-file {
+  display: none;
+}
+
+/* Inline text button inside a sentence (e.g. "use the bundled policy instead"). */
+button.link {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 500;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+button.link:hover:not(:disabled) {
+  background: none;
+  box-shadow: none;
+  transform: none;
+  color: var(--color-primary-darker);
+}
+
+button.link:disabled {
+  background: none;
+  color: var(--color-text-faint);
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1.1rem;
+}
+
+.tab-bar .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: none;
+  color: var(--color-text-muted);
+  padding: 0.45rem 0.85rem;
+  margin-bottom: -1px;
+}
+
+.tab-bar .tab:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  box-shadow: none;
+  transform: none;
+  color: var(--color-primary-darker);
+}
+
+.tab-bar .tab.active {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.tab-bar .tab:disabled {
+  background: transparent;
+  color: var(--color-text-faint);
+}
+
+.tab-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+}
+
+.tab-dot.running {
+  background: var(--color-primary);
+  animation: stage-pulse 1.2s ease-in-out infinite;
+}
+
+.tab-dot.done {
+  background: var(--color-success);
+}
+
+.tab-dot.error {
+  background: var(--color-error);
+}
+
+/* ---------------------------------------------------------------- */
+/* docgen: job status badge (job-status.component.ts)                */
+/* ---------------------------------------------------------------- */
+
+.job-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.job-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+}
+
+.job-dot.job-queued {
+  background: var(--color-text-faint);
+}
+
+.job-dot.job-running {
+  background: var(--color-primary);
+  animation: stage-pulse 1.2s ease-in-out infinite;
+}
+
+.job-dot.job-succeeded {
+  background: var(--color-success);
+}
+
+.job-dot.job-failed,
+.job-dot.job-cancelled {
+  background: var(--color-error);
+}
+
+.job-label {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------- */
+/* docgen: notifications panel (docgen-shell)                        */
+/* ---------------------------------------------------------------- */
+
+.notifications-panel {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  font-size: 0.8rem;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item.unread .notification-title {
+  font-weight: 700;
+  color: var(--color-primary-darker);
+}
+
+.notification-title {
+  color: var(--color-text);
+  /* Titles are subject names (template/document file names) — wrap them inside
+     the fixed-width dropdown instead of widening it. */
+  overflow-wrap: anywhere;
+}
+
+.notification-body {
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- */
+/* docgen: approvals queue                                            */
+/* ---------------------------------------------------------------- */
+
+.approval-card {
+  margin-bottom: 0.75rem;
+}
+
+.subject-type-tag {
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

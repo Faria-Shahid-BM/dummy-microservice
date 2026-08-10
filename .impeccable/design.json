@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-06T00:00:00.000Z",
+  "title": "Design System: CAD Workbench",
+  "extensions": {
+    "colorMeta": {
+      "institutional-sage": {
+        "role": "primary",
+        "displayName": "Institutional Sage",
+        "canonical": "#87ae73",
+        "tonalRamp": ["hsl(100, 27%, 15%)", "hsl(100, 27%, 25%)", "hsl(100, 27%, 35%)", "hsl(100, 27%, 45%)", "hsl(100, 27%, 55%)", "hsl(100, 27%, 65%)", "hsl(100, 27%, 75%)", "hsl(100, 27%, 90%)"]
+      },
+      "cool-paper": {
+        "role": "neutral",
+        "displayName": "Cool Paper",
+        "canonical": "#f6f8f2",
+        "tonalRamp": ["hsl(80, 30%, 15%)", "hsl(80, 30%, 25%)", "hsl(80, 30%, 35%)", "hsl(80, 30%, 45%)", "hsl(80, 30%, 55%)", "hsl(80, 30%, 65%)", "hsl(80, 30%, 75%)", "hsl(80, 30%, 90%)"]
+      },
+      "slate-ink": {
+        "role": "neutral",
+        "displayName": "Slate Ink",
+        "canonical": "#263021",
+        "tonalRamp": ["hsl(100, 19%, 15%)", "hsl(100, 19%, 25%)", "hsl(100, 19%, 35%)", "hsl(100, 19%, 45%)", "hsl(100, 19%, 55%)", "hsl(100, 19%, 65%)", "hsl(100, 19%, 75%)", "hsl(100, 19%, 90%)"]
+      },
+      "verified-green": {
+        "role": "status",
+        "displayName": "Verified Green",
+        "canonical": "#3f8f4f",
+        "tonalRamp": ["hsl(132, 39%, 15%)", "hsl(132, 39%, 25%)", "hsl(132, 39%, 35%)", "hsl(132, 39%, 45%)", "hsl(132, 39%, 55%)", "hsl(132, 39%, 65%)", "hsl(132, 39%, 75%)", "hsl(132, 39%, 90%)"]
+      },
+      "alert-red": {
+        "role": "status",
+        "displayName": "Alert Red",
+        "canonical": "#c0392b",
+        "tonalRamp": ["hsl(6, 63%, 15%)", "hsl(6, 63%, 25%)", "hsl(6, 63%, 35%)", "hsl(6, 63%, 45%)", "hsl(6, 63%, 55%)", "hsl(6, 63%, 65%)", "hsl(6, 63%, 75%)", "hsl(6, 63%, 90%)"]
+      },
+      "caution-amber": {
+        "role": "status",
+        "displayName": "Caution Amber",
+        "canonical": "#b06a1a",
+        "tonalRamp": ["hsl(32, 74%, 15%)", "hsl(32, 74%, 25%)", "hsl(32, 74%, 35%)", "hsl(32, 74%, 45%)", "hsl(32, 74%, 55%)", "hsl(32, 74%, 65%)", "hsl(32, 74%, 75%)", "hsl(32, 74%, 90%)"]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page-level title only; used once per screen." },
+      "title": { "displayName": "Title", "purpose": "Card and sidebar section headers." },
+      "body": { "displayName": "Body", "purpose": "Default running text, hints, table cells." },
+      "label": { "displayName": "Label", "purpose": "Form field labels and small captions." }
+    },
+    "shadows": [
+      { "name": "card-lift", "value": "0 1px 2px rgba(38,48,33,0.05), 0 1px 8px rgba(38,48,33,0.04)", "purpose": "Every card, regardless of nesting or importance." },
+      { "name": "button-rest", "value": "0 1px 2px rgba(76,114,57,0.25)", "purpose": "Primary button at rest." },
+      { "name": "button-hover", "value": "0 4px 10px rgba(76,114,57,0.32)", "purpose": "Primary button on hover, paired with a 1px lift." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one gradient-filled surface in the system; reserved for the primary action per panel.",
+      "html": "<button class=\"ds-btn-primary\">Compare</button>",
+      "css": ".ds-btn-primary { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)); border: none; color: #ffffff; padding: 0.6rem 1rem; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600; letter-spacing: 0.01em; cursor: pointer; box-shadow: 0 1px 2px rgba(76,114,57,0.25); transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease; } .ds-btn-primary:hover { background: linear-gradient(135deg, #94ba81, var(--color-primary-darker)); box-shadow: 0 4px 10px rgba(76,114,57,0.32); transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-primary-dark); outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(76,114,57,0.25); } .ds-btn-primary:disabled { background: linear-gradient(135deg, #d3dccb, #c1cbb6); color: #f4f6f0; box-shadow: none; cursor: not-allowed; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action: refresh, clear, remove — never competes with a primary button on the same panel.",
+      "html": "<button class=\"ds-btn-ghost\">Refresh</button>",
+      "css": ".ds-btn-ghost { background: transparent; border: 1px solid var(--color-border); color: var(--color-text-muted); padding: 0.35rem 0.7rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease; } .ds-btn-ghost:hover { background: var(--color-primary-light); border-color: var(--color-primary); color: var(--color-primary-darker); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Labeled text input with a no-layout-shift focus ring.",
+      "html": "<label class=\"ds-field\"><span>Username</span><input type=\"text\" placeholder=\"Enter username\" /></label>",
+      "css": ".ds-field { display: block; } .ds-field span { display: block; font-size: 0.8rem; font-weight: 500; color: var(--color-text-muted); margin-bottom: 0.3rem; } .ds-field input { width: 100%; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text); padding: 0.55rem 0.7rem; font-size: 0.9rem; transition: border-color 0.15s ease, box-shadow 0.15s ease; } .ds-field input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-light); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The base content surface; every panel in the app is one or more of these.",
+      "html": "<div class=\"ds-card\"><h2>Result</h2><p>Card content goes here.</p></div>",
+      "css": ".ds-card { background: var(--color-surface); border: 1px solid var(--color-border-soft); border-radius: var(--radius-lg); box-shadow: 0 1px 2px rgba(38,48,33,0.05), 0 1px 8px rgba(38,48,33,0.04); padding: 1.5rem 1.75rem; } .ds-card h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 1.1rem; color: var(--color-text); }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "sidebar-nav-item",
+      "description": "Reused identically by the reviewer dashboard and the admin console sidebar.",
+      "html": "<button class=\"ds-nav-item ds-nav-item--active\">Collateral Reviewer</button><button class=\"ds-nav-item\">Insurance Review</button>",
+      "css": ".ds-nav-item { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--color-text-muted); padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); font-weight: 500; font-size: 0.85rem; cursor: pointer; margin-bottom: 0.2rem; transition: background 0.12s ease, color 0.12s ease; } .ds-nav-item:hover { background: var(--color-primary-light); color: var(--color-primary-darker); } .ds-nav-item:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; } .ds-nav-item--active { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)); color: #ffffff; font-weight: 600; }"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "custom",
+      "refersTo": "stat-card",
+      "description": "Compact metric tile used in result stat-rows (similarity %, match counts, etc.).",
+      "html": "<div class=\"ds-stat\"><div class=\"ds-stat-n\">94.2%</div><div class=\"ds-stat-l\">similarity</div></div>",
+      "css": ".ds-stat { background: var(--color-bg); border: 1px solid var(--color-border-soft); border-radius: var(--radius-md); padding: 0.7rem 0.85rem; display: inline-block; } .ds-stat-n { font-size: 1.4rem; font-weight: 700; color: var(--color-primary-darker); } .ds-stat-l { font-size: 0.7rem; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 0.03em; }"
+    },
+    {
+      "name": "Chat Bubble",
+      "kind": "custom",
+      "refersTo": "chat-bubble",
+      "description": "Policy Q&A message list; the only self-vs-other, left/right-aligned pattern in the system.",
+      "html": "<div class=\"ds-chat-msg ds-chat-msg--user\">What's the maximum LTV under policy 4.2?</div><div class=\"ds-chat-msg\">Under policy 4.2, the maximum loan-to-value ratio is 80%.</div>",
+      "css": ".ds-chat-msg { padding: 0.55rem 0.8rem; border-radius: var(--radius-md); font-size: 0.85rem; background: var(--color-bg); border: 1px solid var(--color-border-soft); max-width: 80%; margin-bottom: 0.6rem; } .ds-chat-msg--user { margin-left: auto; background: var(--color-primary-light); border-color: var(--color-primary); }"
+    },
+    {
+      "name": "Redline Diff",
+      "kind": "custom",
+      "refersTo": "redline-diff",
+      "description": "Document-diff and collateral panels' signature surface: inline, character-level status color for deletions/insertions.",
+      "html": "<div class=\"ds-redline\">The borrower shall maintain <span class=\"ds-seg-delete\">comprehensive</span><span class=\"ds-seg-insert\">standard</span> insurance coverage.</div>",
+      "css": ".ds-redline { background: var(--color-bg); border: 1px solid var(--color-border-soft); border-radius: var(--radius-md); padding: 0.95rem 1.1rem; font-size: 0.85rem; line-height: 1.7; } .ds-seg-delete { color: var(--color-error); text-decoration: line-through; background: rgba(192,57,43,0.1); border-radius: 3px; padding: 0 2px; margin: 0 1px; } .ds-seg-insert { color: var(--color-success); text-decoration: underline; background: rgba(63,143,79,0.12); border-radius: 3px; padding: 0 2px; margin: 0 1px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Verification Desk",
+    "overview": "CAD Workbench reads as a procedural, checklist-driven workspace, not a marketing surface. One quiet accent — Institutional Sage — marks entitlement, active state, and primary action; everything else stays flat, cool, and legible, because the interface's job is to get out of the way of the document underneath it. Borders and subtle background-tone shifts (card vs. page, sidebar vs. content) carry the visual hierarchy instead of color or motion, matching a tool whose real content is a legal opinion, a valuation report, or an audit trail rather than the chrome around it.\n\nThe system runs on the OS-native font stack end to end — there is no separate display face. That is deliberate: a credit-adjudication review console earns trust by feeling unadorned and consistent, not styled. Status color (green/amber/red) is reserved strictly for verification outcomes — match/mismatch/missing, warning banners, audit-log status — never for decoration.",
+    "keyCharacteristics": [
+      "One accent color, spent only on entitlement and primary action, never on decoration",
+      "Flat-first surfaces; the only elevation is a restrained, identical ambient shadow on every card and button",
+      "Single OS-native font stack for every role — hierarchy comes from size and weight, not typeface",
+      "Verification-outcome colors (green/amber/red) are semantic, not brand — they never appear outside a status, warning, or result context",
+      "Sidebar app-shell (nav + content) is the one structural layout pattern, reused by both the reviewer dashboard and the admin console"
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Institutional Sage is the only brand color in the system. It never appears as a large fill outside the primary button and the active sidebar item — everywhere else it shows up only as a thin ring, a wash, or a text tint.", "section": "colors" },
+      { "name": "The Status-Only-Color Rule", "body": "Verified Green, Alert Red, and Caution Amber are reserved for verification outcomes and system status. They are never used decoratively, and no other color is ever pressed into service for status.", "section": "colors" },
+      { "name": "The No-Display-Face Rule", "body": "The interface never reaches for a second font family. Every heading, no matter how prominent, is the same stack at a larger size and heavier weight — never a distinct typeface.", "section": "typography" },
+      { "name": "The Consistent-Lift Rule", "body": "Only cards and buttons are ever elevated, and always with the same shadow value for their type. No component invents a heavier or lighter shadow to look more or less important.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reserve the Institutional Sage gradient fill for the primary button and the active sidebar item; every other interactive surface stays flat or ghost-bordered.",
+      "Do keep shadows to exactly the two defined values (card lift, button rest/hover); never introduce a third shadow language for a new component.",
+      "Do use Verified Green / Alert Red / Caution Amber only for verification outcomes and system status — never as branding or decoration.",
+      "Do size new type by the existing scale (Headline 1.5rem/700 → Title 1.05rem/600 → Body 0.9rem/400 → Label 0.8rem/500) rather than picking an ad hoc size or weight.",
+      "Do use the 4px micro-radius only for small pill-shaped status badges, and the 6/10/14px scale for everything else."
+    ],
+    "donts": [
+      "Don't introduce a second accent color; the system is deliberately one-accent, and a second would break the One Accent Rule.",
+      "Don't add a display or heading font — the OS-native stack is the entire typographic voice, at every size.",
+      "Don't give tables, chips, badges, or chat bubbles a shadow of their own; only cards and buttons are ever elevated.",
+      "Don't use a fully rounded (pill/circle) shape anywhere; the system's curves always stop at the 4/6/10/14px scale.",
+      "Don't vary a card's shadow by nesting depth or perceived importance — every card gets the same shadow, on purpose."
+    ]
+  }
+}

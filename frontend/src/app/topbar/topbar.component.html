@@ -1,0 +1,40 @@
+<header class="topbar-bar">
+  <div class="topbar-brand">CAD Workbench</div>
+
+  <div class="topbar-actions">
+    <div class="topbar-item" *ngIf="hasDocgenAccess">
+      <button type="button" class="icon-button" (click)="toggleNotifications()" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 22a2.5 2.5 0 002.45-2h-4.9A2.5 2.5 0 0012 22zm7-6.5v-4.5a7 7 0 00-5.5-6.84V3.5a1.5 1.5 0 00-3 0v.66A7 7 0 005 11v4.5l-1.71 1.71c-.63.63-.19 1.79.7 1.79h15.02c.89 0 1.33-1.16.7-1.79z"
+          />
+        </svg>
+        <span class="icon-badge" *ngIf="unreadCount">{{ unreadCount }}</span>
+      </button>
+
+      <div class="topbar-dropdown topbar-dropdown--right" *ngIf="showNotifications">
+        <div class="log-header">
+          <span>Notifications</span>
+          <button class="clear" (click)="markAllRead()" [disabled]="!unreadCount">Mark all read</button>
+        </div>
+        <p class="empty" *ngIf="!notifications.length">No notifications yet.</p>
+        <div class="notification-item" *ngFor="let n of notifications" [class.unread]="!n.read">
+          <div class="notification-title">{{ n.title }}</div>
+          <div class="notification-body" *ngIf="n.body">{{ n.body }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar-item">
+      <button type="button" class="profile-circle" (click)="toggleProfile()" aria-label="Account menu">
+        {{ initials }}
+      </button>
+
+      <div class="topbar-dropdown topbar-dropdown--right" *ngIf="showProfile">
+        <div class="profile-username">{{ session.session?.username }}</div>
+        <div class="profile-scopes">{{ (session.session?.scopes ?? []).join(', ') }}</div>
+        <button type="button" class="secondary" (click)="logout()">Log out</button>
+      </div>
+    </div>
+  </div>
+</header>

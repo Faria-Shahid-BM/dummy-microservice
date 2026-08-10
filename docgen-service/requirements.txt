@@ -1,0 +1,18 @@
+# CAD Workbench backend — production dependencies
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+sqlalchemy>=2.0
+alembic>=1.13
+psycopg2-binary>=2.9        # PostgreSQL driver (prod); SQLite needs nothing extra
+pydantic-settings>=2.2
+argon2-cffi>=23.1           # password hashing
+authlib>=1.3                # OIDC
+itsdangerous>=2.1           # signed OIDC state
+httpx>=0.27                 # LLM provider HTTP client
+python-docx>=1.1            # docx fill/extraction
+pdfplumber>=0.11            # text-PDF extraction
+PyMuPDF>=1.24               # page rasterization for vision OCR
+openpyxl>=3.1               # valuation panel xlsx
+python-dateutil>=2.9
+PyJWT>=2.9

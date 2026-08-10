@@ -1,0 +1,50 @@
+<div class="topbar">
+  <h2>Cases</h2>
+</div>
+
+<section class="card">
+  <h2>New case</h2>
+  <div class="field">
+    <span>Case name</span>
+    <input type="text" [(ngModel)]="newCaseName" name="newCaseName" [disabled]="readOnly" />
+  </div>
+  <button [disabled]="creating || !newCaseName.trim() || readOnly" (click)="createCase()">
+    {{ creating ? 'Creating…' : 'Create case' }}
+  </button>
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="hint" *ngIf="readOnly">The Default profile is read-only — case creation is disabled.</p>
+</section>
+
+<section class="card">
+  <div class="log-header">
+    <h2>All cases</h2>
+    <button class="clear" (click)="load()" [disabled]="loading">
+      {{ loading ? 'Loading…' : 'Refresh' }}
+    </button>
+  </div>
+
+  <p class="empty" *ngIf="!loading && !cases.length">No cases yet.</p>
+
+  <table class="audit-table" *ngIf="cases.length">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Status</th>
+        <th>Input</th>
+        <th>Documents</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let c of cases">
+        <td>{{ c.name }}</td>
+        <td>{{ c.status }}</td>
+        <td>{{ c.input_file_name || '—' }}</td>
+        <td>{{ c.generated_count }}</td>
+        <td>
+          <a [routerLink]="['/docgen/cases', c.id]"><button type="button" class="clear">Open</button></a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>

@@ -1,0 +1,142 @@
+_format_version: "3.0"
+
+services:
+  - name: collateral-service
+    url: http://collateral-service:8000
+    # LLM pipeline (vision OCR + extraction + observations) can run for
+    # minutes; default upstream timeouts are 60s, which caused Kong 504s.
+    # provider.py uses a 300s httpx timeout, so give Kong headroom past that.
+    connect_timeout: 60000
+    write_timeout: 310000          # large multipart uploads
+    read_timeout: 310000           # wait for the slow LLM response
+    routes:
+      - name: collateral
+        paths: ["/api/collateral"]
+        strip_path: true          # /api/collateral/review → /review
+    plugins:
+      - name: jwt                  # edge JWT signature check (services re-check scope)
+
+  - name: document-diff-service
+    url: http://document-diff-service:8000
+    routes:
+      - name: docdiff
+        paths: ["/api/docdiff"]
+        strip_path: true
+    plugins:
+      - name: jwt
+
+  - name: valuation-service
+    url: http://valuation-service:8000
+    connect_timeout: 60000
+    write_timeout: 310000          # large multipart uploads
+    read_timeout: 310000  
+    routes:
+      - name: valuation
+        paths: ["/api/valuation"]
+        strip_path: true
+        plugins:
+          - name: jwt
+
+  - name: insurance-service
+    url: http://insurance-service:8000
+    connect_timeout: 60000
+    write_timeout: 310000          # large multipart uploads
+    read_timeout: 310000  
+    routes:
+      - name: insurance
+        paths: ["/api/insurance"]
+        strip_path: true
+        plugins:
+          - name: jwt
+
+  - name: policyqa-service
+    url: http://policyqa-service:8000
+    connect_timeout: 60000
+    read_timeout: 310000
+    write_timeout: 310000
+    routes:
+      - name: policyqa
+        paths: ["/api/policyqa"]
+        strip_path: true
+        plugins:
+          - name: jwt
+
+  - name: docgen-service
+    url: http://docgen-service:8000
+    connect_timeout: 60000
+    read_timeout: 310000
+    write_timeout: 310000
+    routes:
+      - name: docgen-profiles
+        paths: ["/api/profiles"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-jobs
+        paths: ["/api/jobs"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-templates
+        paths: ["/api/templates"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-approvals
+        paths: ["/api/approvals"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - name: docgen-notifications
+        paths: ["/api/notifications"]
+        strip_path: false
+        plugins:
+        - name: jwt
+
+  - name: auth-service
+    url: http://auth-service:8000
+    routes:
+      - name: auth-route
+        paths:
+          - /api/auth
+        strip_path: true
+
+  - name: audit-service
+    url: http://audit-service:8000
+    routes:
+      # GET only, and jwt-gated here at the edge: unlike every other service,
+      # audit-service has no scope check of its own (see audit-service/main.py)
+      # — anyone with a Kong-valid token could otherwise read the whole log.
+      # POST stays reachable only from other services over the internal
+      # Docker network, never through this route.
+      - name: audit-read-route
+        paths:
+          - /api/audit
+        methods:
+          - GET
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+      exposed_headers:
+        - X-Consumer-Username
+      max_age: 3600
+
+consumers:
+  - username: poc-user
+    jwt_secrets:
+      - key: poc-issuer
+        secret: mysecret123

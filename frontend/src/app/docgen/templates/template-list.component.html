@@ -1,0 +1,68 @@
+<div class="topbar">
+  <h2>Template library</h2>
+</div>
+
+<section class="card">
+  <h2>Upload a template</h2>
+  <div class="file-field">
+    <span>Template file (.docx only)</span>
+    <input type="file" accept=".docx" (change)="onFile($event)" [disabled]="readOnly" />
+  </div>
+  <div class="field">
+    <span>Name</span>
+    <input type="text" [(ngModel)]="newName" name="newName" [disabled]="readOnly" />
+  </div>
+  <div class="field">
+    <span>Language</span>
+    <select [(ngModel)]="newLanguage" name="newLanguage" [disabled]="readOnly">
+      <option value="en">English</option>
+      <option value="ar">Arabic</option>
+      <option value="bilingual">Bilingual</option>
+    </select>
+  </div>
+  <div class="field">
+    <span>Note</span>
+    <input type="text" [(ngModel)]="newNote" name="newNote" [disabled]="readOnly" />
+  </div>
+  <button [disabled]="creating || !newFile || readOnly" (click)="create()">
+    {{ creating ? 'Uploading…' : 'Upload template' }}
+  </button>
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="hint">Uploading auto-submits version 1 for approval.</p>
+</section>
+
+<section class="card">
+  <div class="log-header">
+    <h2>Templates</h2>
+    <button class="clear" (click)="load()" [disabled]="loading">
+      {{ loading ? 'Loading…' : 'Refresh' }}
+    </button>
+  </div>
+
+  <p class="empty" *ngIf="!loading && !templates.length">No templates yet.</p>
+
+  <table class="audit-table" *ngIf="templates.length">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Language</th>
+        <th>Status</th>
+        <th>Current version</th>
+        <th>Versions</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let t of templates">
+        <td>{{ t.name }}</td>
+        <td>{{ t.language }}</td>
+        <td>{{ t.status }}</td>
+        <td>{{ t.current_version_no ?? '—' }}</td>
+        <td>{{ t.version_count }}</td>
+        <td>
+          <a [routerLink]="['/docgen/templates', t.id]"><button type="button" class="clear">Open</button></a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>

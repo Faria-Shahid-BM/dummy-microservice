@@ -1,0 +1,105 @@
+<section class="card">
+  <h2>{{ heading }}</h2>
+
+  <!-- One block per item; "Add another" appends a fresh block. Each item is
+       reviewed independently and gets its own result tab below. -->
+  <div class="pair-block" *ngFor="let item of batch.items; let i = index; trackBy: trackById">
+    <div class="pair-head">
+      <span class="pair-title">{{ itemLabel }} {{ i + 1 }}</span>
+      <button
+        type="button"
+        class="clear"
+        *ngIf="batch.items.length > 1"
+        [disabled]="item.running"
+        (click)="batch.remove(i)"
+        [title]="'Remove this ' + itemNoun"
+      >
+        Remove
+      </button>
+    </div>
+    <div class="file-field" *ngFor="let slot of slots">
+      <span>{{ slot.label }}</span>
+      <input
+        type="file"
+        [accept]="slot.accept"
+        [disabled]="item.running"
+        (change)="batch.setFile(item, slot.key, $event)"
+      />
+    </div>
+  </div>
+
+  <div class="pair-actions">
+    <button type="button" class="clear" [disabled]="batch.submitting" (click)="batch.add()">
+      + Add another {{ itemNoun }}
+    </button>
+    <button [disabled]="batch.submitting || !batch.pending.length" (click)="batch.submit()">
+      {{ submitLabel }}
+    </button>
+    <!-- Extra controls beside the submit button (insurance projects its bank
+         policy upload here) -->
+    <ng-content select="[batchActions]"></ng-content>
+  </div>
+
+  <!-- Status line under the actions row, e.g. which policy is being used -->
+  <ng-content select="[batchNote]"></ng-content>
+
+  <p class="error" *ngIf="batch.error">{{ batch.error }}</p>
+  <p class="hint">
+    {{ hint }} {{ plural | titlecase }} are reviewed one after another, and anything already
+    reviewed keeps its result.
+  </p>
+</section>
+
+<section class="card" *ngIf="batch.withOutcome.length">
+  <h2>Results</h2>
+
+  <div class="tab-bar" role="tablist">
+    <button
+      type="button"
+      class="tab"
+      role="tab"
+      *ngFor="let item of batch.items; let i = index; trackBy: trackById"
+      [class.active]="batch.active === i"
+      [disabled]="!item.running && !item.result && !item.error"
+      [attr.aria-selected]="batch.active === i"
+      (click)="batch.select(i)"
+    >
+      {{ itemLabel }} {{ i + 1 }}
+      <span class="tab-dot running" *ngIf="item.running" title="in progress"></span>
+      <span class="tab-dot error" *ngIf="item.error" title="failed"></span>
+      <span class="tab-dot done" *ngIf="item.result" title="done"></span>
+    </button>
+  </div>
+
+  <ng-container *ngFor="let item of batch.items; let i = index; trackBy: trackById">
+    <div class="tab-panel" role="tabpanel" *ngIf="batch.active === i">
+      <p class="empty" *ngIf="!item.running && !item.result && !item.error">
+        This {{ itemNoun }} hasn't been reviewed yet.
+      </p>
+
+      <ng-container *ngIf="item.error">
+        <p class="error">{{ item.error }}</p>
+        <button type="button" class="clear" [disabled]="batch.submitting" (click)="batch.retry(item)">
+          Retry this {{ itemNoun }}
+        </button>
+      </ng-container>
+
+      <ng-container *ngIf="item.running">
+        <app-stage-progress
+          [steps]="stages"
+          [currentKey]="item.progress.stageKey"
+          [detail]="item.progress.detail"
+          [complete]="item.progress.complete"
+        ></app-stage-progress>
+        <ng-container *ngIf="item.streamingText">
+          <h3>Live output</h3>
+          <div class="redline">{{ item.streamingText }}<span class="streaming-cursor"></span></div>
+        </ng-container>
+      </ng-container>
+
+      <ng-container *ngIf="item.result">
+        <ng-container *ngTemplateOutlet="resultTemplate; context: { $implicit: item.result }"></ng-container>
+      </ng-container>
+    </div>
+  </ng-container>
+</section>

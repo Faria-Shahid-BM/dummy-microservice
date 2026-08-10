@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
+PyJWT
+pdfplumber
+PyMuPDF
+python-docx
+openpyxl
+python-dateutil

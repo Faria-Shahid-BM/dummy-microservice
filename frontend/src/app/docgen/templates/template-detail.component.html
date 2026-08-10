@@ -1,0 +1,95 @@
+<div class="topbar">
+  <h2>{{ template?.name || 'Template' }}</h2>
+  <span class="badge" *ngIf="template">{{ template.language }} · {{ template.status }}</span>
+</div>
+
+<p class="error" *ngIf="error">{{ error }}</p>
+
+<ng-container *ngIf="template">
+  <section class="card">
+    <h2>Upload a new version</h2>
+    <div class="file-field">
+      <span>Template file (.docx only)</span>
+      <input type="file" accept=".docx" (change)="onVersionFile($event)" [disabled]="readOnly" />
+    </div>
+    <div class="field">
+      <span>Note</span>
+      <input type="text" [(ngModel)]="newVersionNote" name="newVersionNote" [disabled]="readOnly" />
+    </div>
+    <button [disabled]="uploadingVersion || !newVersionFile || readOnly" (click)="uploadVersion()">
+      {{ uploadingVersion ? 'Uploading…' : 'Upload new version' }}
+    </button>
+    <p class="hint">
+      New versions aren't auto-submitted for approval — submit them from the
+      <a routerLink="/docgen/approvals">Approvals</a> queue once analyzed.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Versions</h2>
+    <table class="audit-table" *ngIf="template.versions.length">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>File</th>
+          <th>Note</th>
+          <th>Descriptor</th>
+          <th>Current</th>
+          <th>Approval</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let v of template.versions">
+          <tr>
+            <td>{{ v.version_no }}</td>
+            <td class="wrap-cell"><span class="cell-text">{{ v.file_name }}</span></td>
+            <td class="wrap-cell"><span class="cell-text">{{ v.note || '—' }}</span></td>
+            <td>{{ v.has_descriptor ? 'yes' : 'no' }}</td>
+            <td>{{ v.is_current ? 'yes' : '—' }}</td>
+            <td>{{ v.approval_state || '—' }}</td>
+            <td>
+              <div class="button-row">
+                <button
+                  type="button"
+                  class="clear"
+                  (click)="analyzeVersion(v)"
+                  [disabled]="!!analyzeJobIdByVersion[v.id] || readOnly"
+                >
+                  {{ v.has_descriptor ? 'Re-analyze' : 'Analyze' }}
+                </button>
+                <button type="button" class="clear" (click)="toggleDescriptor(v)" [disabled]="!v.has_descriptor">
+                  {{ descriptorByVersion[v.id] !== undefined ? 'Hide descriptor' : 'Descriptor' }}
+                </button>
+                <button type="button" class="clear" (click)="downloadVersion(v)">Download</button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="analyzeJobIdByVersion[v.id] || analyzeErrorByVersion[v.id]">
+            <td colspan="7" class="detail-cell">
+              <app-job-status
+                *ngIf="analyzeJobIdByVersion[v.id]"
+                [jobId]="analyzeJobIdByVersion[v.id]"
+                (done)="onAnalyzeVersionDone(v)"
+                (failed)="onAnalyzeVersionFailed(v)"
+              ></app-job-status>
+              <p class="error" *ngIf="analyzeErrorByVersion[v.id]">{{ analyzeErrorByVersion[v.id] }}</p>
+            </td>
+          </tr>
+          <tr *ngIf="descriptorByVersion[v.id] !== undefined">
+            <td colspan="7" class="detail-cell">
+              <div class="field">
+                <span>Descriptor (Markdown)</span>
+                <textarea rows="10" [(ngModel)]="descriptorByVersion[v.id]" [name]="'descriptor-' + v.id" [disabled]="readOnly"></textarea>
+              </div>
+              <button [disabled]="savingDescriptorByVersion[v.id] || readOnly" (click)="saveDescriptor(v)">
+                {{ savingDescriptorByVersion[v.id] ? 'Saving…' : 'Save descriptor' }}
+              </button>
+              <p class="error" *ngIf="descriptorErrorByVersion[v.id]">{{ descriptorErrorByVersion[v.id] }}</p>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+  </section>
+</ng-container>

@@ -1,0 +1,61 @@
+{"user_id": "current_user", "service": "collateral-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-07-22T08:11:27.961653"}
+{"user_id": "current_user", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-22T08:20:16.101184"}
+{"user_id": "current_user", "service": "collateral-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-07-22T08:25:41.759103"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-22T16:26:36.224471"}
+{"user_id": "dave", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-22T16:29:55.453209"}
+{"user_id": "carol", "service": "collateral-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-07-23T06:45:11.800196"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-27T05:58:23.779652"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-07-27T06:04:43.806441"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-27T06:13:52.023918"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-07-30T04:35:08.068211"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-07-30T04:36:28.743034"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-07-30T06:33:19.295388"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:34:06.253675"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:46:03.619143"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:54:34.526192"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:55:29.943000"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T05:57:42.792663"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T06:03:01.162070"}
+{"user_id": "admin", "service": "policyqa-service", "action": "ingest", "resource": "efu insurance.pdf", "metadata": null, "timestamp": "2026-08-04T07:12:10.369890"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:12:35.807073"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:13:25.416106"}
+{"user_id": "admin", "service": "policyqa-service", "action": "delete_index", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:13:42.095609"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:13:45.719552"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:30:16.719040"}
+{"user_id": "admin", "service": "policyqa-service", "action": "ingest", "resource": "efu insurance.pdf", "metadata": null, "timestamp": "2026-08-04T07:31:22.015221"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-04T07:34:23.174352"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-08-06T05:48:01.897097"}
+{"user_id": "admin", "service": "Insurance-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-08-06T05:49:28.718588"}
+{"user_id": "admin", "service": "collateral-service", "action": "review", "resource": null, "metadata": null, "timestamp": "2026-08-06T05:51:19.884987"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-08-06T05:53:43.309828"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-08-06T05:53:57.719169"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-08-06T05:57:39.309421"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat", "resource": null, "metadata": null, "timestamp": "2026-08-06T05:58:40.900926"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:07:19.417392"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:08:34.241524"}
+{"user_id": "admin", "service": "policyqa-service", "action": "chat_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:08:52.807559"}
+{"user_id": "admin", "service": "Valuation-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:21:09.863496"}
+{"user_id": "admin", "service": "Insurance-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:21:30.759032"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:22:10.138620"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:22:54.093128"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T06:25:42.425636"}
+{"user_id": "admin", "service": "docdiff-service", "action": "compare", "resource": null, "metadata": null, "timestamp": "2026-08-06T07:40:06.928157"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-06T07:40:54.554310"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T06:07:35.822911"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T06:11:57.760543"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_batch_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T06:14:24.125876"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_batch_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T06:18:25.984017"}
+{"user_id": "admin", "service": "collateral-service", "action": "review_batch_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T06:19:54.651256"}
+{"user_id": "admin", "service": "Valuation-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T06:27:34.195954"}
+{"user_id": "admin", "service": "Valuation-service", "action": "review_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T06:27:56.949465"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_upload", "resource": "PICP Valuation Report on KIA Plot & Building 210819.pdf", "metadata": null, "timestamp": "2026-08-10T10:27:43.349935"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_delete", "resource": null, "metadata": null, "timestamp": "2026-08-10T10:28:42.090669"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_upload", "resource": "efu insurance.pdf", "metadata": null, "timestamp": "2026-08-10T10:29:07.438553"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_delete", "resource": null, "metadata": null, "timestamp": "2026-08-10T10:29:12.397670"}
+{"user_id": "admin", "service": "Insurance-service", "action": "review_batch_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T10:29:31.355020"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_upload", "resource": "efu insurance.pdf", "metadata": null, "timestamp": "2026-08-10T10:33:09.496362"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_delete", "resource": null, "metadata": null, "timestamp": "2026-08-10T10:33:41.021574"}
+{"user_id": "admin", "service": "Insurance-service", "action": "review_batch_stream", "resource": null, "metadata": null, "timestamp": "2026-08-10T10:39:45.470839"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_upload", "resource": "README (1).md", "metadata": null, "timestamp": "2026-08-10T10:40:48.942365"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_delete", "resource": null, "metadata": null, "timestamp": "2026-08-10T10:40:55.979812"}
+{"user_id": "admin", "service": "Insurance-service", "action": "policy_upload", "resource": "README (1).md", "metadata": null, "timestamp": "2026-08-10T10:41:00.100565"}

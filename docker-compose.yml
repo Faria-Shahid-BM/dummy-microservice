@@ -1,0 +1,150 @@
+services:
+
+  kong:
+    image: kong:3
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong.yml
+      KONG_PROXY_LISTEN: "0.0.0.0:80"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_LOG_LEVEL: "info"
+      KONG_PLUGINS: "bundled"
+    # No published ports: the frontend/nginx container below is the only
+    # public entry point and reaches Kong internally as http://kong:80. The
+    # Admin API on 8001 is likewise internal-only — never expose it.
+    expose:
+      - "80"
+      - "8001"
+    volumes:
+      - ./kong.yml:/kong.yml
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  docgen-service:
+    build:
+      context: .
+      dockerfile: docgen-service/Dockerfile
+    environment:
+      DATABASE_URL: sqlite:///./data/app.db
+      DATA_DIR: ./data
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL_EXTRACTION: google/gemini-2.5-Flash
+      LLM_MODEL_VISION: google/gemini-2.5-Flash
+      LLM_MODEL_SELECTION: google/gemini-2.5-Flash
+      LLM_MODEL_FILL: google/gemini-2.5-Flash
+      LLM_MODEL_ANALYSIS: google/gemini-2.5-Flash
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+    volumes:
+      - docgen-data:/app/backend/data     # DB + all file storage, persisted
+
+  collateral-service:
+    build:
+      context: .
+      dockerfile: collateral-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_EXTRACTION: google/gemini-2.5-Flash
+      # MODEL_VISION: anthropic/claude-sonnet-4.6
+      MODEL_VISION: google/gemini-2.5-Flash
+      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+
+  document-diff-service:
+    build:
+      context: .
+      dockerfile: doc_rev-service/Dockerfile
+    environment:
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+
+  valuation-service:
+    build:
+      context: .
+      dockerfile: valuation-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_EXTRACTION: google/gemini-2.5-Flash
+      # MODEL_VISION: anthropic/claude-sonnet-4.6
+      MODEL_VISION: google/gemini-2.5-Flash
+      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+  insurance-service:
+    build:
+      context: .
+      dockerfile: insurance-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_EXTRACTION: google/gemini-2.5-Flash
+      # MODEL_VISION: anthropic/claude-sonnet-4.6
+      MODEL_VISION: google/gemini-2.5-Flash
+      DATA_DIR: /app/data        # uploaded bank policies (main.py POST /policy)
+      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+    volumes:
+      - insurance-data:/app/data
+
+  policyqa-service:
+    build:
+      context: .
+      dockerfile: policyqa-service/Dockerfile
+    environment:
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY}
+      MODEL_CHAT: google/gemini-2.5-Flash
+      MODEL_EMBEDDING: openai/text-embedding-3-large
+      MODEL_VISION: google/gemini-2.5-Flash 
+      DATA_DIR: /app/data    
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+    volumes:
+      - policyqa-data:/app/data   
+
+  auth-service:
+    build: ./auth-service
+    environment:
+      JWT_SECRET: mysecret123
+      JWT_ISSUER: poc-issuer
+      USERS_DB: /app/data/users.db      # on a volume so admin edits survive restarts
+    volumes:
+      - auth-data:/app/data
+    depends_on:
+      kong:
+        condition: service_healthy
+
+  audit-service:
+    build: ./audit-service
+    volumes:
+      - ./audit-logs:/app/logs
+    depends_on:
+      kong:
+        condition: service_healthy
+
+  # Public entry point: serves the built Angular app and reverse-proxies
+  # /api/* to Kong (see frontend/nginx.conf). This is the only container that
+  # publishes a host port.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      kong:
+        condition: service_healthy
+
+volumes:
+  auth-data:
+  insurance-data:
+  policyqa-data:
+  docgen-data:

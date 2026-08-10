@@ -1,0 +1,341 @@
+<div class="app-shell">
+  <nav class="sidebar">
+    <h1>CAD Workbench</h1>
+    <p class="subtitle">Services available to you</p>
+
+    <ng-container *ngFor="let s of entitledServices">
+      <a *ngIf="s.route" [routerLink]="s.route" class="sidebar-item">{{ s.label }}</a>
+      <button *ngIf="!s.route" class="sidebar-item" [class.active]="selected?.key === s.key" (click)="select(s)">
+        {{ s.label }}
+      </button>
+    </ng-container>
+
+    <p class="empty" *ngIf="!entitledServices.length">
+      No services granted yet — ask an admin.
+    </p>
+
+    <a routerLink="/admin" *ngIf="session.isAdmin" class="sidebar-item sidebar-item--top">
+      Admin dashboard
+    </a>
+  </nav>
+
+  <main class="main-content">
+    <div *ngIf="!selected" class="card">
+      <h2>Welcome</h2>
+      <p class="empty">Pick a service from the sidebar to get started.</p>
+    </div>
+
+    <!-- diff-kind: document-reviewer -->
+    <ng-container *ngIf="selected?.kind === 'diff'">
+      <div class="topbar">
+        <h2>{{ selected!.label }}</h2>
+      </div>
+
+      <section class="card">
+        <h2>Compare two documents</h2>
+        <div class="file-field">
+          <span>Original document (.docx or .pdf)</span>
+          <input type="file" accept=".docx,.pdf" (change)="onOriginalFile($event)" />
+        </div>
+        <div class="file-field">
+          <span>Returned / signed document (.docx or .pdf)</span>
+          <input type="file" accept=".docx,.pdf" (change)="onReturnedFile($event)" />
+        </div>
+        <button [disabled]="comparingDiff || !originalFile || !returnedFile" (click)="compareDocuments()">
+          {{ comparingDiff ? 'Comparing…' : 'Compare' }}
+        </button>
+        <p class="error" *ngIf="diffError">{{ diffError }}</p>
+      </section>
+
+      <section class="card" *ngIf="diffResult">
+        <h2>Result</h2>
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="n">{{ (diffResult.similarity * 100).toFixed(1) }}%</div>
+            <div class="l">similarity</div>
+          </div>
+          <div class="stat-card">
+            <div class="n">{{ diffResult.summary.insertions }}</div>
+            <div class="l">insertions</div>
+          </div>
+          <div class="stat-card">
+            <div class="n">{{ diffResult.summary.deletions }}</div>
+            <div class="l">deletions</div>
+          </div>
+          <div class="stat-card">
+            <div class="n">{{ diffResult.summary.replacements }}</div>
+            <div class="l">replacements</div>
+          </div>
+        </div>
+
+        <p *ngIf="diffResult.missingPages?.length" class="warning">
+          Page{{ diffResult.missingPages!.length > 1 ? 's' : '' }}
+          {{ diffResult.missingPages!.join(', ') }} from the original {{ diffResult.missingPages!.length > 1 ? "don't" : "doesn't" }}
+          appear in the returned document.
+        </p>
+
+        <p *ngIf="diffResult.identical" class="empty">Documents are identical.</p>
+
+        <div class="redline" *ngIf="!diffResult.identical && diffResult.render === 'html'" [innerHTML]="diffResult.html"></div>
+
+        <div class="redline" *ngIf="!diffResult.identical && diffResult.render === 'text'">
+          <span
+            *ngFor="let seg of diffResult.segments"
+            [id]="seg.changeId !== null ? 'doc-change-' + seg.changeId : null"
+            [ngClass]="'seg-' + seg.op"
+            >{{ seg.text }}</span
+          >
+        </div>
+
+        <table class="audit-table" *ngIf="diffResult.changes.length">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Before</th>
+              <th>After</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of diffResult.changes" [class.flagged-row]="c.possibleMissingSection">
+              <td>
+                {{ c.type }}
+                <span
+                  *ngIf="c.possibleMissingSection"
+                  class="section-flag"
+                  title="This deletion is large enough that it may indicate an entire section or page is missing from the returned document."
+                  >possible missing section</span
+                >
+              </td>
+              <td class="wrap-cell"><span class="cell-text">{{ c.before }}</span></td>
+              <td class="wrap-cell"><span class="cell-text">{{ c.after }}</span></td>
+              <td><button type="button" (click)="jumpToChange(c.id)">View in document</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </ng-container>
+
+    <!-- collateral-kind: collateral-reviewer -->
+    <ng-container *ngIf="selected?.kind === 'collateral'">
+      <div class="topbar">
+        <h2>{{ selected!.label }}</h2>
+      </div>
+
+      <!-- Repeatable upload pairs + one result tab per pair (see review-batch.ts) -->
+      <app-review-batch
+        [batch]="collateralBatch"
+        [slots]="collateralSlots"
+        [stages]="collateralStages"
+        [resultTemplate]="collateralResultTpl"
+        itemNoun="pair"
+        itemLabel="Pair"
+        heading="Cross-check legal opinion vs property document"
+        actionLabel="Compare"
+        busyLabel="Comparing…"
+      ></app-review-batch>
+
+      <ng-template #collateralResultTpl let-result>
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="n">{{ result.summary.matches }}</div>
+            <div class="l">matches</div>
+          </div>
+          <div class="stat-card">
+            <div class="n">{{ result.summary.mismatches }}</div>
+            <div class="l">mismatches</div>
+          </div>
+          <div class="stat-card">
+            <div class="n">{{ result.summary.missing }}</div>
+            <div class="l">missing</div>
+          </div>
+          <div class="stat-card">
+            <div class="n">{{ result.summary.fields }}</div>
+            <div class="l">fields</div>
+          </div>
+        </div>
+
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Legal opinion</th>
+              <th>Property document</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of result.comparison">
+              <td>{{ row.label }}</td>
+              <td class="wrap-cell"><span class="cell-text">{{ row.legal_value || '—' }}</span></td>
+              <td class="wrap-cell"><span class="cell-text">{{ row.property_value || '—' }}</span></td>
+              <td [ngClass]="'status-' + row.status">{{ row.status }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 *ngIf="result.observations.length">Observations</h3>
+        <ul class="observation-list">
+          <li *ngFor="let obs of result.observations">{{ obs }}</li>
+        </ul>
+      </ng-template>
+    </ng-container>
+
+    <!-- valuation-kind: valuation-service -->
+    <ng-container *ngIf="selected?.kind === 'valuation'">
+      <div class="topbar">
+        <h2>{{ selected!.label }}</h2>
+      </div>
+
+      <app-review-batch
+        [batch]="valuationBatch"
+        [slots]="valuationSlots"
+        [stages]="valuationStages"
+        [resultTemplate]="valuationResultTpl"
+        itemNoun="report"
+        itemLabel="Report"
+        heading="Review valuation reports"
+      ></app-review-batch>
+
+      <ng-template #valuationResultTpl let-result>
+        <app-json-view [value]="result"></app-json-view>
+      </ng-template>
+    </ng-container>
+
+    <!-- insurance-kind: insurance-service -->
+    <ng-container *ngIf="selected?.kind === 'insurance'">
+      <div class="topbar">
+        <h2>{{ selected!.label }}</h2>
+      </div>
+
+      <app-review-batch
+        [batch]="insuranceBatch"
+        [slots]="insuranceSlots"
+        [stages]="insuranceStages"
+        [resultTemplate]="insuranceResultTpl"
+        itemNoun="policy"
+        itemNounPlural="policies"
+        itemLabel="Policy"
+        heading="Review insurance policies"
+      >
+        <!-- The bank policy the reviews are graded against: picking a file
+             uploads it straight away, so reviews switch to it from here on.
+             With none uploaded the engine's bundled policy.txt is used. -->
+        <input
+          #bankPolicyInput
+          type="file"
+          class="hidden-file"
+          accept=".pdf,.docx,.txt,.md"
+          (change)="uploadBankPolicy($event); bankPolicyInput.value = ''"
+        />
+        <button
+          batchActions
+          type="button"
+          class="clear"
+          [disabled]="bankPolicyBusy"
+          (click)="bankPolicyInput.click()"
+          title="Grade these reviews against your own bank policy (.pdf, .docx, .txt or .md)"
+        >
+          {{
+            bankPolicyBusy
+              ? 'Uploading…'
+              : bankPolicy?.has_own_policy
+                ? 'Replace bank policy'
+                : 'Upload bank policy'
+          }}
+        </button>
+
+        <p batchNote class="hint">
+          <ng-container *ngIf="bankPolicy?.has_own_policy; else bundledPolicy">
+            Graded against your bank policy <code>{{ bankPolicy!.file_name }}</code>.
+            <button type="button" class="link" [disabled]="bankPolicyBusy" (click)="deleteBankPolicy()">
+              Use the bundled policy instead
+            </button>
+          </ng-container>
+          <ng-template #bundledPolicy>Graded against the bundled default policy.</ng-template>
+          <span class="error" *ngIf="bankPolicyError"> {{ bankPolicyError }}</span>
+        </p>
+      </app-review-batch>
+
+      <ng-template #insuranceResultTpl let-result>
+        <app-json-view [value]="result"></app-json-view>
+      </ng-template>
+    </ng-container>
+
+    <!-- policyqa-kind: policyqa-service -->
+    <ng-container *ngIf="selected?.kind === 'policyqa'">
+      <div class="topbar">
+        <h2>{{ selected!.label }}</h2>
+      </div>
+
+      <section class="card">
+        <h2>Your policy index</h2>
+        <p *ngIf="policyStatus as st">
+          <span *ngIf="st.has_own_index">Chatting against your own uploaded policy.</span>
+          <span *ngIf="!st.has_own_index && st.bundled_available">Chatting against the bundled default policy — upload your own to override it.</span>
+          <span *ngIf="!st.has_own_index && !st.bundled_available">No policy indexed yet — upload one to start.</span>
+        </p>
+        <div class="file-field">
+          <span>Policy document (.pdf, .docx, .txt or .md)</span>
+          <input type="file" accept=".pdf,.docx,.txt,.md" (change)="onPolicyIngestFile($event)" />
+        </div>
+        <div class="button-row">
+          <button [disabled]="policyBusy || !policyIngestFile" (click)="ingestPolicy()">
+            {{ policyBusy ? 'Working…' : 'Upload & index' }}
+          </button>
+          <button
+            type="button"
+            class="secondary"
+            [disabled]="policyBusy || !policyStatus?.has_own_index"
+            (click)="deletePolicyIndex()"
+          >
+            Remove my index
+          </button>
+        </div>
+        <p class="error" *ngIf="policyError">{{ policyError }}</p>
+      </section>
+
+      <section class="card">
+        <h2>Ask a question</h2>
+        <div class="chat-log" *ngIf="policyMessages.length">
+          <div *ngFor="let m of policyMessages" [ngClass]="'chat-msg chat-' + m.role">
+            <div class="chat-msg-role">{{ m.role === 'user' ? 'You' : 'Answer' }}</div>
+            <div class="chat-msg-content">
+              <span class="typing-dots" *ngIf="m.streaming && !m.content">
+                <span></span><span></span><span></span>
+              </span>
+              <ng-container *ngIf="!(m.streaming && !m.content)">
+                {{ m.content }}<span class="streaming-cursor" *ngIf="m.streaming"></span>
+              </ng-container>
+            </div>
+            <div class="chat-sources" *ngIf="m.sources?.length">
+              Sources: {{ m.sources!.join(', ') }}
+            </div>
+          </div>
+        </div>
+        <div class="chat-composer">
+          <input
+            type="text"
+            [(ngModel)]="policyQuery"
+            name="policyQuery"
+            placeholder="Ask about the indexed policy…"
+            [disabled]="policyBusy"
+            (keydown.enter)="sendPolicyQuery()"
+          />
+          <button
+            type="button"
+            class="chat-send"
+            [disabled]="policyBusy || !policyQuery.trim()"
+            (click)="sendPolicyQuery()"
+            aria-label="Send"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3.4 20.6a1 1 0 01-1.35-1.28l2.72-7.32-2.72-7.32A1 1 0 013.4 3.4l17.5 8a1 1 0 010 1.8l-17.5 8z" />
+            </svg>
+          </button>
+        </div>
+        <p class="error" *ngIf="policyChatError">{{ policyChatError }}</p>
+      </section>
+    </ng-container>
+  </main>
+</div>
