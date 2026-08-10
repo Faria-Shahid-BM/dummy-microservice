@@ -1,21 +1,14 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { KONG_BASE, SessionService } from '../../session.service';
-
-interface AuditEntry {
-  user_id: string;
-  service: string;
-  action: string;
-  resource: string | null;
-  metadata?: Record<string, unknown> | null;
-  timestamp: string;
-}
+import { RouterLink } from '@angular/router';
+import { KONG_BASE } from '../../session.service';
+import { AuditEntry } from './audit.model';
 
 @Component({
   selector: 'app-admin-audit',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './admin-audit.component.html'
 })
 export class AdminAuditComponent implements OnInit {
@@ -29,7 +22,7 @@ export class AdminAuditComponent implements OnInit {
   error = '';
   loading = false;
 
-  constructor(private http: HttpClient, private session: SessionService) {}
+  constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
     this.load();
@@ -55,7 +48,7 @@ export class AdminAuditComponent implements OnInit {
     // route prefix is also "/api/audit" with strip_path — so the externally
     // reachable path ends up with the segment doubled. See README.md.
     this.http
-      .get<AuditEntry[]>(`${KONG_BASE}/api/audit/audit`, { headers: this.session.authHeaders() })
+      .get<AuditEntry[]>(`${KONG_BASE}/api/audit/audit`)
       .subscribe({
         next: (res) => {
           // Newest first, matching the paginated API's previous ordering.

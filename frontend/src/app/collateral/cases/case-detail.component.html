@@ -1,0 +1,100 @@
+<div class="topbar">
+  <h2>{{ case?.name || 'Case' }}</h2>
+  <a routerLink="/collateral/cases" class="back-link">← All cases</a>
+</div>
+
+<p class="error" *ngIf="error">{{ error }}</p>
+
+<ng-container *ngIf="case">
+  <section class="card">
+    <h2>Cross-check legal opinion vs property document</h2>
+    <div class="file-field">
+      <span>Legal opinion (.docx or .pdf) — {{ case.uploads['legal'] || 'not uploaded' }}</span>
+      <input type="file" accept=".docx,.pdf" (change)="onLegalFile($event)" [disabled]="case.status === 'analyzing'" />
+      <button [disabled]="uploadingLegal || !legalFile" (click)="uploadLegal()">
+        {{ uploadingLegal ? 'Uploading…' : 'Upload' }}
+      </button>
+    </div>
+    <div class="file-field">
+      <span>Property / title document (.docx or .pdf) — {{ case.uploads['property'] || 'not uploaded' }}</span>
+      <input
+        type="file"
+        accept=".docx,.pdf"
+        (change)="onPropertyFile($event)"
+        [disabled]="case.status === 'analyzing'"
+      />
+      <button [disabled]="uploadingProperty || !propertyFile" (click)="uploadProperty()">
+        {{ uploadingProperty ? 'Uploading…' : 'Upload' }}
+      </button>
+    </div>
+    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
+
+    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
+      {{ analyzing ? 'Comparing…' : case.status === 'done' || case.status === 'failed' ? 'Re-analyze' : 'Compare' }}
+    </button>
+    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+    <p class="hint">Calls a real LLM — this can take a little while.</p>
+  </section>
+
+  <section class="card" *ngIf="analyzing">
+    <h2>Progress</h2>
+    <app-stage-progress
+      [steps]="collateralStages"
+      [currentKey]="progress.stageKey"
+      [detail]="progress.detail"
+      [complete]="progress.complete"
+    ></app-stage-progress>
+    <ng-container *ngIf="streamingText">
+      <h3>Live output</h3>
+      <div class="redline">{{ streamingText }}<span class="streaming-cursor"></span></div>
+    </ng-container>
+  </section>
+
+  <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
+
+  <section class="card" *ngIf="case.result as result">
+    <h2>Result</h2>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="n">{{ result.summary.matches }}</div>
+        <div class="l">matches</div>
+      </div>
+      <div class="stat-card">
+        <div class="n">{{ result.summary.mismatches }}</div>
+        <div class="l">mismatches</div>
+      </div>
+      <div class="stat-card">
+        <div class="n">{{ result.summary.missing }}</div>
+        <div class="l">missing</div>
+      </div>
+      <div class="stat-card">
+        <div class="n">{{ result.summary.fields }}</div>
+        <div class="l">fields</div>
+      </div>
+    </div>
+
+    <table class="audit-table">
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Legal opinion</th>
+          <th>Property document</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of result.comparison">
+          <td>{{ row.label }}</td>
+          <td class="wrap-cell"><span class="cell-text">{{ row.legal_value || '—' }}</span></td>
+          <td class="wrap-cell"><span class="cell-text">{{ row.property_value || '—' }}</span></td>
+          <td [ngClass]="'status-' + row.status">{{ row.status }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 *ngIf="result.observations.length">Observations</h3>
+    <ul class="observation-list">
+      <li *ngFor="let obs of result.observations">{{ obs }}</li>
+    </ul>
+  </section>
+</ng-container>

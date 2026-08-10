@@ -1,0 +1,43 @@
+<div class="topbar">
+  <h2>{{ case?.name || 'Case' }}</h2>
+  <a routerLink="/insurance/cases" class="back-link">← All cases</a>
+</div>
+
+<p class="error" *ngIf="error">{{ error }}</p>
+
+<ng-container *ngIf="case">
+  <section class="card">
+    <h2>Review an insurance policy</h2>
+    <div class="file-field">
+      <span>Insurance policy (.docx or .pdf) — {{ case.uploads['policy'] || 'not uploaded' }}</span>
+      <input type="file" accept=".docx,.pdf" (change)="onPolicyFile($event)" [disabled]="case.status === 'analyzing'" />
+      <button [disabled]="uploadingPolicy || !policyFile" (click)="uploadPolicy()">
+        {{ uploadingPolicy ? 'Uploading…' : 'Upload' }}
+      </button>
+    </div>
+    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
+
+    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
+      {{ analyzing ? 'Reviewing…' : case.status === 'done' || case.status === 'failed' ? 'Re-review' : 'Review' }}
+    </button>
+    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+    <p class="hint">Calls a real LLM — this can take a little while.</p>
+  </section>
+
+  <section class="card" *ngIf="analyzing">
+    <h2>Progress</h2>
+    <app-stage-progress
+      [steps]="insuranceStages"
+      [currentKey]="progress.stageKey"
+      [detail]="progress.detail"
+      [complete]="progress.complete"
+    ></app-stage-progress>
+  </section>
+
+  <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
+
+  <section class="card" *ngIf="case.result">
+    <h2>Result</h2>
+    <app-json-view [value]="case.result"></app-json-view>
+  </section>
+</ng-container>

@@ -1,0 +1,57 @@
+<div class="app-shell" [class.sidebar-collapsed]="sidebarToggle.collapsed">
+  <nav class="sidebar">
+    <ng-container *ngIf="!sidebarToggle.collapsed">
+      <p class="subtitle">Services available to you</p>
+
+      <ng-container *ngFor="let s of catalog.entitledServices">
+        <a *ngIf="s.route" [routerLink]="s.route" routerLinkActive="active" class="sidebar-item" (click)="catalog.select(s)">{{ s.label }}</a>
+        <button *ngIf="!s.route" class="sidebar-item" [class.active]="catalog.selected?.key === s.key" (click)="selectKind(s)">
+          {{ s.label }}
+        </button>
+      </ng-container>
+
+      <p class="empty" *ngIf="!catalog.entitledServices.length">
+        No services granted yet — ask an admin.
+      </p>
+
+      <a routerLink="/admin" *ngIf="session.isAdmin" class="sidebar-item sidebar-item--top">
+        Admin dashboard
+      </a>
+    </ng-container>
+
+    <ng-container *ngIf="sidebarToggle.collapsed">
+      <ng-container *ngFor="let s of catalog.entitledServices">
+        <a
+          *ngIf="s.route"
+          [routerLink]="s.route"
+          routerLinkActive="active"
+          class="sidebar-item-mini"
+          [attr.title]="s.label"
+          (click)="catalog.select(s)"
+          >{{ s.short }}</a
+        >
+        <button
+          *ngIf="!s.route"
+          class="sidebar-item-mini"
+          [class.active]="catalog.selected?.key === s.key"
+          [attr.title]="s.label"
+          (click)="selectKind(s)"
+        >
+          {{ s.short }}
+        </button>
+      </ng-container>
+
+      <a
+        routerLink="/admin"
+        *ngIf="session.isAdmin"
+        class="sidebar-item-mini sidebar-item-mini--top"
+        title="Admin dashboard"
+        >AD</a
+      >
+    </ng-container>
+  </nav>
+
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

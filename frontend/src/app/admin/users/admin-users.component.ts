@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
-import { KNOWN_SERVICES, KONG_BASE, SessionService } from '../../session.service';
+import { KNOWN_SERVICES, KONG_BASE } from '../../session.service';
 
 interface ManagedUser {
   username: string;
@@ -21,7 +21,7 @@ export class AdminUsersComponent implements OnInit {
   error = '';
   loading = false;
 
-  constructor(private http: HttpClient, private session: SessionService) {}
+  constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
     this.load();
@@ -30,7 +30,7 @@ export class AdminUsersComponent implements OnInit {
   load(): void {
     this.error = '';
     this.loading = true;
-    this.http.get<ManagedUser[]>(`${KONG_BASE}/api/auth/users`, { headers: this.session.authHeaders() }).subscribe({
+    this.http.get<ManagedUser[]>(`${KONG_BASE}/api/auth/users`).subscribe({
       next: (users) => {
         this.users = users;
         this.loading = false;
@@ -48,7 +48,7 @@ export class AdminUsersComponent implements OnInit {
       : [...user.scopes, scope];
 
     this.http
-      .put<ManagedUser>(`${KONG_BASE}/api/auth/users/${user.username}/scopes`, { scopes }, { headers: this.session.authHeaders() })
+      .put<ManagedUser>(`${KONG_BASE}/api/auth/users/${user.username}/scopes`, { scopes })
       .subscribe({
         next: (updated) => {
           user.scopes = updated.scopes;

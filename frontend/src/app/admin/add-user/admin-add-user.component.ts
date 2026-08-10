@@ -3,7 +3,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { KNOWN_SERVICES, KONG_BASE, SessionService } from '../../session.service';
+import { KNOWN_SERVICES, KONG_BASE } from '../../session.service';
 
 @Component({
   selector: 'app-admin-add-user',
@@ -20,7 +20,7 @@ export class AdminAddUserComponent {
   error = '';
   creating = false;
 
-  constructor(private http: HttpClient, private session: SessionService, private router: Router) {}
+  constructor(private http: HttpClient, private router: Router) {}
 
   toggleService(scope: string): void {
     const i = this.scopes.indexOf(scope);
@@ -32,11 +32,11 @@ export class AdminAddUserComponent {
     this.error = '';
     this.creating = true;
     this.http
-      .post(
-        `${KONG_BASE}/api/auth/users`,
-        { username: this.username, password: this.password, scopes: this.scopes },
-        { headers: this.session.authHeaders() }
-      )
+      .post(`${KONG_BASE}/api/auth/users`, {
+        username: this.username,
+        password: this.password,
+        scopes: this.scopes
+      })
       .subscribe({
         next: () => {
           this.creating = false;

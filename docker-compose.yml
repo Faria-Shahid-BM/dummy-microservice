@@ -55,6 +55,11 @@ services:
       # JWT scope enforcement (security.py) — must match auth-service + kong.yml
       JWT_SECRET: mysecret123
       JWT_ISSUER: poc-issuer
+      # Cases persistence (case_store.py)
+      DATABASE_URL: sqlite:///./data/app.db
+      DATA_DIR: ./data
+    volumes:
+      - collateral-data:/app/data     # cases DB + uploaded files, persisted
 
   document-diff-service:
     build:
@@ -63,6 +68,11 @@ services:
     environment:
       JWT_SECRET: mysecret123
       JWT_ISSUER: poc-issuer
+      # Cases persistence (case_store.py)
+      DATABASE_URL: sqlite:///./data/app.db
+      DATA_DIR: ./data
+    volumes:
+      - docdiff-data:/app/data       # cases DB + uploaded files, persisted
 
   valuation-service:
     build:
@@ -77,6 +87,12 @@ services:
       # JWT scope enforcement (security.py) — must match auth-service + kong.yml
       JWT_SECRET: mysecret123
       JWT_ISSUER: poc-issuer
+      # Cases persistence (case_store.py)
+      DATABASE_URL: sqlite:///./data/app.db
+      DATA_DIR: ./data
+    volumes:
+      - valuation-data:/app/data     # cases DB + uploaded files, persisted
+
   insurance-service:
     build:
       context: .
@@ -90,6 +106,11 @@ services:
       # JWT scope enforcement (security.py) — must match auth-service + kong.yml
       JWT_SECRET: mysecret123
       JWT_ISSUER: poc-issuer
+      # Cases persistence (case_store.py)
+      DATABASE_URL: sqlite:///./data/app.db
+      DATA_DIR: ./data
+    volumes:
+      - insurance-data:/app/data     # cases DB + uploaded files, persisted
 
   policyqa-service:
     build:
@@ -144,3 +165,7 @@ volumes:
   auth-data:
   policyqa-data:
   docgen-data:
+  collateral-data:
+  docdiff-data:
+  valuation-data:
+  insurance-data:

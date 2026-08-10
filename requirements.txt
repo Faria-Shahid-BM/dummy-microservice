@@ -8,3 +8,4 @@ PyMuPDF
 python-docx
 openpyxl
 python-dateutil
+sqlalchemy>=2.0

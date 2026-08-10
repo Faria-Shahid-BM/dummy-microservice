@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { KONG_BASE, SessionService } from '../session.service';
+import { KONG_BASE } from '../session.service';
 
 // Shapes verified directly against docgen-service/app/** — see the plan's
 // "Corrections to DOCGEN_API.md" section for the gaps the shipped doc left
@@ -201,138 +201,93 @@ export class DocgenService {
   // the only profile) came back first.
   activeProfile: DocgenProfile | null = null;
 
-  constructor(private http: HttpClient, private session: SessionService) {}
-
-  private get headers(): Record<string, string> {
-    return this.session.authHeaders();
-  }
+  constructor(private http: HttpClient) {}
 
   // --- profiles ---
 
   listProfiles(): Observable<{ profiles: DocgenProfile[] }> {
-    return this.http.get<{ profiles: DocgenProfile[] }>(`${KONG_BASE}/api/profiles`, { headers: this.headers });
+    return this.http.get<{ profiles: DocgenProfile[] }>(`${KONG_BASE}/api/profiles`);
   }
 
   // --- cases ---
 
   listCases(profileId: string): Observable<{ cases: DocgenCase[] }> {
-    return this.http.get<{ cases: DocgenCase[] }>(`${KONG_BASE}/api/profiles/${profileId}/cases`, {
-      headers: this.headers
-    });
+    return this.http.get<{ cases: DocgenCase[] }>(`${KONG_BASE}/api/profiles/${profileId}/cases`);
   }
 
   createCase(profileId: string, name: string): Observable<DocgenCase> {
-    return this.http.post<DocgenCase>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases`,
-      { name },
-      { headers: this.headers }
-    );
+    return this.http.post<DocgenCase>(`${KONG_BASE}/api/profiles/${profileId}/cases`, { name });
   }
 
   getCase(profileId: string, caseId: string): Observable<DocgenCaseDetail> {
-    return this.http.get<DocgenCaseDetail>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}`, {
-      headers: this.headers
-    });
+    return this.http.get<DocgenCaseDetail>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}`);
   }
 
   uploadCaseInput(profileId: string, caseId: string, file: File): Observable<DocgenCase> {
     const form = new FormData();
     form.append('file', file);
-    return this.http.post<DocgenCase>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/input`,
-      form,
-      { headers: this.headers }
-    );
+    return this.http.post<DocgenCase>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/input`, form);
   }
 
   runExtract(profileId: string, caseId: string): Observable<DocgenJob> {
-    return this.http.post<DocgenJob>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/extract`,
-      {},
-      { headers: this.headers }
-    );
+    return this.http.post<DocgenJob>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/extract`, {});
   }
 
   getCaseText(profileId: string, caseId: string): Observable<TextContent> {
-    return this.http.get<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/case-text`, {
-      headers: this.headers
-    });
+    return this.http.get<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/case-text`);
   }
 
   putCaseText(profileId: string, caseId: string, content: string): Observable<TextContent> {
-    return this.http.put<TextContent>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/case-text`,
-      { content },
-      { headers: this.headers }
-    );
+    return this.http.put<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/case-text`, {
+      content
+    });
   }
 
   runAnalyze(profileId: string, caseId: string): Observable<DocgenJob> {
-    return this.http.post<DocgenJob>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/analyze`,
-      {},
-      { headers: this.headers }
-    );
+    return this.http.post<DocgenJob>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/analyze`, {});
   }
 
   getAnalysis(profileId: string, caseId: string): Observable<TextContent> {
-    return this.http.get<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/analysis`, {
-      headers: this.headers
-    });
+    return this.http.get<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/analysis`);
   }
 
   putAnalysis(profileId: string, caseId: string, content: string): Observable<TextContent> {
-    return this.http.put<TextContent>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/analysis`,
-      { content },
-      { headers: this.headers }
-    );
-  }
-
-  runSelect(profileId: string, caseId: string): Observable<DocgenJob> {
-    return this.http.post<DocgenJob>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/select`,
-      {},
-      { headers: this.headers }
-    );
-  }
-
-  getSelected(profileId: string, caseId: string): Observable<TextContent> {
-    return this.http.get<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/selected`, {
-      headers: this.headers
+    return this.http.put<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/analysis`, {
+      content
     });
   }
 
+  runSelect(profileId: string, caseId: string): Observable<DocgenJob> {
+    return this.http.post<DocgenJob>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/select`, {});
+  }
+
+  getSelected(profileId: string, caseId: string): Observable<TextContent> {
+    return this.http.get<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/selected`);
+  }
+
   putSelected(profileId: string, caseId: string, content: string): Observable<TextContent> {
-    return this.http.put<TextContent>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/selected`,
-      { content },
-      { headers: this.headers }
-    );
+    return this.http.put<TextContent>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/selected`, {
+      content
+    });
   }
 
   runFill(profileId: string, caseId: string, tasks?: string[]): Observable<FillResponse> {
     return this.http.post<FillResponse>(
       `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/fill`,
-      tasks ? { tasks } : {},
-      { headers: this.headers }
+      tasks ? { tasks } : {}
     );
   }
 
   // --- generated documents ---
 
   listDocuments(profileId: string, caseId: string): Observable<DocumentsResponse> {
-    return this.http.get<DocumentsResponse>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/documents`,
-      { headers: this.headers }
-    );
+    return this.http.get<DocumentsResponse>(`${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/documents`);
   }
 
   submitDocument(profileId: string, caseId: string, docId: string): Observable<SubmitDocumentResponse> {
     return this.http.post<SubmitDocumentResponse>(
       `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/documents/${docId}/submit`,
-      {},
-      { headers: this.headers }
+      {}
     );
   }
 
@@ -342,8 +297,7 @@ export class DocgenService {
 
   getProvenance(profileId: string, caseId: string, docId: string): Observable<DocumentProvenance> {
     return this.http.get<DocumentProvenance>(
-      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/documents/${docId}/provenance`,
-      { headers: this.headers }
+      `${KONG_BASE}/api/profiles/${profileId}/cases/${caseId}/documents/${docId}/provenance`
     );
   }
 
@@ -354,9 +308,7 @@ export class DocgenService {
   // --- template library ---
 
   listTemplates(profileId: string): Observable<{ templates: DocgenTemplate[] }> {
-    return this.http.get<{ templates: DocgenTemplate[] }>(`${KONG_BASE}/api/profiles/${profileId}/templates`, {
-      headers: this.headers
-    });
+    return this.http.get<{ templates: DocgenTemplate[] }>(`${KONG_BASE}/api/profiles/${profileId}/templates`);
   }
 
   createTemplate(
@@ -371,15 +323,11 @@ export class DocgenService {
     form.append('name', name);
     form.append('language', language);
     form.append('note', note);
-    return this.http.post<TemplateDetail>(`${KONG_BASE}/api/profiles/${profileId}/templates`, form, {
-      headers: this.headers
-    });
+    return this.http.post<TemplateDetail>(`${KONG_BASE}/api/profiles/${profileId}/templates`, form);
   }
 
   getTemplate(profileId: string, templateId: string): Observable<TemplateDetail> {
-    return this.http.get<TemplateDetail>(`${KONG_BASE}/api/profiles/${profileId}/templates/${templateId}`, {
-      headers: this.headers
-    });
+    return this.http.get<TemplateDetail>(`${KONG_BASE}/api/profiles/${profileId}/templates/${templateId}`);
   }
 
   uploadTemplateVersion(
@@ -393,23 +341,20 @@ export class DocgenService {
     form.append('note', note);
     return this.http.post<TemplateVersion>(
       `${KONG_BASE}/api/profiles/${profileId}/templates/${templateId}/versions`,
-      form,
-      { headers: this.headers }
+      form
     );
   }
 
   analyzeTemplateVersion(profileId: string, templateId: string, versionId: string): Observable<DocgenJob> {
     return this.http.post<DocgenJob>(
       `${KONG_BASE}/api/profiles/${profileId}/templates/${templateId}/versions/${versionId}/analyze`,
-      {},
-      { headers: this.headers }
+      {}
     );
   }
 
   getDescriptor(profileId: string, templateId: string, versionId: string): Observable<{ descriptor: string }> {
     return this.http.get<{ descriptor: string }>(
-      `${KONG_BASE}/api/profiles/${profileId}/templates/${templateId}/versions/${versionId}/descriptor`,
-      { headers: this.headers }
+      `${KONG_BASE}/api/profiles/${profileId}/templates/${templateId}/versions/${versionId}/descriptor`
     );
   }
 
@@ -421,8 +366,7 @@ export class DocgenService {
   ): Observable<{ descriptor: string }> {
     return this.http.put<{ descriptor: string }>(
       `${KONG_BASE}/api/profiles/${profileId}/templates/${templateId}/versions/${versionId}/descriptor`,
-      { descriptor },
-      { headers: this.headers }
+      { descriptor }
     );
   }
 
@@ -441,59 +385,46 @@ export class DocgenService {
     if (state) params['state'] = state;
     if (subjectType) params['subject_type'] = subjectType;
     return this.http.get<{ approvals: Approval[] }>(`${KONG_BASE}/api/profiles/${profileId}/approvals`, {
-      headers: this.headers,
       params
     });
   }
 
   submitApproval(approvalId: string): Observable<Approval> {
-    return this.http.post<Approval>(
-      `${KONG_BASE}/api/approvals/${approvalId}/submit`,
-      {},
-      { headers: this.headers }
-    );
+    return this.http.post<Approval>(`${KONG_BASE}/api/approvals/${approvalId}/submit`, {});
   }
 
   decideApproval(approvalId: string, approve: boolean, comment: string): Observable<Approval> {
-    return this.http.post<Approval>(
-      `${KONG_BASE}/api/approvals/${approvalId}/decide`,
-      { approve, comment },
-      { headers: this.headers }
-    );
+    return this.http.post<Approval>(`${KONG_BASE}/api/approvals/${approvalId}/decide`, { approve, comment });
   }
 
   // --- jobs (polling) ---
 
   getJob(jobId: string): Observable<DocgenJob> {
-    return this.http.get<DocgenJob>(`${KONG_BASE}/api/jobs/${jobId}`, { headers: this.headers });
+    return this.http.get<DocgenJob>(`${KONG_BASE}/api/jobs/${jobId}`);
   }
 
   // --- notifications ---
 
   listNotifications(unreadOnly = false): Observable<NotificationsResponse> {
     return this.http.get<NotificationsResponse>(`${KONG_BASE}/api/notifications`, {
-      headers: this.headers,
       params: { unread: String(unreadOnly) }
     });
   }
 
   markNotificationsRead(ids?: string[]): Observable<{ ok: true }> {
-    return this.http.post<{ ok: true }>(
-      `${KONG_BASE}/api/notifications/read`,
-      ids ? { ids } : {},
-      { headers: this.headers }
-    );
+    return this.http.post<{ ok: true }>(`${KONG_BASE}/api/notifications/read`, ids ? { ids } : {});
   }
 
   // --- authenticated file download ---
 
   // Downloads (documents, download-all zip, template version files) sit
-  // behind the same Bearer-token JWT as everything else. The token only
-  // ever lives in memory (SessionService never uses a cookie), so a plain
-  // <a href> can't carry it — fetch the bytes ourselves and hand the
-  // browser a client-side blob URL to save instead.
+  // behind the same JWT as everything else, carried automatically by the
+  // httpOnly session cookie (see session.service.ts) — no header to attach
+  // ourselves. Still fetched as a blob rather than a plain <a href> so
+  // failures (expired session, 404) surface as a real error instead of the
+  // browser silently rendering Kong/FastAPI's error JSON as a "download".
   async downloadFile(url: string, suggestedName?: string): Promise<void> {
-    const response = await fetch(url, { headers: this.headers });
+    const response = await fetch(url);
     if (!response.ok) {
       let detail = `download failed (${response.status})`;
       try {

@@ -13,3 +13,10 @@ venv/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Audit trail runtime data (bind-mounted from audit-service, see
+# docker-compose.yml's audit-service volume) — generated at runtime, not
+# source.
+audit-logs/*.log
+audit-logs/*.db
+audit-logs/attachments/

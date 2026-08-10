@@ -1,0 +1,112 @@
+<div class="topbar">
+  <h2>{{ case?.name || 'Case' }}</h2>
+  <a routerLink="/docdiff/cases" class="back-link">← All cases</a>
+</div>
+
+<p class="error" *ngIf="error">{{ error }}</p>
+
+<ng-container *ngIf="case">
+  <section class="card">
+    <h2>Compare two documents</h2>
+    <div class="file-field">
+      <span>Original document (.docx or .pdf) — {{ case.uploads['original'] || 'not uploaded' }}</span>
+      <input
+        type="file"
+        accept=".docx,.pdf"
+        (change)="onOriginalFile($event)"
+        [disabled]="case.status === 'analyzing'"
+      />
+      <button [disabled]="uploadingOriginal || !originalFile" (click)="uploadOriginal()">
+        {{ uploadingOriginal ? 'Uploading…' : 'Upload' }}
+      </button>
+    </div>
+    <div class="file-field">
+      <span>Returned / signed document (.docx or .pdf) — {{ case.uploads['returned'] || 'not uploaded' }}</span>
+      <input
+        type="file"
+        accept=".docx,.pdf"
+        (change)="onReturnedFile($event)"
+        [disabled]="case.status === 'analyzing'"
+      />
+      <button [disabled]="uploadingReturned || !returnedFile" (click)="uploadReturned()">
+        {{ uploadingReturned ? 'Uploading…' : 'Upload' }}
+      </button>
+    </div>
+    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
+
+    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
+      {{ analyzing ? 'Comparing…' : case.status === 'done' || case.status === 'failed' ? 'Re-compare' : 'Compare' }}
+    </button>
+    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+  </section>
+
+  <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
+
+  <section class="card" *ngIf="diffResult">
+    <h2>Result</h2>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="n">{{ (diffResult.similarity * 100).toFixed(1) }}%</div>
+        <div class="l">similarity</div>
+      </div>
+      <div class="stat-card">
+        <div class="n">{{ diffResult.summary.insertions }}</div>
+        <div class="l">insertions</div>
+      </div>
+      <div class="stat-card">
+        <div class="n">{{ diffResult.summary.deletions }}</div>
+        <div class="l">deletions</div>
+      </div>
+      <div class="stat-card">
+        <div class="n">{{ diffResult.summary.replacements }}</div>
+        <div class="l">replacements</div>
+      </div>
+    </div>
+
+    <p *ngIf="diffResult.missingPages?.length" class="warning">
+      Page{{ diffResult.missingPages!.length > 1 ? 's' : '' }}
+      {{ diffResult.missingPages!.join(', ') }} from the original {{ diffResult.missingPages!.length > 1 ? "don't" : "doesn't" }}
+      appear in the returned document.
+    </p>
+
+    <p *ngIf="diffResult.identical" class="empty">Documents are identical.</p>
+
+    <div class="redline" *ngIf="!diffResult.identical && diffResult.render === 'html'" [innerHTML]="diffResult.html"></div>
+
+    <div class="redline" *ngIf="!diffResult.identical && diffResult.render === 'text'">
+      <span
+        *ngFor="let seg of diffResult.segments"
+        [id]="seg.changeId !== null ? 'doc-change-' + seg.changeId : null"
+        [ngClass]="'seg-' + seg.op"
+        >{{ seg.text }}</span
+      >
+    </div>
+
+    <table class="audit-table" *ngIf="diffResult.changes.length">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Before</th>
+          <th>After</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let c of diffResult.changes" [class.flagged-row]="c.possibleMissingSection">
+          <td>
+            {{ c.type }}
+            <span
+              *ngIf="c.possibleMissingSection"
+              class="section-flag"
+              title="This deletion is large enough that it may indicate an entire section or page is missing from the returned document."
+              >possible missing section</span
+            >
+          </td>
+          <td class="wrap-cell"><span class="cell-text">{{ c.before }}</span></td>
+          <td class="wrap-cell"><span class="cell-text">{{ c.after }}</span></td>
+          <td><button type="button" (click)="jumpToChange(c.id)">View in document</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</ng-container>

@@ -19,7 +19,7 @@
       </tr>
     </thead>
     <tbody>
-      <tr *ngFor="let entry of entries">
+      <tr class="clickable-row" *ngFor="let entry of entries" [routerLink]="['/admin/audit', entry.id]">
         <td>{{ entry.timestamp }}</td>
         <td>{{ entry.user_id }}</td>
         <td>{{ entry.service }}</td>

@@ -1,0 +1,81 @@
+<div class="topbar">
+  <h2>Audit entry</h2>
+  <a routerLink="/admin/audit" class="back-link">← All audit entries</a>
+</div>
+
+<p class="error" *ngIf="error">{{ error }}</p>
+<p class="hint" *ngIf="loading">Loading…</p>
+
+<ng-container *ngIf="entry">
+  <section class="card">
+    <table class="kv-table">
+      <tbody>
+        <tr><th>Time</th><td>{{ entry.timestamp }}</td></tr>
+        <tr><th>User</th><td>{{ entry.user_id }}</td></tr>
+        <tr><th>Service</th><td>{{ entry.service }}</td></tr>
+        <tr><th>Action</th><td>{{ entry.action }}</td></tr>
+        <tr *ngIf="entry.resource"><th>Resource</th><td>{{ entry.resource }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card" *ngIf="entry.attachments.length">
+    <h2>Files</h2>
+    <a
+      *ngFor="let att of entry.attachments"
+      class="attachment-link"
+      [href]="attachmentHref(att)"
+      target="_blank"
+      rel="noopener"
+    >{{ att.filename }}</a>
+  </section>
+
+  <section class="card" *ngFor="let section of entry.sections">
+    <h2>{{ section.title }}</h2>
+    <ng-container *ngTemplateOutlet="renderNode; context: { $implicit: section.content }"></ng-container>
+  </section>
+
+  <section class="card" *ngIf="!hasAnyDetail()">
+    <p class="hint">No additional detail recorded for this entry.</p>
+  </section>
+</ng-container>
+
+<!-- audit-service has already decided what's noise and what's a real field
+     (see _to_display_node() in audit-service/main.py) — this just renders
+     the type-tagged tree it hands back, with no guessing of its own. -->
+<ng-template #renderNode let-node>
+  <span class="kv-empty" *ngIf="node.type === 'text' && node.value === '—'">—</span>
+  <span class="kv-primitive" *ngIf="node.type === 'text' && node.value !== '—'">{{ node.value }}</span>
+
+  <table class="kv-table" *ngIf="node.type === 'fields'">
+    <tbody>
+      <tr *ngFor="let row of node.rows">
+        <th>{{ row.label }}</th>
+        <td>
+          <ng-container *ngTemplateOutlet="renderNode; context: { $implicit: row.value }"></ng-container>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="kv-table kv-array-table" *ngIf="node.type === 'table'">
+    <thead>
+      <tr>
+        <th *ngFor="let col of node.columns">{{ col }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of node.rows">
+        <td *ngFor="let cell of row">
+          <ng-container *ngTemplateOutlet="renderNode; context: { $implicit: cell }"></ng-container>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <ul class="kv-list" *ngIf="node.type === 'list'">
+    <li *ngFor="let item of node.items">
+      <ng-container *ngTemplateOutlet="renderNode; context: { $implicit: item }"></ng-container>
+    </li>
+  </ul>
+</ng-template>

@@ -6,5 +6,7 @@ COPY engines/ ./engines/
 COPY provider.py .
 COPY security.py .
 COPY streaming.py .
+COPY audit_client.py .
+COPY case_store.py .
 COPY insurance-service/main.py .
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

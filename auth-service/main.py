@@ -7,7 +7,7 @@ import sqlite3
 import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi import FastAPI, Header, HTTPException, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -147,8 +147,18 @@ class LoginRequest(BaseModel):
     password: str
 
 
+# The JWT lives only in this cookie now — never in a JS-readable response
+# field or client-side storage, so an XSS bug can't exfiltrate it. Kong's
+# global pre-function plugin (see kong.yml) reads this cookie on every
+# request and sets it as the Authorization header before proxying upstream,
+# so every service's existing require_scope()/require_admin() (which read
+# that header) needed no changes.
+COOKIE_NAME = "access_token"
+TOKEN_TTL = datetime.timedelta(hours=2)
+
+
 @app.post("/login")
-def login(body: LoginRequest):
+def login(body: LoginRequest, response: Response):
     user = get_user(body.username)
     if user is None or not verify_password(body.password, user["password_hash"]):
         return JSONResponse(status_code=401, content={"error": "Invalid credentials"})
@@ -158,12 +168,44 @@ def login(body: LoginRequest):
             "iss": ISSUER,
             "sub": user["username"],
             "scopes": user["scopes"],              # <- carried to the services
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2),
+            "exp": datetime.datetime.utcnow() + TOKEN_TTL,
         },
         SECRET,
         algorithm="HS256",
     )
-    return {"token": token, "username": user["username"], "scopes": user["scopes"]}
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=int(TOKEN_TTL.total_seconds()),
+        path="/",
+        # secure=True once the stack is served over TLS (see
+        # POC_TO_PRODUCTION.md #4) — omitted for now since this deploys over
+        # plain HTTP, where a Secure cookie would just never get sent.
+    )
+    return {"username": user["username"], "scopes": user["scopes"]}
+
+
+@app.post("/logout")
+def logout(response: Response):
+    response.delete_cookie(COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+# Lets the frontend re-derive "who is this?" after a page refresh, when the
+# in-memory session state is gone but the httpOnly cookie (and thus the
+# Authorization header Kong builds from it) is still valid.
+@app.get("/me")
+def me(authorization: str | None = Header(default=None)):
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(" ", 1)[1].strip()
+    try:
+        payload = jwt.decode(token, SECRET, algorithms=["HS256"], issuer=ISSUER)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
+    return {"username": payload.get("sub"), "scopes": payload.get("scopes") or []}
 
 
 # ── Admin: user management (all require the 'admin' scope) ───────────────────

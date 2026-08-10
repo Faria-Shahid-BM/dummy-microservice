@@ -135,6 +135,26 @@ plugins:
         - X-Consumer-Username
       max_age: 3600
 
+  # The JWT lives in an httpOnly `access_token` cookie now (auth-service sets
+  # it on login) — the browser can no longer attach it as an Authorization
+  # header itself, since JS never sees the raw token. This bridges the two:
+  # copy the cookie's value into the Authorization header before any other
+  # plugin runs, so every route's `jwt` plugin and every downstream service's
+  # own require_scope()/require_admin() (both read that header) keep working
+  # unmodified. pre-function's priority is far above jwt's, so this always
+  # runs first.
+  - name: pre-function
+    config:
+      access:
+        - |
+          local cookie_header = kong.request.get_header("cookie")
+          if cookie_header then
+            local token = string.match(cookie_header, "access_token=([^;]+)")
+            if token then
+              kong.service.request.set_header("Authorization", "Bearer " .. token)
+            end
+          end
+
 consumers:
   - username: poc-user
     jwt_secrets:

@@ -1,18 +1,16 @@
-<div class="app-shell">
-  <nav class="sidebar">
-    <h1>Document Generation</h1>
+<div class="topbar">
+  <div class="docgen-header-info">
+    <h2>Document Generation</h2>
     <p class="subtitle" *ngIf="docgen.activeProfile">{{ docgen.activeProfile.name }}</p>
     <p class="subtitle" *ngIf="!docgen.activeProfile && !loadingProfile">No profile available</p>
-
-    <a routerLink="/docgen/cases" routerLinkActive="active" class="sidebar-item">Cases</a>
-    <a routerLink="/docgen/templates" routerLinkActive="active" class="sidebar-item">Templates</a>
-    <a routerLink="/docgen/approvals" routerLinkActive="active" class="sidebar-item">Approvals</a>
-
-    <a routerLink="/dashboard" class="sidebar-item sidebar-item--top">← Back to dashboard</a>
-  </nav>
-
-  <main class="main-content">
-    <p class="error" *ngIf="profileError">{{ profileError }}</p>
-    <router-outlet *ngIf="!loadingProfile && docgen.activeProfile"></router-outlet>
-  </main>
+  </div>
 </div>
+
+<nav class="tab-bar" aria-label="Document generation sections">
+  <a routerLink="/docgen/cases" routerLinkActive="active" class="tab-item">Cases</a>
+  <a routerLink="/docgen/templates" routerLinkActive="active" class="tab-item">Templates</a>
+  <a routerLink="/docgen/approvals" routerLinkActive="active" class="tab-item">Approvals</a>
+</nav>
+
+<p class="error" *ngIf="profileError">{{ profileError }}</p>
+<router-outlet *ngIf="!loadingProfile && docgen.activeProfile"></router-outlet>
