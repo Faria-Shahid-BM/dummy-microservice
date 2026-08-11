@@ -18,7 +18,7 @@ Usage in a service's main.py::
     app = FastAPI()
     init_db()
 
-    def _analyze(paths, emit):
+    def _analyze(paths, emit, user_sub):
         return review_collateral(paths["legal"], paths["property"], _provider, models=_models(), emit=emit)
 
     app.include_router(make_case_router(
@@ -27,9 +27,16 @@ Usage in a service's main.py::
         min_slots_ready=["legal", "property"],
         analyze=_analyze,
     ))
+
+Endpoints: list/create/get/delete cases, upload one slot, analyze the case
+(SSE), fetch a stored result — plus extra pairs on a case (`POST/DELETE
+/cases/{id}/pairs`, `POST /cases/{id}/pairs/{i}/uploads/{slot}`). A case
+reviews its own uploads plus every extra pair, one pass each, and keeps a
+result per pair; see start_analyze below for the event contract.
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import uuid
@@ -38,7 +45,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import audit_client
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import JSON, DateTime, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -101,9 +108,78 @@ def _slot_file(case_id: str, slot: str) -> Path | None:
     return next((p for p in sorted(case_dir.glob(f"{slot}.*")) if p.is_file()), None)
 
 
+# --- extra pairs ------------------------------------------------------------
+# A case reviews one set of uploads by default, but the same case can hold more:
+# an "extra pair" is another full set of the same slots, analyzed in its own
+# pass and keeping its own result. Both live on the one case, so the results sit
+# side by side where the work was done instead of scattering across new cases.
+EXTRA_PAIRS_KEY = "extra_pairs"
+PAIRS_RESULT_KEY = "__pairs__"
+
+
+def _extra_dir(case_id: str, index: int) -> Path:
+    d = _case_dir(case_id) / "extra" / str(index)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _extra_slot_file(case_id: str, index: int, slot: str) -> Path | None:
+    d = _extra_dir(case_id, index)
+    return next((p for p in sorted(d.glob(f"{slot}.*")) if p.is_file()), None)
+
+
+def _extra_pairs(case: Case) -> list[dict]:
+    """The extra pairs' uploaded file names, [{slot: filename}, ...]."""
+    raw = (case.uploads or {}).get(EXTRA_PAIRS_KEY)
+    return [dict(p) for p in raw] if isinstance(raw, list) else []
+
+
+def _set_extra_pairs(case: Case, pairs: list[dict]) -> None:
+    uploads = {k: v for k, v in (case.uploads or {}).items() if k != EXTRA_PAIRS_KEY}
+    if pairs:
+        uploads[EXTRA_PAIRS_KEY] = pairs
+    case.uploads = uploads
+
+
+def _main_uploads(case: Case) -> dict:
+    return {k: v for k, v in (case.uploads or {}).items() if k != EXTRA_PAIRS_KEY}
+
+
+def _stored_pair_outcomes(case: Case) -> list[dict] | None:
+    """The per-pair outcomes if this case stores them, else None (single pair)."""
+    if isinstance(case.result, dict):
+        raw = case.result.get(PAIRS_RESULT_KEY)
+        if isinstance(raw, list):
+            return raw
+    return None
+
+
 def _audit(service: str, user: str, action: str, resource: str | None = None,
            metadata: dict | None = None) -> None:
     audit_client.audit(user, service, action, resource=resource, metadata=metadata)
+
+
+def _emit_event(emit: EmitFn | None, payload: dict) -> None:
+    if emit:
+        emit("event", json.dumps(payload, separators=(",", ":")))
+
+
+def _scoped_emit(emit: EmitFn, scope: dict[str, Any]) -> EmitFn:
+    """Wrap `emit` so the engine's own stage events carry the case they belong
+    to. Token chunks ("content"/"reasoning") pass through untouched — the data
+    field of those frames is a bare string by contract."""
+
+    def scoped(ev_type: str, text: str) -> None:
+        if ev_type == "event":
+            try:
+                payload = json.loads(text)
+            except ValueError:
+                payload = None
+            if isinstance(payload, dict):
+                text = json.dumps({**payload, **scope}, separators=(",", ":"))
+        emit(ev_type, text)
+
+    return scoped
 
 
 def _get_owned_case(db: Session, case_id: str, user_sub: str) -> Case:
@@ -120,15 +196,44 @@ def _list_payload(c: Case) -> dict[str, Any]:
         "id": c.id,
         "name": c.name,
         "status": c.status,
-        "uploads": c.uploads or {},
+        "uploads": _main_uploads(c),
+        "extra_pairs": len(_extra_pairs(c)),
         "created_at": c.created_at.isoformat(),
     }
 
 
 def _detail_payload(c: Case) -> dict[str, Any]:
     out = _list_payload(c)
-    out["result"] = c.result if c.status == "done" else None
-    out["error"] = (c.result or {}).get("error") if c.status == "failed" else None
+    outcomes = _stored_pair_outcomes(c)
+    extras = _extra_pairs(c)
+
+    if outcomes is None:
+        # Single-pair case: `result`/`error` exactly as before.
+        out["result"] = c.result if c.status == "done" else None
+        out["error"] = (c.result or {}).get("error") if c.status == "failed" else None
+        first = {"result": out["result"], "error": out["error"]}
+    else:
+        first = outcomes[0] if outcomes else {}
+        out["result"] = first.get("result")
+        out["error"] = first.get("error")
+
+    # `pairs` is always present and always includes pair 0, so a client renders
+    # one tab per pair without special-casing the single-pair shape.
+    pairs = [{
+        "index": 0,
+        "uploads": _main_uploads(c),
+        "result": first.get("result"),
+        "error": first.get("error"),
+    }]
+    for i, uploads in enumerate(extras, start=1):
+        outcome = outcomes[i] if outcomes and i < len(outcomes) else {}
+        pairs.append({
+            "index": i,
+            "uploads": uploads,
+            "result": outcome.get("result"),
+            "error": outcome.get("error"),
+        })
+    out["pairs"] = pairs
     return out
 
 
@@ -140,9 +245,13 @@ class CaseCreateBody(BaseModel):
 # contract as streaming.py's sse_stream(), since analyze() is handed
 # straight through to it.
 EmitFn = Callable[[str, str], None]
-# analyze(paths, emit) -> result dict. `paths` maps every upload slot to its
-# file on disk (all `min_slots_ready` slots guaranteed present).
-AnalyzeFn = Callable[[dict[str, Path], EmitFn], dict]
+# analyze(paths, emit, user_sub) -> result dict. `paths` maps every upload slot
+# to its file on disk (all `min_slots_ready` slots guaranteed present).
+# `user_sub` is the case owner (cases are per-user, see Case.created_by) — for
+# services whose analysis depends on that account's own configuration rather
+# than only on the uploads, e.g. insurance grading against the bank policy that
+# account uploaded. Most services ignore it.
+AnalyzeFn = Callable[[dict[str, Path], EmitFn, str], dict]
 
 # Statuses from which POST /analyze is allowed (re-analysis included).
 ANALYZABLE_STATUSES = ("ready", "done", "failed")
@@ -229,6 +338,142 @@ def make_case_router(
         _audit(service_scope, user_sub, "case.delete", resource=name)
         return {"ok": True}
 
+    def _invalidate_pair(case: Case, index: int) -> None:
+        """Replacing a pair's document throws away that pair's stored result.
+
+        Analysis only runs pairs without a result, so a replaced document had to
+        stop counting as reviewed — otherwise the new file would sit there
+        looking analyzed while every Compare silently skipped it."""
+        total = len(_extra_pairs(case)) + 1
+        outcomes = _outcomes_snapshot(case)
+        outcomes = [dict(outcomes[i]) if i < len(outcomes) else {} for i in range(total)]
+        if index < total:
+            outcomes[index] = {}
+        if total == 1:
+            case.result = None
+        elif any(o for o in outcomes):
+            case.result = {PAIRS_RESULT_KEY: outcomes}
+        else:
+            case.result = None
+        # Back to a state that invites another run, rather than claiming a
+        # verdict this case no longer has for every pair.
+        if case.status in ("done", "failed"):
+            case.status = "ready"
+
+    def _check_slot(slot: str) -> None:
+        if slot not in slots:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown upload slot '{slot}'; expected one of: {', '.join(sorted(slots))}",
+            )
+
+    def _check_suffix(slot: str, filename: str) -> str:
+        suffix = Path(filename or "").suffix.lower()
+        if suffix not in slots[slot]:
+            raise HTTPException(
+                status_code=422,
+                detail=f"File type {suffix or '(none)'!r} is not allowed for slot '{slot}'; "
+                       f"expected one of: {', '.join(sorted(slots[slot]))}",
+            )
+        return suffix
+
+    # --- extra pairs on this case ---------------------------------------
+
+    @router.post("/{case_id}/pairs", status_code=201)
+    def add_pair(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)) -> dict:
+        """Add another set of this service's slots to review under this case."""
+        case = _get_owned_case(db, case_id, user_sub)
+        if case.status == "analyzing":
+            raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
+        _set_extra_pairs(case, _extra_pairs(case) + [{}])
+        db.commit()
+        return _detail_payload(case)
+
+    @router.delete("/{case_id}/pairs/{index}")
+    def remove_pair(
+        case_id: str, index: int,
+        user_sub: str = Depends(_require_user), db: Session = Depends(get_db),
+    ) -> dict:
+        case = _get_owned_case(db, case_id, user_sub)
+        if case.status == "analyzing":
+            raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
+        pairs = _extra_pairs(case)
+        if index == 0:
+            # Pair 0 is the case's own documents; deleting it means deleting the case.
+            raise HTTPException(
+                status_code=409,
+                detail="Pair 1 is the case's own documents — delete the case instead",
+            )
+        if index < 1 or index > len(pairs):
+            raise HTTPException(status_code=404, detail=f"No pair {index + 1} on this case")
+        # Renumber the directories after the removed one, so pair i on disk keeps
+        # matching pair i in `uploads`.
+        shutil.rmtree(_extra_dir(case_id, index), ignore_errors=True)
+        for i in range(index + 1, len(pairs) + 1):
+            src = _case_dir(case_id) / "extra" / str(i)
+            if src.exists():
+                src.rename(_case_dir(case_id) / "extra" / f"{i - 1}")
+        pairs.pop(index - 1)
+        _set_extra_pairs(case, pairs)
+        # Stored outcomes are indexed by pair, so drop this pair's too.
+        outcomes = _stored_pair_outcomes(case)
+        if outcomes and index < len(outcomes):
+            kept = [o for i, o in enumerate(outcomes) if i != index]
+            case.result = {PAIRS_RESULT_KEY: kept}
+        db.commit()
+        return _detail_payload(case)
+
+    # index 0 = the case's own slots (an alias for /uploads/{slot}), so callers
+    # can address every pair the same way.
+    @router.post("/{case_id}/pairs/{index}/uploads/{slot}")
+    async def upload_pair_slot(
+        case_id: str, index: int, slot: str,
+        file: UploadFile = File(...),
+        user_sub: str = Depends(_require_user),
+        db: Session = Depends(get_db),
+    ) -> dict:
+        case = _get_owned_case(db, case_id, user_sub)
+        _check_slot(slot)
+        if case.status == "analyzing":
+            raise HTTPException(
+                status_code=409, detail="Analysis is running; wait for it to finish before replacing files"
+            )
+        pairs = _extra_pairs(case)
+        if index < 0 or index > len(pairs):
+            raise HTTPException(status_code=404, detail=f"No pair {index + 1} on this case")
+        suffix = _check_suffix(slot, file.filename or "")
+        content = await file.read()
+
+        # Pair 0 is the case's own slots, which live in the case directory and in
+        # `uploads` directly — /pairs/0/uploads/{slot} is accepted as an alias for
+        # /uploads/{slot} so that "pair index" means the same thing everywhere.
+        pair_dir = _case_dir(case_id) if index == 0 else _extra_dir(case_id, index)
+        dest = pair_dir / f"{slot}{suffix}"
+        dest.write_bytes(content)
+        for stale in pair_dir.glob(f"{slot}.*"):
+            if stale != dest and stale.is_file():
+                stale.unlink(missing_ok=True)
+
+        filename = file.filename or dest.name
+        if index == 0:
+            uploads = {**_main_uploads(case), slot: filename}
+            _set_extra_pairs(case, pairs)   # keep the bookkeeping key
+            case.uploads = {**uploads, **({EXTRA_PAIRS_KEY: pairs} if pairs else {})}
+        else:
+            pairs[index - 1] = {**pairs[index - 1], slot: filename}
+            _set_extra_pairs(case, pairs)
+        _invalidate_pair(case, index)
+        if index == 0 and all(s in _main_uploads(case) for s in min_slots_ready):
+            case.status = "ready"
+        db.commit()
+
+        attachment_id = audit_client.upload_attachment(filename, content)
+        attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
+        label = f"{case.name}:{slot}" if index == 0 else f"{case.name}:pair{index + 1}:{slot}"
+        _audit(service_scope, user_sub, "case.upload", resource=label,
+               metadata={"input": {"attachments": attachments}})
+        return _detail_payload(case)
+
     @router.post("/{case_id}/uploads/{slot}")
     async def upload_slot(
         case_id: str,
@@ -270,6 +515,7 @@ def make_case_router(
         filename = file.filename or dest.name
         uploads[slot] = filename
         case.uploads = uploads
+        _invalidate_pair(case, 0)
         if all(s in uploads for s in min_slots_ready):
             case.status = "ready"
         db.commit()
@@ -282,71 +528,225 @@ def make_case_router(
                metadata={"input": {"attachments": attachments}})
         return _detail_payload(case)
 
-    @router.post("/{case_id}/analyze")
-    async def start_analyze(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)):
-        case = _get_owned_case(db, case_id, user_sub)
+    def _paths_for(case_id: str) -> dict[str, Path]:
+        found = {}
+        for s in slots:
+            p = _slot_file(case_id, s)
+            if p is not None:
+                found[s] = p
+        return found
+
+    def _pair_paths(case: Case) -> list[dict[str, Path]]:
+        """One slot->file mapping per pair on this case: pair 0 is the case's own
+        uploads, then each extra pair in order."""
+        out = [_paths_for(case.id)]
+        for i in range(1, len(_extra_pairs(case)) + 1):
+            found = {}
+            for slot in slots:
+                f = _extra_slot_file(case.id, i, slot)
+                if f is not None:
+                    found[slot] = f
+            out.append(found)
+        return out
+
+    def _outcomes_snapshot(case: Case) -> list[dict]:
+        """The per-pair outcomes as they stand right now.
+
+        Must be taken before analysis flips the case to `analyzing`: a
+        single-pair case stores the bare engine result, so telling a result from
+        a failure relies on the status, and re-deriving it later would silently
+        drop pair 0's stored result.
+        """
+        stored = _stored_pair_outcomes(case)
+        if stored is not None:
+            return [dict(o) for o in stored]
+        if case.status == "done" and case.result is not None:
+            return [{"result": case.result}]
+        if case.status == "failed" and isinstance(case.result, dict) and "error" in case.result:
+            return [{"error": case.result["error"]}]
+        return [{}]
+
+    def _reviewed(case: Case, index: int) -> bool:
+        """Has this pair already produced a result? A stored error counts as not
+        reviewed, so pressing Compare again retries what failed."""
+        outcomes = _outcomes_snapshot(case)
+        return index < len(outcomes) and outcomes[index].get("result") is not None
+
+    def _resolve_targets(case: Case, scope: str | None) -> list[int]:
+        """Which pairs this request should analyze.
+
+        Default ("pending") is every pair without a result yet — so adding a
+        second pair to a reviewed case costs one engine pass, not two. "all"
+        re-runs everything; a bare index re-runs that one pair.
+        """
+        total = len(_extra_pairs(case)) + 1
+        scope = (scope or "pending").strip().lower()
+        if scope == "all":
+            return list(range(total))
+        if scope != "pending":
+            if not scope.isdigit() or int(scope) >= total:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"pairs must be 'pending', 'all', or a pair index below {total}",
+                )
+            return [int(scope)]
+        pending = [i for i in range(total) if not _reviewed(case, i)]
+        if not pending:
+            raise HTTPException(
+                status_code=409,
+                detail="Every pair on this case has already been reviewed — "
+                       "re-run one from its tab, or pass pairs=all",
+            )
+        return pending
+
+    def _prepare_analyze(
+        case: Case, user_sub: str, db: Session, targets: list[int]
+    ) -> tuple[dict[int, dict[str, Path]], dict[int, dict]]:
+        """Flip the case to `analyzing` and build the targeted pairs' paths +
+        audit `input`. Only the targets are validated: a half-filled pair you
+        aren't running shouldn't block the one you are."""
         if case.status not in ANALYZABLE_STATUSES:
             hint = f"; upload {', '.join(min_slots_ready)} first" if case.status == "new" else ""
             raise HTTPException(status_code=409, detail=f"Cannot analyze from status '{case.status}'{hint}")
 
-        paths: dict[str, Path] = {}
-        for s in slots:
-            p = _slot_file(case_id, s)
-            if p is not None:
-                paths[s] = p
-        missing = [s for s in min_slots_ready if s not in paths]
-        if missing:
-            raise HTTPException(status_code=409, detail=f"Missing required upload(s): {', '.join(missing)}")
+        all_paths = _pair_paths(case)
+        pairs = {}
+        for i in targets:
+            paths = all_paths[i]
+            missing = [s for s in min_slots_ready if s not in paths]
+            if missing:
+                where = "this case" if i == 0 else f"pair {i + 1}"
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Missing required upload(s) on {where}: {', '.join(missing)}",
+                )
+            pairs[i] = paths
 
         case.status = "analyzing"
         db.commit()
 
         # Re-read from disk (not the case.upload-time copies) so the audit
-        # attachment reflects exactly what's fed to the model even after a
-        # slot replace. Uploads' filenames are already visible on the
-        # attachments themselves, so that's all `input` needs.
-        analyze_attachments = []
-        for s, p in paths.items():
-            attachment_id = audit_client.upload_attachment(p.name, p.read_bytes())
-            if attachment_id:
-                analyze_attachments.append({"filename": p.name, "attachment_id": attachment_id})
-        analyze_input = {"attachments": analyze_attachments}
+        # attachment reflects exactly what's fed to the model even after a slot
+        # replace. Uploads' filenames are already visible on the attachments
+        # themselves, so that's all `input` needs.
+        inputs = {}
+        for i, paths in pairs.items():
+            attachments = []
+            for path in paths.values():
+                attachment_id = audit_client.upload_attachment(path.name, path.read_bytes())
+                if attachment_id:
+                    attachments.append({"filename": path.name, "attachment_id": attachment_id})
+            inputs[i] = {"attachments": attachments}
+        return pairs, inputs
+
+    def _merge_outcomes(
+        case_id: str, baseline: list[dict], updates: dict[int, dict], status: str | None
+    ) -> list[dict]:
+        """Write the analyzed pairs' outcomes onto the case, leaving every other
+        pair's stored outcome alone — re-running one pair must not blank the
+        results of the pairs that weren't re-run.
+
+        A single-pair case keeps the bare engine result it always had, so nothing
+        downstream sees a new shape unless extra pairs are actually in play."""
+        persist_db = SessionLocal()
+        try:
+            row = persist_db.get(Case, case_id)
+            if row is None:
+                return []
+            total = len(_extra_pairs(row)) + 1
+            outcomes = [dict(baseline[i]) if i < len(baseline) else {} for i in range(total)]
+            for i, outcome in updates.items():
+                if i < total:
+                    outcomes[i] = outcome
+            if total == 1:
+                only = outcomes[0]
+                row.result = only.get("result") if "result" in only else {"error": only.get("error")}
+            else:
+                row.result = {PAIRS_RESULT_KEY: outcomes}
+            if status is not None:
+                row.status = status
+            persist_db.commit()
+            return outcomes
+        finally:
+            persist_db.close()
+
+    @router.post("/{case_id}/analyze")
+    async def start_analyze(
+        case_id: str,
+        pairs: str | None = Query(
+            None,
+            description="Which pairs to analyze: 'pending' (default — those without a "
+                        "result yet), 'all', or a single pair index.",
+        ),
+        user_sub: str = Depends(_require_user),
+        db: Session = Depends(get_db),
+    ):
+        """Analyze this case's pairs, one after another, streaming each pair's
+        outcome as it lands and persisting it on the case.
+
+        By default only pairs without a result are run, so adding a pair to a
+        case that's already been reviewed costs one engine pass rather than
+        re-running work that's already paid for.
+
+        On top of streaming.py's contract, every `event` frame produced inside a
+        pair carries `pair` (0-based index), and three stages bracket each one:
+
+            {"stage": "pair_start",  "pair": 0}
+            {"stage": "pair_result", "pair": 0, "result": {...}}
+            {"stage": "pair_error",  "pair": 0, "error": "..."}
+
+        Pairs run one at a time on purpose: each engine pipeline already fans out
+        internally, and sequential runs are what make a `pair_start` frame
+        unambiguous — every later frame, including `content` token chunks (bare
+        strings by contract, with nowhere to put a tag), belongs to that pair
+        until the next `pair_start`.
+        """
+        case = _get_owned_case(db, case_id, user_sub)
+        targets = _resolve_targets(case, pairs)
+        # Snapshot before _prepare_analyze flips the status (see _outcomes_snapshot).
+        baseline = _outcomes_snapshot(case)
+        pair_paths, pair_inputs = _prepare_analyze(case, user_sub, db, targets)
+        name = case.name
 
         def run(emit: EmitFn) -> dict:
-            # Runs on sse_stream()'s worker thread — never reuse the
-            # request's `db` session here (it belongs to the request's own
-            # async context); open a fresh one instead, same reasoning as
-            # docgen-service's job callbacks (app/jobs/runner.py) using
-            # session_scope() rather than the request session.
-            try:
-                result = analyze(paths, emit)
-            except Exception as exc:
-                error = {"error": f"{type(exc).__name__}: {exc}"}
-                persist_db = SessionLocal()
+            # Runs on sse_stream()'s worker thread — never reuse the request's
+            # `db` session here (it belongs to the request's own async context);
+            # _merge_outcomes opens its own, same reasoning as docgen-service's
+            # job callbacks using session_scope().
+            updates: dict[int, dict] = {}
+            for i in targets:
+                paths, analyze_input = pair_paths[i], pair_inputs[i]
+                label = name if i == 0 else f"{name} (pair {i + 1})"
+                _emit_event(emit, {"stage": "pair_start", "pair": i})
                 try:
-                    row = persist_db.get(Case, case_id)
-                    if row is not None:
-                        row.status = "failed"
-                        row.result = error
-                        persist_db.commit()
-                finally:
-                    persist_db.close()
-                _audit(service_scope, user_sub, "case.analyze", resource=case.name,
-                       metadata={"input": analyze_input, "output": error})
-                raise  # sse_stream() still surfaces this as an "error" SSE event
-            persist_db = SessionLocal()
-            try:
-                row = persist_db.get(Case, case_id)
-                if row is not None:
-                    row.status = "done"
-                    row.result = result
-                    persist_db.commit()
-            finally:
-                persist_db.close()
-            audit_output = to_audit_output(result) if to_audit_output else result
-            _audit(service_scope, user_sub, "case.analyze", resource=case.name,
-                   metadata={"input": analyze_input, "output": audit_output})
-            return result
+                    result = analyze(paths, _scoped_emit(emit, {"pair": i}), user_sub)
+                except Exception as exc:   # one bad pair must not sink the rest
+                    error = f"{type(exc).__name__}: {exc}"
+                    updates[i] = {"error": error}
+                    _merge_outcomes(case_id, baseline, updates, "analyzing")
+                    _audit(service_scope, user_sub, "case.analyze", resource=label,
+                           metadata={"input": analyze_input, "output": {"error": error}})
+                    _emit_event(emit, {"stage": "pair_error", "pair": i, "error": error})
+                    continue
+                updates[i] = {"result": result}
+                # Persist as each pair finishes, so reloading mid-run shows the
+                # pairs already done rather than nothing.
+                _merge_outcomes(case_id, baseline, updates, "analyzing")
+                audit_output = to_audit_output(result) if to_audit_output else result
+                _audit(service_scope, user_sub, "case.analyze", resource=label,
+                       metadata={"input": analyze_input, "output": audit_output})
+                _emit_event(emit, {"stage": "pair_result", "pair": i, "result": result})
+
+            # Status reflects the whole case, not just this request's pairs.
+            outcomes = _merge_outcomes(case_id, baseline, updates, None)
+            failed = bool(outcomes) and all(o.get("result") is None for o in outcomes)
+            _merge_outcomes(case_id, baseline, updates, "failed" if failed else "done")
+            if failed:
+                # Every pair failed — surface it the way a single-case failure
+                # always was, as an SSE error rather than a result.
+                first_error = next((o.get("error") for o in outcomes if o.get("error")), "analysis failed")
+                raise RuntimeError(first_error)
+            return {"pairs": [updates[i] for i in targets if i in updates]}
 
         return await sse_stream(run)
 

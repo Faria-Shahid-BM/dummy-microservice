@@ -135,51 +135,53 @@
     <p class="error" *ngIf="documentsError">{{ documentsError }}</p>
     <p class="empty" *ngIf="!documents.length && !loadingDocuments">No documents yet.</p>
 
-    <table class="audit-table" *ngIf="documents.length">
-      <thead>
-        <tr>
-          <th>Document</th>
-          <th>Applied</th>
-          <th>Failed</th>
-          <th>Unfilled</th>
-          <th>Approval</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <ng-container *ngFor="let doc of documents">
-          <tr [class.flagged-row]="doc.needs_attention">
-            <td class="wrap-cell"><span class="cell-text">{{ doc.file_name }}</span></td>
-            <td>{{ doc.applied_ops }}</td>
-            <td>{{ doc.failed_ops }}</td>
-            <td>{{ doc.unfilled_fields }}</td>
-            <td [ngClass]="'status-' + (doc.approval_state === 'approved' ? 'match' : doc.approval_state === 'rejected' ? 'mismatch' : 'missing')">
-              {{ doc.approval_state }}
-            </td>
-            <td>
-              <div class="button-row">
-                <button
-                  type="button"
-                  class="clear"
-                  (click)="submitDocument(doc)"
-                  [disabled]="readOnly || (doc.approval_state !== 'draft' && doc.approval_state !== 'rejected')"
-                >
-                  Submit
-                </button>
-                <button type="button" class="clear" (click)="downloadDocument(doc)">Download</button>
-                <button type="button" class="clear" (click)="toggleProvenance(doc)">
-                  {{ provenanceByDoc[doc.id] ? 'Hide details' : 'Details' }}
-                </button>
-              </div>
-            </td>
+    <div class="table-scroll">
+      <table class="audit-table" *ngIf="documents.length">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th>Applied</th>
+            <th>Failed</th>
+            <th>Unfilled</th>
+            <th>Approval</th>
+            <th></th>
           </tr>
-          <tr *ngIf="provenanceByDoc[doc.id]">
-            <td colspan="6">
-              <app-json-view [value]="provenanceByDoc[doc.id]"></app-json-view>
-            </td>
-          </tr>
-        </ng-container>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let doc of documents">
+            <tr [class.flagged-row]="doc.needs_attention">
+              <td class="wrap-cell"><span class="cell-text">{{ doc.file_name }}</span></td>
+              <td>{{ doc.applied_ops }}</td>
+              <td>{{ doc.failed_ops }}</td>
+              <td>{{ doc.unfilled_fields }}</td>
+              <td [ngClass]="'status-' + (doc.approval_state === 'approved' ? 'match' : doc.approval_state === 'rejected' ? 'mismatch' : 'missing')">
+                {{ doc.approval_state }}
+              </td>
+              <td>
+                <div class="button-row">
+                  <button
+                    type="button"
+                    class="clear"
+                    (click)="submitDocument(doc)"
+                    [disabled]="readOnly || (doc.approval_state !== 'draft' && doc.approval_state !== 'rejected')"
+                  >
+                    Submit
+                  </button>
+                  <button type="button" class="clear" (click)="downloadDocument(doc)">Download</button>
+                  <button type="button" class="clear" (click)="toggleProvenance(doc)">
+                    {{ provenanceByDoc[doc.id] ? 'Hide details' : 'Details' }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="provenanceByDoc[doc.id]">
+              <td colspan="6" class="detail-cell">
+                <app-json-view [value]="provenanceByDoc[doc.id]"></app-json-view>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
   </section>
 </ng-container>

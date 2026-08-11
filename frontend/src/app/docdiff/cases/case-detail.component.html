@@ -1,6 +1,13 @@
 <div class="topbar">
-  <h2>{{ case?.name || 'Case' }}</h2>
-  <a routerLink="/docdiff/cases" class="back-link">← All cases</a>
+  <!-- Which reviewer this case belongs to, then the case: inside a case the
+       name alone doesn't say what you're looking at. Same wording as that
+       reviewer's list page, and it links back there. -->
+  <h2 class="crumbs">
+    <a class="crumb-link" [routerLink]="[docdiff.routeBase, 'cases']">{{ docdiff.label }} Cases</a>
+    <span class="crumb-sep" aria-hidden="true">/</span>
+    <span>{{ case?.name || 'Case' }}</span>
+  </h2>
+  <a [routerLink]="[docdiff.routeBase, 'cases']" class="back-link">← All cases</a>
 </div>
 
 <p class="error" *ngIf="error">{{ error }}</p>
@@ -8,42 +15,44 @@
 <ng-container *ngIf="case">
   <section class="card">
     <h2>Compare two documents</h2>
-    <div class="file-field">
-      <span>Original document (.docx or .pdf) — {{ case.uploads['original'] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        accept=".docx,.pdf"
-        (change)="onOriginalFile($event)"
-        [disabled]="case.status === 'analyzing'"
-      />
-      <button [disabled]="uploadingOriginal || !originalFile" (click)="uploadOriginal()">
-        {{ uploadingOriginal ? 'Uploading…' : 'Upload' }}
-      </button>
-    </div>
-    <div class="file-field">
-      <span>Returned / signed document (.docx or .pdf) — {{ case.uploads['returned'] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        accept=".docx,.pdf"
-        (change)="onReturnedFile($event)"
-        [disabled]="case.status === 'analyzing'"
-      />
-      <button [disabled]="uploadingReturned || !returnedFile" (click)="uploadReturned()">
-        {{ uploadingReturned ? 'Uploading…' : 'Upload' }}
-      </button>
-    </div>
-    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
-    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
-      {{ analyzing ? 'Comparing…' : case.status === 'done' || case.status === 'failed' ? 'Re-compare' : 'Compare' }}
+    <!-- The same slots again, as many times as needed: every pair on this
+         case is reviewed in its own pass and keeps its own result below. -->
+    <app-case-pairs
+      part="uploads"
+      [service]="docdiff"
+      [case]="case"
+      [run]="run"
+      [analyzing]="analyzing"
+      (caseChanged)="case = $event"
+    ></app-case-pairs>
+
+    <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
+      {{ analyzeLabel }}
     </button>
     <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
   </section>
 
   <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
 
-  <section class="card" *ngIf="diffResult">
-    <h2>Result</h2>
+  <section class="card">
+    <h2>Results</h2>
+    <!-- One tab per pair on this case, each holding that pair's own result. -->
+    <app-case-pairs
+      part="results"
+      [service]="docdiff"
+      [case]="case"
+      [run]="run"
+      [resultTemplate]="pairResult"
+      [analyzing]="analyzing"
+      (reanalyzePair)="analyze($event)"
+    ></app-case-pairs>
+  </section>
+
+  <!-- engines/document_diff.py returns a rawer shape than the redline view
+       needs; diffFor() adds the change<->segment linkage, memoized per pair. -->
+  <ng-template #pairResult let-raw>
+    <ng-container *ngIf="diffFor(raw) as diffResult">
     <div class="stat-row">
       <div class="stat-card">
         <div class="n">{{ (diffResult.similarity * 100).toFixed(1) }}%</div>
@@ -82,31 +91,34 @@
       >
     </div>
 
-    <table class="audit-table" *ngIf="diffResult.changes.length">
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Before</th>
-          <th>After</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let c of diffResult.changes" [class.flagged-row]="c.possibleMissingSection">
-          <td>
-            {{ c.type }}
-            <span
-              *ngIf="c.possibleMissingSection"
-              class="section-flag"
-              title="This deletion is large enough that it may indicate an entire section or page is missing from the returned document."
-              >possible missing section</span
-            >
-          </td>
-          <td class="wrap-cell"><span class="cell-text">{{ c.before }}</span></td>
-          <td class="wrap-cell"><span class="cell-text">{{ c.after }}</span></td>
-          <td><button type="button" (click)="jumpToChange(c.id)">View in document</button></td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+    <div class="table-scroll">
+      <table class="audit-table" *ngIf="diffResult.changes.length">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Before</th>
+            <th>After</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of diffResult.changes" [class.flagged-row]="c.possibleMissingSection">
+            <td>
+              {{ c.type }}
+              <span
+                *ngIf="c.possibleMissingSection"
+                class="section-flag"
+                title="This deletion is large enough that it may indicate an entire section or page is missing from the returned document."
+                >possible missing section</span
+              >
+            </td>
+            <td class="wrap-cell"><span class="cell-text">{{ c.before }}</span></td>
+            <td class="wrap-cell"><span class="cell-text">{{ c.after }}</span></td>
+            <td><button type="button" (click)="jumpToChange(c.id)">View in document</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    </ng-container>
+  </ng-template>
 </ng-container>

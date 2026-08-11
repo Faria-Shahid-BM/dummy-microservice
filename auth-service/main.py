@@ -131,14 +131,29 @@ def require_admin(authorization: str | None = Header(default=None)) -> dict:
     return payload
 
 
+def _normalize_scopes(scopes: list[str]) -> list[str]:
+    """De-dup into a stable order and apply scope implications.
+
+    "docgen_check" only says *how* someone uses docgen (as the checker who
+    approves work) — it is not access to docgen on its own. Granting it without
+    "docgen" produced a checker who couldn't reach docgen at all: no sidebar
+    entry, no notification bell, and a 403 from docgen-service (see its
+    DOCGEN_SCOPES). So imply the access scope here, once, for every caller —
+    both new grants and logins by accounts granted before this rule existed.
+    """
+    scopes = list(scopes)
+    if "docgen_check" in scopes and "docgen" not in scopes:
+        scopes.append("docgen")
+    return [s for s in ALLOWED_SCOPES if s in scopes]
+
+
 def _validate_scopes(scopes: list[str]) -> list[str]:
     if not isinstance(scopes, list) or any(s not in ALLOWED_SCOPES for s in scopes):
         raise HTTPException(
             status_code=400,
             detail=f"Scopes must be a subset of {ALLOWED_SCOPES}",
         )
-    # de-dup, preserve a stable order
-    return [s for s in ALLOWED_SCOPES if s in scopes]
+    return _normalize_scopes(scopes)
 
 
 # ── Login ───────────────────────────────────────────────────────────────────
@@ -163,11 +178,14 @@ def login(body: LoginRequest, response: Response):
     if user is None or not verify_password(body.password, user["password_hash"]):
         return JSONResponse(status_code=401, content={"error": "Invalid credentials"})
 
+    # Normalize on the way out too, so accounts whose scopes were stored before
+    # the implication rule existed still get a usable token.
+    scopes = _normalize_scopes(user["scopes"])
     token = jwt.encode(
         {
             "iss": ISSUER,
             "sub": user["username"],
-            "scopes": user["scopes"],              # <- carried to the services
+            "scopes": scopes,                      # <- carried to the services
             "exp": datetime.datetime.utcnow() + TOKEN_TTL,
         },
         SECRET,
@@ -184,7 +202,7 @@ def login(body: LoginRequest, response: Response):
         # POC_TO_PRODUCTION.md #4) — omitted for now since this deploys over
         # plain HTTP, where a Secure cookie would just never get sent.
     )
-    return {"username": user["username"], "scopes": user["scopes"]}
+    return {"username": user["username"], "scopes": scopes}
 
 
 @app.post("/logout")
@@ -205,7 +223,12 @@ def me(authorization: str | None = Header(default=None)):
         payload = jwt.decode(token, SECRET, algorithms=["HS256"], issuer=ISSUER)
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
-    return {"username": payload.get("sub"), "scopes": payload.get("scopes") or []}
+    # Normalized like /login, so a cookie minted before the implication rule
+    # still tells the UI what the services will actually honour.
+    return {
+        "username": payload.get("sub"),
+        "scopes": _normalize_scopes(payload.get("scopes") or []),
+    }
 
 
 # ── Admin: user management (all require the 'admin' scope) ───────────────────

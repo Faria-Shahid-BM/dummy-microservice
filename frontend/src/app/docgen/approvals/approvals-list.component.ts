@@ -29,8 +29,7 @@ export class ApprovalsListComponent implements OnInit {
   }
 
   get canDecide(): boolean {
-    const scopes = this.session.session?.scopes ?? [];
-    return scopes.includes('docgen_check') || scopes.includes('admin');
+    return this.session.canCheckDocgen;
   }
 
   // Best-effort client-side hint only — `maker` is docgen's display name for

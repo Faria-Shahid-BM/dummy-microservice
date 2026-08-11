@@ -1,6 +1,13 @@
 <div class="topbar">
-  <h2>{{ case?.name || 'Case' }}</h2>
-  <a routerLink="/insurance/cases" class="back-link">← All cases</a>
+  <!-- Which reviewer this case belongs to, then the case: inside a case the
+       name alone doesn't say what you're looking at. Same wording as that
+       reviewer's list page, and it links back there. -->
+  <h2 class="crumbs">
+    <a class="crumb-link" [routerLink]="[insurance.routeBase, 'cases']">{{ insurance.label }} Cases</a>
+    <span class="crumb-sep" aria-hidden="true">/</span>
+    <span>{{ case?.name || 'Case' }}</span>
+  </h2>
+  <a [routerLink]="[insurance.routeBase, 'cases']" class="back-link">← All cases</a>
 </div>
 
 <p class="error" *ngIf="error">{{ error }}</p>
@@ -8,36 +15,82 @@
 <ng-container *ngIf="case">
   <section class="card">
     <h2>Review an insurance policy</h2>
-    <div class="file-field">
-      <span>Insurance policy (.docx or .pdf) — {{ case.uploads['policy'] || 'not uploaded' }}</span>
-      <input type="file" accept=".docx,.pdf" (change)="onPolicyFile($event)" [disabled]="case.status === 'analyzing'" />
-      <button [disabled]="uploadingPolicy || !policyFile" (click)="uploadPolicy()">
-        {{ uploadingPolicy ? 'Uploading…' : 'Upload' }}
+
+    <!-- The same slots again, as many times as needed: every pair on this
+         case is reviewed in its own pass and keeps its own result below. -->
+    <app-case-pairs
+      part="uploads"
+      [service]="insurance"
+      [case]="case"
+      [run]="run"
+      [analyzing]="analyzing"
+      (caseChanged)="case = $event"
+    ></app-case-pairs>
+
+    <!-- The bank policy the review below is graded against: picking a file
+         uploads it straight away, so this and every later case switch to it.
+         With none uploaded the engine's bundled policy.txt is used. -->
+    <input
+      #bankPolicyInput
+      type="file"
+      class="hidden-file"
+      accept=".pdf,.docx,.txt,.md"
+      (change)="uploadBankPolicy($event); bankPolicyInput.value = ''"
+    />
+    <div class="button-row">
+      <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
+        {{ analyzeLabel }}
+      </button>
+      <button
+        type="button"
+        class="clear"
+        [disabled]="bankPolicyBusy || analyzing"
+        (click)="bankPolicyInput.click()"
+        title="Grade these reviews against your own bank policy (.pdf, .docx, .txt or .md)"
+      >
+        {{
+          bankPolicyBusy
+            ? 'Uploading…'
+            : bankPolicy?.has_own_policy
+              ? 'Replace bank policy'
+              : 'Upload bank policy'
+        }}
       </button>
     </div>
-    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
-    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
-      {{ analyzing ? 'Reviewing…' : case.status === 'done' || case.status === 'failed' ? 'Re-review' : 'Review' }}
-    </button>
     <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+    <p class="hint">
+      <ng-container *ngIf="bankPolicy?.has_own_policy; else bundledPolicy">
+        Graded against your bank policy <code>{{ bankPolicy!.file_name }}</code>.
+        <button type="button" class="link" [disabled]="bankPolicyBusy || analyzing" (click)="deleteBankPolicy()">
+          Use the bundled policy instead
+        </button>
+      </ng-container>
+      <ng-template #bundledPolicy>Graded against the bundled default policy.</ng-template>
+      <span class="error" *ngIf="bankPolicyError"> {{ bankPolicyError }}</span>
+    </p>
     <p class="hint">Calls a real LLM — this can take a little while.</p>
   </section>
 
-  <section class="card" *ngIf="analyzing">
-    <h2>Progress</h2>
-    <app-stage-progress
-      [steps]="insuranceStages"
-      [currentKey]="progress.stageKey"
-      [detail]="progress.detail"
-      [complete]="progress.complete"
-    ></app-stage-progress>
-  </section>
 
   <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
 
-  <section class="card" *ngIf="case.result">
-    <h2>Result</h2>
-    <app-json-view [value]="case.result"></app-json-view>
+  <section class="card">
+    <h2>Results</h2>
+    <!-- One tab per pair on this case, each holding that pair's own result. -->
+    <app-case-pairs
+      part="results"
+      [service]="insurance"
+      [case]="case"
+      [run]="run"
+      [stages]="insuranceStages"
+      [resultTemplate]="pairResult"
+      [analyzing]="analyzing"
+      (reanalyzePair)="analyze($event)"
+    ></app-case-pairs>
   </section>
+
+  <ng-template #pairResult let-result>
+    <app-json-view [value]="result"></app-json-view>
+  </ng-template>
 </ng-container>

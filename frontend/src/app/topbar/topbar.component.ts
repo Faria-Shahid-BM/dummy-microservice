@@ -37,10 +37,10 @@ export class TopbarComponent implements OnInit {
 
   // Notifications currently only exist behind docgen-service — hide the
   // bell entirely for accounts that can't reach it rather than show an
-  // always-empty control.
+  // always-empty control. Checkers need it most: it's how they learn that
+  // something was submitted for their approval.
   get hasDocgenAccess(): boolean {
-    const scopes = this.session.session?.scopes ?? [];
-    return scopes.includes('docgen') || scopes.includes('admin');
+    return this.session.canUseDocgen;
   }
 
   get initials(): string {

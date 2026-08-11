@@ -28,19 +28,20 @@ export const adminGuard: CanActivateFn = () => {
 };
 
 // Route-level gate for a routed service (docgen, collateral, ...) — holding
-// its scope (or 'admin') gets you in, otherwise back to the dashboard.
-function scopeGuard(scope: string): CanActivateFn {
+// any of the listed scopes (or 'admin') gets you in, otherwise back to the
+// dashboard. Several scopes because a service can be reachable by more than one
+// role: docgen's checker holds "docgen_check", not "docgen".
+function scopeGuard(...scopes: string[]): CanActivateFn {
   return () => {
     const session = inject(SessionService);
     const router = inject(Router);
-    const scopes = session.session?.scopes ?? [];
-    if (scopes.includes(scope) || scopes.includes('admin')) return true;
+    if (session.isAdmin || scopes.some((s) => session.has(s))) return true;
     router.navigate(['/dashboard']);
     return false;
   };
 }
 
-export const docgenGuard = scopeGuard('docgen');
+export const docgenGuard = scopeGuard('docgen', 'docgen_check');
 export const collateralGuard = scopeGuard('collateral');
 export const valuationGuard = scopeGuard('valuation');
 export const insuranceGuard = scopeGuard('insurance');

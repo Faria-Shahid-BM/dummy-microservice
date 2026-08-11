@@ -18,7 +18,8 @@ _provider = Provider()
 init_db()
 
 
-def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None]) -> dict:
+def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None], user_sub: str) -> dict:
+    # user_sub is unused: this review depends only on the two uploads.
     return review_collateral(
         paths["legal"],
         paths["property"],

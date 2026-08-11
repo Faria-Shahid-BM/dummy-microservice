@@ -1,6 +1,13 @@
 <div class="topbar">
-  <h2>{{ case?.name || 'Case' }}</h2>
-  <a routerLink="/valuation/cases" class="back-link">← All cases</a>
+  <!-- Which reviewer this case belongs to, then the case: inside a case the
+       name alone doesn't say what you're looking at. Same wording as that
+       reviewer's list page, and it links back there. -->
+  <h2 class="crumbs">
+    <a class="crumb-link" [routerLink]="[valuation.routeBase, 'cases']">{{ valuation.label }} Cases</a>
+    <span class="crumb-sep" aria-hidden="true">/</span>
+    <span>{{ case?.name || 'Case' }}</span>
+  </h2>
+  <a [routerLink]="[valuation.routeBase, 'cases']" class="back-link">← All cases</a>
 </div>
 
 <p class="error" *ngIf="error">{{ error }}</p>
@@ -8,36 +15,44 @@
 <ng-container *ngIf="case">
   <section class="card">
     <h2>Review a valuation report</h2>
-    <div class="file-field">
-      <span>Valuation report (.docx or .pdf) — {{ case.uploads['report'] || 'not uploaded' }}</span>
-      <input type="file" accept=".docx,.pdf" (change)="onReportFile($event)" [disabled]="case.status === 'analyzing'" />
-      <button [disabled]="uploadingReport || !reportFile" (click)="uploadReport()">
-        {{ uploadingReport ? 'Uploading…' : 'Upload' }}
-      </button>
-    </div>
-    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
-    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
-      {{ analyzing ? 'Reviewing…' : case.status === 'done' || case.status === 'failed' ? 'Re-review' : 'Review' }}
+    <!-- The same slots again, as many times as needed: every pair on this
+         case is reviewed in its own pass and keeps its own result below. -->
+    <app-case-pairs
+      part="uploads"
+      [service]="valuation"
+      [case]="case"
+      [run]="run"
+      [analyzing]="analyzing"
+      (caseChanged)="case = $event"
+    ></app-case-pairs>
+
+    <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
+      {{ analyzeLabel }}
     </button>
     <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
     <p class="hint">Calls a real LLM — this can take a little while.</p>
   </section>
 
-  <section class="card" *ngIf="analyzing">
-    <h2>Progress</h2>
-    <app-stage-progress
-      [steps]="valuationStages"
-      [currentKey]="progress.stageKey"
-      [detail]="progress.detail"
-      [complete]="progress.complete"
-    ></app-stage-progress>
-  </section>
 
   <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
 
-  <section class="card" *ngIf="case.result">
-    <h2>Result</h2>
-    <app-json-view [value]="case.result"></app-json-view>
+  <section class="card">
+    <h2>Results</h2>
+    <!-- One tab per pair on this case, each holding that pair's own result. -->
+    <app-case-pairs
+      part="results"
+      [service]="valuation"
+      [case]="case"
+      [run]="run"
+      [stages]="valuationStages"
+      [resultTemplate]="pairResult"
+      [analyzing]="analyzing"
+      (reanalyzePair)="analyze($event)"
+    ></app-case-pairs>
   </section>
+
+  <ng-template #pairResult let-result>
+    <app-json-view [value]="result"></app-json-view>
+  </ng-template>
 </ng-container>
