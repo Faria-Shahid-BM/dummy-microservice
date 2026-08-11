@@ -85,8 +85,18 @@ export abstract class CaseService<TResult = unknown> {
   // The analyze endpoint IS the SSE stream (see case_store.py) — same
   // consumeSse()-over-fetch() pattern dashboard.component.ts used for the
   // old one-shot /review/stream, just pointed at a case instead.
-  analyzeCase(caseId: string, onFrame: (eventType: string, data: string) => void): Promise<void> {
-    return consumeSse(`${this.apiBase}/cases/${caseId}/analyze`, null, onFrame);
+  /**
+   * `scope` picks which pairs run: 'pending' (default — only those without a
+   * result, so adding a pair to a reviewed case doesn't pay for the old pairs
+   * again), 'all', or a single pair index.
+   */
+  analyzeCase(
+    caseId: string,
+    onFrame: (eventType: string, data: string) => void,
+    scope: 'pending' | 'all' | number = 'pending'
+  ): Promise<void> {
+    const query = `?pairs=${scope}`;
+    return consumeSse(`${this.apiBase}/cases/${caseId}/analyze${query}`, null, onFrame);
   }
 
   // --- extra pairs on a case ---

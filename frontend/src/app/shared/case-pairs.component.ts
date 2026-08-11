@@ -33,6 +33,8 @@ export class CasePairsComponent<TResult> {
 
   /** The case reloaded after an upload/add/remove, so the parent can adopt it. */
   @Output() caseChanged = new EventEmitter<CaseDetail<TResult>>();
+  /** Re-run just this pair (its tab's button) — the parent owns analysis. */
+  @Output() reanalyzePair = new EventEmitter<number>();
 
   busy = false;
   error = '';
@@ -57,6 +59,11 @@ export class CasePairsComponent<TResult> {
   /** A pair is ready when every required slot has a file. */
   ready(pair: CasePair<TResult>): boolean {
     return this.service.slots.every((s) => !!pair.uploads?.[s.key]);
+  }
+
+  /** Reviewed already — a stored error counts as not reviewed, so it retries. */
+  reviewed(pair: CasePair<TResult>): boolean {
+    return pair.result != null;
   }
 
   addPair(): void {

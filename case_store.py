@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import audit_client
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import JSON, DateTime, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -506,22 +506,78 @@ def make_case_router(
             out.append(found)
         return out
 
-    def _prepare_analyze(case: Case, user_sub: str, db: Session) -> tuple[list[dict[str, Path]], list[dict]]:
-        """Flip the case to `analyzing` and build each pair's paths + audit
-        `input`. Raises the same 409s as before for anything not ready."""
+    def _outcomes_snapshot(case: Case) -> list[dict]:
+        """The per-pair outcomes as they stand right now.
+
+        Must be taken before analysis flips the case to `analyzing`: a
+        single-pair case stores the bare engine result, so telling a result from
+        a failure relies on the status, and re-deriving it later would silently
+        drop pair 0's stored result.
+        """
+        stored = _stored_pair_outcomes(case)
+        if stored is not None:
+            return [dict(o) for o in stored]
+        if case.status == "done" and case.result is not None:
+            return [{"result": case.result}]
+        if case.status == "failed" and isinstance(case.result, dict) and "error" in case.result:
+            return [{"error": case.result["error"]}]
+        return [{}]
+
+    def _reviewed(case: Case, index: int) -> bool:
+        """Has this pair already produced a result? A stored error counts as not
+        reviewed, so pressing Compare again retries what failed."""
+        outcomes = _outcomes_snapshot(case)
+        return index < len(outcomes) and outcomes[index].get("result") is not None
+
+    def _resolve_targets(case: Case, scope: str | None) -> list[int]:
+        """Which pairs this request should analyze.
+
+        Default ("pending") is every pair without a result yet — so adding a
+        second pair to a reviewed case costs one engine pass, not two. "all"
+        re-runs everything; a bare index re-runs that one pair.
+        """
+        total = len(_extra_pairs(case)) + 1
+        scope = (scope or "pending").strip().lower()
+        if scope == "all":
+            return list(range(total))
+        if scope != "pending":
+            if not scope.isdigit() or int(scope) >= total:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"pairs must be 'pending', 'all', or a pair index below {total}",
+                )
+            return [int(scope)]
+        pending = [i for i in range(total) if not _reviewed(case, i)]
+        if not pending:
+            raise HTTPException(
+                status_code=409,
+                detail="Every pair on this case has already been reviewed — "
+                       "re-run one from its tab, or pass pairs=all",
+            )
+        return pending
+
+    def _prepare_analyze(
+        case: Case, user_sub: str, db: Session, targets: list[int]
+    ) -> tuple[dict[int, dict[str, Path]], dict[int, dict]]:
+        """Flip the case to `analyzing` and build the targeted pairs' paths +
+        audit `input`. Only the targets are validated: a half-filled pair you
+        aren't running shouldn't block the one you are."""
         if case.status not in ANALYZABLE_STATUSES:
             hint = f"; upload {', '.join(min_slots_ready)} first" if case.status == "new" else ""
             raise HTTPException(status_code=409, detail=f"Cannot analyze from status '{case.status}'{hint}")
 
-        pairs = _pair_paths(case)
-        for i, paths in enumerate(pairs):
+        all_paths = _pair_paths(case)
+        pairs = {}
+        for i in targets:
+            paths = all_paths[i]
             missing = [s for s in min_slots_ready if s not in paths]
             if missing:
-                where = "this case" if i == 0 else f"extra pair {i}"
+                where = "this case" if i == 0 else f"pair {i + 1}"
                 raise HTTPException(
                     status_code=409,
                     detail=f"Missing required upload(s) on {where}: {', '.join(missing)}",
                 )
+            pairs[i] = paths
 
         case.status = "analyzing"
         db.commit()
@@ -530,38 +586,64 @@ def make_case_router(
         # attachment reflects exactly what's fed to the model even after a slot
         # replace. Uploads' filenames are already visible on the attachments
         # themselves, so that's all `input` needs.
-        inputs = []
-        for paths in pairs:
+        inputs = {}
+        for i, paths in pairs.items():
             attachments = []
-            for s_, path in paths.items():
+            for path in paths.values():
                 attachment_id = audit_client.upload_attachment(path.name, path.read_bytes())
                 if attachment_id:
                     attachments.append({"filename": path.name, "attachment_id": attachment_id})
-            inputs.append({"attachments": attachments})
+            inputs[i] = {"attachments": attachments}
         return pairs, inputs
 
-    def _persist_pairs(case_id: str, outcomes: list[dict], status: str) -> None:
-        """Store the per-pair outcomes on the case. A single-pair case keeps the
-        bare engine result it always had, so nothing downstream sees a new shape
-        unless extra pairs are actually in play."""
+    def _merge_outcomes(
+        case_id: str, baseline: list[dict], updates: dict[int, dict], status: str | None
+    ) -> list[dict]:
+        """Write the analyzed pairs' outcomes onto the case, leaving every other
+        pair's stored outcome alone — re-running one pair must not blank the
+        results of the pairs that weren't re-run.
+
+        A single-pair case keeps the bare engine result it always had, so nothing
+        downstream sees a new shape unless extra pairs are actually in play."""
         persist_db = SessionLocal()
         try:
             row = persist_db.get(Case, case_id)
-            if row is not None:
-                if len(outcomes) == 1:
-                    only = outcomes[0]
-                    row.result = only.get("result") if "result" in only else {"error": only.get("error")}
-                else:
-                    row.result = {PAIRS_RESULT_KEY: outcomes}
+            if row is None:
+                return []
+            total = len(_extra_pairs(row)) + 1
+            outcomes = [dict(baseline[i]) if i < len(baseline) else {} for i in range(total)]
+            for i, outcome in updates.items():
+                if i < total:
+                    outcomes[i] = outcome
+            if total == 1:
+                only = outcomes[0]
+                row.result = only.get("result") if "result" in only else {"error": only.get("error")}
+            else:
+                row.result = {PAIRS_RESULT_KEY: outcomes}
+            if status is not None:
                 row.status = status
-                persist_db.commit()
+            persist_db.commit()
+            return outcomes
         finally:
             persist_db.close()
 
     @router.post("/{case_id}/analyze")
-    async def start_analyze(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)):
-        """Analyze every pair on this case, one after another, streaming each
-        pair's outcome as it lands and persisting it on the case.
+    async def start_analyze(
+        case_id: str,
+        pairs: str | None = Query(
+            None,
+            description="Which pairs to analyze: 'pending' (default — those without a "
+                        "result yet), 'all', or a single pair index.",
+        ),
+        user_sub: str = Depends(_require_user),
+        db: Session = Depends(get_db),
+    ):
+        """Analyze this case's pairs, one after another, streaming each pair's
+        outcome as it lands and persisting it on the case.
+
+        By default only pairs without a result are run, so adding a pair to a
+        case that's already been reviewed costs one engine pass rather than
+        re-running work that's already paid for.
 
         On top of streaming.py's contract, every `event` frame produced inside a
         pair carries `pair` (0-based index), and three stages bracket each one:
@@ -577,44 +659,51 @@ def make_case_router(
         until the next `pair_start`.
         """
         case = _get_owned_case(db, case_id, user_sub)
-        pair_paths, pair_inputs = _prepare_analyze(case, user_sub, db)
+        targets = _resolve_targets(case, pairs)
+        # Snapshot before _prepare_analyze flips the status (see _outcomes_snapshot).
+        baseline = _outcomes_snapshot(case)
+        pair_paths, pair_inputs = _prepare_analyze(case, user_sub, db, targets)
         name = case.name
 
         def run(emit: EmitFn) -> dict:
             # Runs on sse_stream()'s worker thread — never reuse the request's
             # `db` session here (it belongs to the request's own async context);
-            # _persist_pairs opens its own, same reasoning as docgen-service's
+            # _merge_outcomes opens its own, same reasoning as docgen-service's
             # job callbacks using session_scope().
-            outcomes: list[dict] = []
-            for i, (paths, analyze_input) in enumerate(zip(pair_paths, pair_inputs)):
+            updates: dict[int, dict] = {}
+            for i in targets:
+                paths, analyze_input = pair_paths[i], pair_inputs[i]
                 label = name if i == 0 else f"{name} (pair {i + 1})"
                 _emit_event(emit, {"stage": "pair_start", "pair": i})
                 try:
                     result = analyze(paths, _scoped_emit(emit, {"pair": i}), user_sub)
                 except Exception as exc:   # one bad pair must not sink the rest
                     error = f"{type(exc).__name__}: {exc}"
-                    outcomes.append({"error": error})
-                    _persist_pairs(case_id, outcomes, "analyzing")
+                    updates[i] = {"error": error}
+                    _merge_outcomes(case_id, baseline, updates, "analyzing")
                     _audit(service_scope, user_sub, "case.analyze", resource=label,
                            metadata={"input": analyze_input, "output": {"error": error}})
                     _emit_event(emit, {"stage": "pair_error", "pair": i, "error": error})
                     continue
-                outcomes.append({"result": result})
+                updates[i] = {"result": result}
                 # Persist as each pair finishes, so reloading mid-run shows the
                 # pairs already done rather than nothing.
-                _persist_pairs(case_id, outcomes, "analyzing")
+                _merge_outcomes(case_id, baseline, updates, "analyzing")
                 audit_output = to_audit_output(result) if to_audit_output else result
                 _audit(service_scope, user_sub, "case.analyze", resource=label,
                        metadata={"input": analyze_input, "output": audit_output})
                 _emit_event(emit, {"stage": "pair_result", "pair": i, "result": result})
 
-            failed = all("error" in o for o in outcomes)
-            _persist_pairs(case_id, outcomes, "failed" if failed else "done")
+            # Status reflects the whole case, not just this request's pairs.
+            outcomes = _merge_outcomes(case_id, baseline, updates, None)
+            failed = bool(outcomes) and all(o.get("result") is None for o in outcomes)
+            _merge_outcomes(case_id, baseline, updates, "failed" if failed else "done")
             if failed:
                 # Every pair failed — surface it the way a single-case failure
                 # always was, as an SSE error rather than a result.
-                raise RuntimeError(outcomes[0].get("error", "analysis failed"))
-            return {"pairs": outcomes}
+                first_error = next((o.get("error") for o in outcomes if o.get("error")), "analysis failed")
+                raise RuntimeError(first_error)
+            return {"pairs": [updates[i] for i in targets if i in updates]}
 
         return await sse_stream(run)
 

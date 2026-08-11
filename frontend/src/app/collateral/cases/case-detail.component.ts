@@ -86,6 +86,22 @@ export class CaseDetailComponent implements OnInit {
     });
   }
 
+  /** Pairs with no result yet — what the main button will run. */
+  get pendingPairs(): number {
+    return (this.case?.pairs ?? []).filter((p) => p.result == null).length;
+  }
+
+  /** Says what pressing it will actually do, so "Compare" never means a re-run. */
+  get analyzeLabel(): string {
+    if (this.analyzing) return 'Comparing…';
+    const pending = this.pendingPairs;
+    if (!pending) return 'Review everything again';
+    if (this.case && this.case.pairs.length > 1) {
+      return pending === this.case.pairs.length ? 'Compare all' : `Compare ${pending} new`;
+    }
+    return 'Compare';
+  }
+
   get canAnalyze(): boolean {
     return this.case?.status === 'ready' || this.case?.status === 'done' || this.case?.status === 'failed';
   }
@@ -94,7 +110,11 @@ export class CaseDetailComponent implements OnInit {
 
 
 
-  analyze(): void {
+  /**
+   * `scope` defaults to the pairs that haven't been reviewed yet, so adding a
+   * pair to an already-reviewed case doesn't pay for the old pairs again.
+   */
+  analyze(scope: 'pending' | 'all' | number = 'pending'): void {
     if (!this.canAnalyze || this.analyzing || !this.case) return;
     this.analyzeError = '';
     this.analyzing = true;
@@ -110,7 +130,7 @@ export class CaseDetailComponent implements OnInit {
           if (pair) pair.result = result as never;
         });
         if (eventType === 'error') this.analyzeError = this.run.error;
-      })
+      }, scope)
       .catch((err) => {
         this.analyzeError = err instanceof Error ? err.message : 'analysis failed';
       })

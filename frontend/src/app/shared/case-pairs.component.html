@@ -24,7 +24,7 @@
   </button>
   <p class="hint" *ngIf="extras.length">
     Every {{ noun }} on this case is reviewed in its own pass, one after another, and keeps its own
-    result in a tab below.
+    result in a tab below. Already-reviewed {{ noun }}s are left alone — only the new ones run.
   </p>
   <p class="error" *ngIf="error">{{ error }}</p>
 </ng-container>
@@ -90,6 +90,19 @@
       <ng-container *ngIf="pair.result && resultTemplate">
         <ng-container *ngTemplateOutlet="resultTemplate; context: { $implicit: pair.result }"></ng-container>
       </ng-container>
+
+      <!-- Reviewing this pair again is a deliberate act: the case's own button
+           only runs pairs that haven't been reviewed yet, so nothing already
+           paid for is re-run by accident. -->
+      <button
+        type="button"
+        class="clear"
+        *ngIf="reviewed(pair) && !run.state(pair.index).running"
+        [disabled]="analyzing || busy"
+        (click)="reanalyzePair.emit(pair.index)"
+      >
+        Review this {{ noun }} again
+      </button>
     </div>
   </ng-container>
 </ng-container>

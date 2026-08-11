@@ -42,8 +42,8 @@
       (change)="uploadBankPolicy($event); bankPolicyInput.value = ''"
     />
     <div class="button-row">
-      <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
-        {{ analyzing ? 'Reviewing…' : case.status === 'done' || case.status === 'failed' ? 'Re-review' : 'Review' }}
+      <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
+        {{ analyzeLabel }}
       </button>
       <button
         type="button"
@@ -90,6 +90,7 @@
       [stages]="insuranceStages"
       [resultTemplate]="pairResult"
       [analyzing]="analyzing"
+      (reanalyzePair)="analyze($event)"
     ></app-case-pairs>
   </section>
 

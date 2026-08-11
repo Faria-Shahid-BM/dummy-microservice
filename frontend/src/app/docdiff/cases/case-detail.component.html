@@ -41,8 +41,8 @@
       (caseChanged)="case = $event"
     ></app-case-pairs>
 
-    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
-      {{ analyzing ? 'Comparing…' : case.status === 'done' || case.status === 'failed' ? 'Re-compare' : 'Compare' }}
+    <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
+      {{ analyzeLabel }}
     </button>
     <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
   </section>
@@ -59,6 +59,7 @@
       [run]="run"
       [resultTemplate]="pairResult"
       [analyzing]="analyzing"
+      (reanalyzePair)="analyze($event)"
     ></app-case-pairs>
   </section>
 
