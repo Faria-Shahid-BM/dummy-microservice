@@ -82,24 +82,26 @@
       </div>
     </div>
 
-    <table class="audit-table">
-      <thead>
-        <tr>
-          <th>Field</th>
-          <th>Legal opinion</th>
-          <th>Property document</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let row of result.comparison">
-          <td>{{ row.label }}</td>
-          <td class="wrap-cell"><span class="cell-text">{{ row.legal_value || '—' }}</span></td>
-          <td class="wrap-cell"><span class="cell-text">{{ row.property_value || '—' }}</span></td>
-          <td [ngClass]="'status-' + row.status">{{ row.status }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Legal opinion</th>
+            <th>Property document</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of result.comparison">
+            <td>{{ row.label }}</td>
+            <td class="wrap-cell"><span class="cell-text">{{ row.legal_value || '—' }}</span></td>
+            <td class="wrap-cell"><span class="cell-text">{{ row.property_value || '—' }}</span></td>
+            <td [ngClass]="'status-' + row.status">{{ row.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <h3 *ngIf="result.observations.length">Observations</h3>
     <ul class="observation-list">

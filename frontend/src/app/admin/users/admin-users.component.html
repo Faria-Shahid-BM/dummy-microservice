@@ -20,20 +20,22 @@
   <p class="error" *ngIf="error">{{ error }}</p>
   <p class="empty" *ngIf="!error && !users.length && !loading">No users yet.</p>
 
-  <table class="audit-table" *ngIf="users.length">
-    <thead>
-      <tr>
-        <th>Username</th>
-        <th *ngFor="let s of knownServices">{{ s }}</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let user of users">
-        <td>{{ user.username }}</td>
-        <td *ngFor="let s of knownServices">
-          <input type="checkbox" [checked]="user.scopes.includes(s)" (change)="toggleUserService(user, s)" />
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="table-scroll">
+    <table class="audit-table" *ngIf="users.length">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th *ngFor="let s of knownServices">{{ s }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of users">
+          <td>{{ user.username }}</td>
+          <td *ngFor="let s of knownServices">
+            <input type="checkbox" [checked]="user.scopes.includes(s)" (change)="toggleUserService(user, s)" />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </section>

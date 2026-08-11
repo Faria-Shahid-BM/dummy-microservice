@@ -86,31 +86,33 @@
       >
     </div>
 
-    <table class="audit-table" *ngIf="diffResult.changes.length">
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Before</th>
-          <th>After</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let c of diffResult.changes" [class.flagged-row]="c.possibleMissingSection">
-          <td>
-            {{ c.type }}
-            <span
-              *ngIf="c.possibleMissingSection"
-              class="section-flag"
-              title="This deletion is large enough that it may indicate an entire section or page is missing from the returned document."
-              >possible missing section</span
-            >
-          </td>
-          <td class="wrap-cell"><span class="cell-text">{{ c.before }}</span></td>
-          <td class="wrap-cell"><span class="cell-text">{{ c.after }}</span></td>
-          <td><button type="button" (click)="jumpToChange(c.id)">View in document</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="audit-table" *ngIf="diffResult.changes.length">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Before</th>
+            <th>After</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of diffResult.changes" [class.flagged-row]="c.possibleMissingSection">
+            <td>
+              {{ c.type }}
+              <span
+                *ngIf="c.possibleMissingSection"
+                class="section-flag"
+                title="This deletion is large enough that it may indicate an entire section or page is missing from the returned document."
+                >possible missing section</span
+              >
+            </td>
+            <td class="wrap-cell"><span class="cell-text">{{ c.before }}</span></td>
+            <td class="wrap-cell"><span class="cell-text">{{ c.after }}</span></td>
+            <td><button type="button" (click)="jumpToChange(c.id)">View in document</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 </ng-container>
