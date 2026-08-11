@@ -8,27 +8,6 @@
 <ng-container *ngIf="case">
   <section class="card">
     <h2>Compare two documents</h2>
-    <div class="file-field">
-      <span>Original document (.docx or .pdf) — {{ case.uploads['original'] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        accept=".docx,.pdf"
-        [disabled]="uploading['original'] || case.status === 'analyzing'"
-        (change)="onSlotFile('original', $event)"
-      />
-      <span class="hint" *ngIf="uploading['original']">Uploading…</span>
-    </div>
-    <div class="file-field">
-      <span>Returned / signed document (.docx or .pdf) — {{ case.uploads['returned'] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        accept=".docx,.pdf"
-        [disabled]="uploading['returned'] || case.status === 'analyzing'"
-        (change)="onSlotFile('returned', $event)"
-      />
-      <span class="hint" *ngIf="uploading['returned']">Uploading…</span>
-    </div>
-    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
     <!-- The same slots again, as many times as needed: every pair on this
          case is reviewed in its own pass and keeps its own result below. -->

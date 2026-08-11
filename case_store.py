@@ -338,6 +338,28 @@ def make_case_router(
         _audit(service_scope, user_sub, "case.delete", resource=name)
         return {"ok": True}
 
+    def _invalidate_pair(case: Case, index: int) -> None:
+        """Replacing a pair's document throws away that pair's stored result.
+
+        Analysis only runs pairs without a result, so a replaced document had to
+        stop counting as reviewed — otherwise the new file would sit there
+        looking analyzed while every Compare silently skipped it."""
+        total = len(_extra_pairs(case)) + 1
+        outcomes = _outcomes_snapshot(case)
+        outcomes = [dict(outcomes[i]) if i < len(outcomes) else {} for i in range(total)]
+        if index < total:
+            outcomes[index] = {}
+        if total == 1:
+            case.result = None
+        elif any(o for o in outcomes):
+            case.result = {PAIRS_RESULT_KEY: outcomes}
+        else:
+            case.result = None
+        # Back to a state that invites another run, rather than claiming a
+        # verdict this case no longer has for every pair.
+        if case.status in ("done", "failed"):
+            case.status = "ready"
+
     def _check_slot(slot: str) -> None:
         if slot not in slots:
             raise HTTPException(
@@ -424,6 +446,7 @@ def make_case_router(
         filename = file.filename or dest.name
         pairs[index - 1] = {**pairs[index - 1], slot: filename}
         _set_extra_pairs(case, pairs)
+        _invalidate_pair(case, index)
         db.commit()
 
         attachment_id = audit_client.upload_attachment(filename, content)
@@ -473,6 +496,7 @@ def make_case_router(
         filename = file.filename or dest.name
         uploads[slot] = filename
         case.uploads = uploads
+        _invalidate_pair(case, 0)
         if all(s in uploads for s in min_slots_ready):
             case.status = "ready"
         db.commit()

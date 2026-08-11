@@ -1031,6 +1031,16 @@ button.link:disabled {
   width: 100%;
 }
 
+/* A dropdown used as a small form (case-list's "+ Add case") rather than a
+   menu: wider, and its last control shouldn't sit flush against the edge. */
+.topbar-dropdown .field:last-of-type {
+  margin-bottom: 0.75rem;
+}
+
+.topbar-dropdown {
+  min-width: 280px;
+}
+
 /* Inputs are capped at 560px globally (see .field) — wider than this popover,
    so let them fill it instead. */
 .topbar-dropdown .field {

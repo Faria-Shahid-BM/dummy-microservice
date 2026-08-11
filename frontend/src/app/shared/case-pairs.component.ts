@@ -66,6 +66,20 @@ export class CasePairsComponent<TResult> {
     return pair.result != null;
   }
 
+  // Pairs the user has explicitly unlocked to swap a document into, keyed by
+  // index. Cleared on upload, since the server drops that pair's result and the
+  // pair is unreviewed again anyway.
+  private unlocked = new Set<number>();
+
+  /** Can this pair's files still be chosen? Reviewed pairs are locked. */
+  editable(pair: CasePair<TResult>): boolean {
+    return !this.reviewed(pair) || this.unlocked.has(pair.index);
+  }
+
+  unlock(pair: CasePair<TResult>): void {
+    this.unlocked.add(pair.index);
+  }
+
   addPair(): void {
     this.error = '';
     this.busy = true;
@@ -100,6 +114,9 @@ export class CasePairsComponent<TResult> {
 
   private adopt(c: CaseDetail<TResult>): void {
     this.busy = false;
+    // The server drops a pair's result when its document is replaced, so the
+    // pair is unreviewed again and the lock is moot.
+    this.unlocked.clear();
     this.caseChanged.emit(c);
   }
 

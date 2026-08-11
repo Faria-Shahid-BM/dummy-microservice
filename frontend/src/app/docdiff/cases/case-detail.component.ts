@@ -23,9 +23,6 @@ export class CaseDetailComponent implements OnInit {
   loading = false;
   error = '';
 
-  uploadError = '';
-  /** Per-slot in-flight flag, keyed by slot name. */
-  uploading: Record<string, boolean> = {};
 
   analyzing = false;
   analyzeError = '';
@@ -55,27 +52,6 @@ export class CaseDetailComponent implements OnInit {
     });
   }
 
-  // One step: picking a file uploads it. A separate "Upload" button per slot
-  // was two clicks for one intent, and left a chosen-but-not-uploaded state
-  // that looked identical to uploaded.
-  onSlotFile(slot: string, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';   // so re-picking the same file still fires (change)
-    if (!file) return;
-    this.uploadError = '';
-    this.uploading[slot] = true;
-    this.docdiff.uploadSlot(this.caseId, slot, file).subscribe({
-      next: (c) => {
-        this.case = c;
-        this.uploading[slot] = false;
-      },
-      error: (err: HttpErrorResponse) => {
-        this.uploadError = err.error?.detail ?? 'upload failed';
-        this.uploading[slot] = false;
-      }
-    });
-  }
 
   /** Pairs with no result yet — what the main button will run. */
   get pendingPairs(): number {

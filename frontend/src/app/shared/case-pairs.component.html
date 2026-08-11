@@ -1,23 +1,37 @@
-<!-- part="uploads": the extra pairs' upload blocks, beside the case's own -->
+<!-- part="uploads": every pair's upload fields — the case's own first, then each
+     extra pair in its own block. A reviewed pair's pickers are disabled: only
+     unreviewed pairs get analyzed, so a document swapped in behind a finished
+     result would never be looked at. "Replace" drops that pair's result and
+     re-opens the pickers, which puts it back in the queue. -->
 <ng-container *ngIf="part === 'uploads'">
-  <div class="pair-block" *ngFor="let pair of extras">
-    <div class="pair-head">
-      <span class="pair-title">{{ noun }} {{ pair.index + 1 }}</span>
-      <button type="button" class="clear" [disabled]="busy || analyzing" (click)="removePair(pair)">
-        Remove
-      </button>
-    </div>
+  <ng-container *ngFor="let pair of pairs">
+    <!-- pair 0 is the case's own upload block: no frame, nothing to remove -->
+    <div [class.pair-block]="pair.index > 0">
+      <div class="pair-head" *ngIf="pair.index > 0">
+        <span class="pair-title">{{ noun }} {{ pair.index + 1 }}</span>
+        <button type="button" class="clear" [disabled]="busy || analyzing" (click)="removePair(pair)">
+          Remove
+        </button>
+      </div>
 
-    <div class="file-field" *ngFor="let slot of service.slots">
-      <span>{{ slot.label }} — {{ pair.uploads[slot.key] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        [accept]="slot.accept"
-        [disabled]="busy || analyzing"
-        (change)="onFile(pair, slot.key, $event)"
-      />
+      <div class="file-field" *ngFor="let slot of service.slots">
+        <span>{{ slot.label }} — {{ pair.uploads[slot.key] || 'not uploaded' }}</span>
+        <input
+          type="file"
+          [accept]="slot.accept"
+          [disabled]="busy || analyzing || !editable(pair)"
+          (change)="onFile(pair, slot.key, $event)"
+        />
+      </div>
+
+      <p class="hint" *ngIf="!editable(pair)">
+        Reviewed — its result is in the tab below.
+        <button type="button" class="link" [disabled]="busy || analyzing" (click)="unlock(pair)">
+          Replace {{ service.slots.length > 1 ? 'a document' : 'the document' }}
+        </button>
+      </p>
     </div>
-  </div>
+  </ng-container>
 
   <button type="button" class="clear" [disabled]="busy || analyzing" (click)="addPair()">
     + Add another {{ noun }}

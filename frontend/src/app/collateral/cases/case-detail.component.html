@@ -8,27 +8,6 @@
 <ng-container *ngIf="case">
   <section class="card">
     <h2>Cross-check legal opinion vs property document</h2>
-    <div class="file-field">
-      <span>Legal opinion (.docx or .pdf) — {{ case.uploads['legal'] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        accept=".docx,.pdf"
-        [disabled]="uploading['legal'] || case.status === 'analyzing'"
-        (change)="onSlotFile('legal', $event)"
-      />
-      <span class="hint" *ngIf="uploading['legal']">Uploading…</span>
-    </div>
-    <div class="file-field">
-      <span>Property / title document (.docx or .pdf) — {{ case.uploads['property'] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        accept=".docx,.pdf"
-        [disabled]="uploading['property'] || case.status === 'analyzing'"
-        (change)="onSlotFile('property', $event)"
-      />
-      <span class="hint" *ngIf="uploading['property']">Uploading…</span>
-    </div>
-    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
     <!-- The same slots again, as many times as needed: every pair on this
          case is reviewed in its own pass and keeps its own result below. -->

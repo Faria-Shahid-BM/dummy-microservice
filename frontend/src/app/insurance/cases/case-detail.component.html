@@ -8,17 +8,6 @@
 <ng-container *ngIf="case">
   <section class="card">
     <h2>Review an insurance policy</h2>
-    <div class="file-field">
-      <span>Insurance policy (.docx or .pdf) — {{ case.uploads['policy'] || 'not uploaded' }}</span>
-      <input
-        type="file"
-        accept=".docx,.pdf"
-        [disabled]="uploading['policy'] || case.status === 'analyzing'"
-        (change)="onSlotFile('policy', $event)"
-      />
-      <span class="hint" *ngIf="uploading['policy']">Uploading…</span>
-    </div>
-    <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
     <!-- The same slots again, as many times as needed: every pair on this
          case is reviewed in its own pass and keeps its own result below. -->
