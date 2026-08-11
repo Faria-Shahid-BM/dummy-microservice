@@ -398,8 +398,14 @@ def make_case_router(
         if case.status == "analyzing":
             raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
         pairs = _extra_pairs(case)
+        if index == 0:
+            # Pair 0 is the case's own documents; deleting it means deleting the case.
+            raise HTTPException(
+                status_code=409,
+                detail="Pair 1 is the case's own documents — delete the case instead",
+            )
         if index < 1 or index > len(pairs):
-            raise HTTPException(status_code=404, detail=f"No extra pair {index} on this case")
+            raise HTTPException(status_code=404, detail=f"No pair {index + 1} on this case")
         # Renumber the directories after the removed one, so pair i on disk keeps
         # matching pair i in `uploads`.
         shutil.rmtree(_extra_dir(case_id, index), ignore_errors=True)
@@ -417,6 +423,8 @@ def make_case_router(
         db.commit()
         return _detail_payload(case)
 
+    # index 0 = the case's own slots (an alias for /uploads/{slot}), so callers
+    # can address every pair the same way.
     @router.post("/{case_id}/pairs/{index}/uploads/{slot}")
     async def upload_pair_slot(
         case_id: str, index: int, slot: str,
@@ -431,27 +439,38 @@ def make_case_router(
                 status_code=409, detail="Analysis is running; wait for it to finish before replacing files"
             )
         pairs = _extra_pairs(case)
-        if index < 1 or index > len(pairs):
-            raise HTTPException(status_code=404, detail=f"No extra pair {index} on this case")
+        if index < 0 or index > len(pairs):
+            raise HTTPException(status_code=404, detail=f"No pair {index + 1} on this case")
         suffix = _check_suffix(slot, file.filename or "")
-
-        pair_dir = _extra_dir(case_id, index)
-        dest = pair_dir / f"{slot}{suffix}"
         content = await file.read()
+
+        # Pair 0 is the case's own slots, which live in the case directory and in
+        # `uploads` directly — /pairs/0/uploads/{slot} is accepted as an alias for
+        # /uploads/{slot} so that "pair index" means the same thing everywhere.
+        pair_dir = _case_dir(case_id) if index == 0 else _extra_dir(case_id, index)
+        dest = pair_dir / f"{slot}{suffix}"
         dest.write_bytes(content)
         for stale in pair_dir.glob(f"{slot}.*"):
             if stale != dest and stale.is_file():
                 stale.unlink(missing_ok=True)
 
         filename = file.filename or dest.name
-        pairs[index - 1] = {**pairs[index - 1], slot: filename}
-        _set_extra_pairs(case, pairs)
+        if index == 0:
+            uploads = {**_main_uploads(case), slot: filename}
+            _set_extra_pairs(case, pairs)   # keep the bookkeeping key
+            case.uploads = {**uploads, **({EXTRA_PAIRS_KEY: pairs} if pairs else {})}
+        else:
+            pairs[index - 1] = {**pairs[index - 1], slot: filename}
+            _set_extra_pairs(case, pairs)
         _invalidate_pair(case, index)
+        if index == 0 and all(s in _main_uploads(case) for s in min_slots_ready):
+            case.status = "ready"
         db.commit()
 
         attachment_id = audit_client.upload_attachment(filename, content)
         attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
-        _audit(service_scope, user_sub, "case.upload", resource=f"{case.name}:pair{index}:{slot}",
+        label = f"{case.name}:{slot}" if index == 0 else f"{case.name}:pair{index + 1}:{slot}"
+        _audit(service_scope, user_sub, "case.upload", resource=label,
                metadata={"input": {"attachments": attachments}})
         return _detail_payload(case)
 

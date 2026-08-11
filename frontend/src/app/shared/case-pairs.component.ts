@@ -98,7 +98,7 @@ export class CasePairsComponent<TResult> {
     });
   }
 
-  // One step, same as the case's own slots: picking a file uploads it.
+  // One step: picking a file uploads it.
   onFile(pair: CasePair<TResult>, slot: string, event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -106,7 +106,13 @@ export class CasePairsComponent<TResult> {
     if (!file) return;
     this.error = '';
     this.busy = true;
-    this.service.uploadPairSlot(this.case.id, pair.index, slot, file).subscribe({
+    // Pair 0 IS the case's own upload slots — it has no entry in `extra_pairs`,
+    // so it goes to /uploads/{slot}, not /pairs/0/uploads/{slot}.
+    const upload =
+      pair.index === 0
+        ? this.service.uploadSlot(this.case.id, slot, file)
+        : this.service.uploadPairSlot(this.case.id, pair.index, slot, file);
+    upload.subscribe({
       next: (c) => this.adopt(c),
       error: (err: HttpErrorResponse) => this.fail(err, 'upload failed')
     });
