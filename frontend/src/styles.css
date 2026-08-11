@@ -707,6 +707,35 @@ app-json-view {
   min-width: 0;
 }
 
+/* A file input driven by a nearby button (…Input.click()) rather than shown. */
+.hidden-file {
+  display: none;
+}
+
+/* Inline text button inside a sentence (e.g. "use the bundled policy instead"). */
+button.link {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 500;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+button.link:hover:not(:disabled) {
+  background: none;
+  box-shadow: none;
+  transform: none;
+  color: var(--color-primary-darker);
+}
+
+button.link:disabled {
+  background: none;
+  color: var(--color-text-faint);
+}
+
 .json-list {
   margin: 0.25rem 0;
   padding-left: 1.2rem;

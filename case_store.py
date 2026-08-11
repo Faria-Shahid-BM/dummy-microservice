@@ -140,9 +140,13 @@ class CaseCreateBody(BaseModel):
 # contract as streaming.py's sse_stream(), since analyze() is handed
 # straight through to it.
 EmitFn = Callable[[str, str], None]
-# analyze(paths, emit) -> result dict. `paths` maps every upload slot to its
-# file on disk (all `min_slots_ready` slots guaranteed present).
-AnalyzeFn = Callable[[dict[str, Path], EmitFn], dict]
+# analyze(paths, emit, user_sub) -> result dict. `paths` maps every upload slot
+# to its file on disk (all `min_slots_ready` slots guaranteed present).
+# `user_sub` is the case owner (cases are per-user, see Case.created_by) — for
+# services whose analysis depends on that account's own configuration rather
+# than only on the uploads, e.g. insurance grading against the bank policy that
+# account uploaded. Most services ignore it.
+AnalyzeFn = Callable[[dict[str, Path], EmitFn, str], dict]
 
 # Statuses from which POST /analyze is allowed (re-analysis included).
 ANALYZABLE_STATUSES = ("ready", "done", "failed")
@@ -319,7 +323,7 @@ def make_case_router(
             # docgen-service's job callbacks (app/jobs/runner.py) using
             # session_scope() rather than the request session.
             try:
-                result = analyze(paths, emit)
+                result = analyze(paths, emit, user_sub)
             except Exception as exc:
                 error = {"error": f"{type(exc).__name__}: {exc}"}
                 persist_db = SessionLocal()

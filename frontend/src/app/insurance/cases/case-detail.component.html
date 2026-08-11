@@ -17,10 +17,48 @@
     </div>
     <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
-    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
-      {{ analyzing ? 'Reviewing…' : case.status === 'done' || case.status === 'failed' ? 'Re-review' : 'Review' }}
-    </button>
+    <!-- The bank policy the review below is graded against: picking a file
+         uploads it straight away, so this and every later case switch to it.
+         With none uploaded the engine's bundled policy.txt is used. -->
+    <input
+      #bankPolicyInput
+      type="file"
+      class="hidden-file"
+      accept=".pdf,.docx,.txt,.md"
+      (change)="uploadBankPolicy($event); bankPolicyInput.value = ''"
+    />
+    <div class="button-row">
+      <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
+        {{ analyzing ? 'Reviewing…' : case.status === 'done' || case.status === 'failed' ? 'Re-review' : 'Review' }}
+      </button>
+      <button
+        type="button"
+        class="clear"
+        [disabled]="bankPolicyBusy || analyzing"
+        (click)="bankPolicyInput.click()"
+        title="Grade these reviews against your own bank policy (.pdf, .docx, .txt or .md)"
+      >
+        {{
+          bankPolicyBusy
+            ? 'Uploading…'
+            : bankPolicy?.has_own_policy
+              ? 'Replace bank policy'
+              : 'Upload bank policy'
+        }}
+      </button>
+    </div>
+
     <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+    <p class="hint">
+      <ng-container *ngIf="bankPolicy?.has_own_policy; else bundledPolicy">
+        Graded against your bank policy <code>{{ bankPolicy!.file_name }}</code>.
+        <button type="button" class="link" [disabled]="bankPolicyBusy || analyzing" (click)="deleteBankPolicy()">
+          Use the bundled policy instead
+        </button>
+      </ng-container>
+      <ng-template #bundledPolicy>Graded against the bundled default policy.</ng-template>
+      <span class="error" *ngIf="bankPolicyError"> {{ bankPolicyError }}</span>
+    </p>
     <p class="hint">Calls a real LLM — this can take a little while.</p>
   </section>
 

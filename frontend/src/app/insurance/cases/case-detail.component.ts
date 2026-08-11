@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CaseDetail } from '../../shared/case.service';
-import { InsuranceService } from '../insurance.service';
+import { BankPolicyStatus, InsuranceService } from '../insurance.service';
 import { applyStageEvent, freshProgress, parseSseError, ReviewProgress } from '../../sse.util';
 import { StageDef, StageProgressComponent } from '../../stage-progress/stage-progress.component';
 import { JsonViewComponent } from '../../json-view/json-view.component';
@@ -41,11 +41,63 @@ export class CaseDetailComponent implements OnInit {
   analyzeError = '';
   progress: ReviewProgress = freshProgress();
 
+  // The bank policy this account's reviews are graded against — standing
+  // configuration shared by every case, not part of this one (see
+  // insurance-service/main.py). Shown here because it's what the analysis
+  // below is measured against, so it belongs where you press Analyze.
+  bankPolicy: BankPolicyStatus | null = null;
+  bankPolicyBusy = false;
+  bankPolicyError = '';
+
   constructor(private route: ActivatedRoute, private insurance: InsuranceService) {}
 
   ngOnInit(): void {
     this.caseId = this.route.snapshot.paramMap.get('caseId') ?? '';
     this.loadCase();
+    this.loadBankPolicy();
+  }
+
+  loadBankPolicy(): void {
+    this.insurance.getBankPolicy().subscribe({
+      next: (res) => (this.bankPolicy = res),
+      error: (err: HttpErrorResponse) => {
+        this.bankPolicyError = err.error?.detail ?? 'failed to load the bank policy';
+      }
+    });
+  }
+
+  // One-step upload: choosing a file sends it, so every review from here on is
+  // graded against it (the file input itself is hidden behind a small button).
+  uploadBankPolicy(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.bankPolicyError = '';
+    this.bankPolicyBusy = true;
+    this.insurance.uploadBankPolicy(file).subscribe({
+      next: (res) => {
+        this.bankPolicy = res;
+        this.bankPolicyBusy = false;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.bankPolicyError = err.error?.detail ?? 'upload failed';
+        this.bankPolicyBusy = false;
+      }
+    });
+  }
+
+  deleteBankPolicy(): void {
+    this.bankPolicyError = '';
+    this.bankPolicyBusy = true;
+    this.insurance.deleteBankPolicy().subscribe({
+      next: (res) => {
+        this.bankPolicy = res;
+        this.bankPolicyBusy = false;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.bankPolicyError = err.error?.detail ?? 'delete failed';
+        this.bankPolicyBusy = false;
+      }
+    });
   }
 
   loadCase(): void {

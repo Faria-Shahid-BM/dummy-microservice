@@ -43,7 +43,8 @@ def _read(slot: str, path: Path) -> str:
     return text
 
 
-def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None]) -> dict:
+def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None], user_sub: str) -> dict:
+    # user_sub is unused: this comparison depends only on the two uploads.
     return document_diff.compare_documents(_read("original", paths["original"]), _read("returned", paths["returned"]))
 
 
