@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { KONG_BASE } from '../session.service';
-import { CaseService } from '../shared/case.service';
+import { CaseService, SlotDef } from '../shared/case.service';
 
 // GET /api/insurance/policy — the bank policy this account's cases are graded
 // against. has_own_policy false means the engine's bundled policy.txt is used.
@@ -19,6 +19,10 @@ export class InsuranceService extends CaseService<unknown> {
   protected readonly apiBase = `${KONG_BASE}/api/insurance`;
   readonly routeBase = '/insurance';
   readonly label = 'Insurance';
+  readonly slots: SlotDef[] = [
+    { key: 'policy', label: 'Insurance policy (.docx or .pdf)', accept: '.docx,.pdf' }
+  ];
+  override readonly itemNoun = 'policy';
 
   // The bank policy is account-level standing configuration, not case input —
   // it lives beside /cases rather than as an upload slot on one (see

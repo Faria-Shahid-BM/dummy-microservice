@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { KONG_BASE } from '../session.service';
-import { CaseService } from '../shared/case.service';
+import { CaseService, SlotDef } from '../shared/case.service';
 
 export interface DiffChange {
   id: number;
@@ -47,4 +47,9 @@ export class DocdiffService extends CaseService<RawDocumentDiffResult> {
   protected readonly apiBase = `${KONG_BASE}/api/docdiff`;
   readonly routeBase = '/docdiff';
   readonly label = 'Document Reviewer';
+  readonly slots: SlotDef[] = [
+    { key: 'original', label: 'Original document (.docx or .pdf)', accept: '.docx,.pdf' },
+    { key: 'returned', label: 'Returned document (.docx or .pdf)', accept: '.docx,.pdf' }
+  ];
+  override readonly itemNoun = 'pair';
 }

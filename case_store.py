@@ -18,7 +18,7 @@ Usage in a service's main.py::
     app = FastAPI()
     init_db()
 
-    def _analyze(paths, emit):
+    def _analyze(paths, emit, user_sub):
         return review_collateral(paths["legal"], paths["property"], _provider, models=_models(), emit=emit)
 
     app.include_router(make_case_router(
@@ -27,9 +27,15 @@ Usage in a service's main.py::
         min_slots_ready=["legal", "property"],
         analyze=_analyze,
     ))
+
+Endpoints: list/create/get/delete cases, upload one slot, analyze one case
+(SSE), fetch a stored result — plus `POST /cases/batch`, which creates and
+analyzes several cases in one request over a single SSE stream (see
+create_batch below for its event contract).
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import uuid
@@ -38,7 +44,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import audit_client
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import JSON, DateTime, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -104,6 +110,29 @@ def _slot_file(case_id: str, slot: str) -> Path | None:
 def _audit(service: str, user: str, action: str, resource: str | None = None,
            metadata: dict | None = None) -> None:
     audit_client.audit(user, service, action, resource=resource, metadata=metadata)
+
+
+def _emit_event(emit: EmitFn | None, payload: dict) -> None:
+    if emit:
+        emit("event", json.dumps(payload, separators=(",", ":")))
+
+
+def _scoped_emit(emit: EmitFn, scope: dict[str, Any]) -> EmitFn:
+    """Wrap `emit` so the engine's own stage events carry the case they belong
+    to. Token chunks ("content"/"reasoning") pass through untouched — the data
+    field of those frames is a bare string by contract."""
+
+    def scoped(ev_type: str, text: str) -> None:
+        if ev_type == "event":
+            try:
+                payload = json.loads(text)
+            except ValueError:
+                payload = None
+            if isinstance(payload, dict):
+                text = json.dumps({**payload, **scope}, separators=(",", ":"))
+        emit(ev_type, text)
+
+    return scoped
 
 
 def _get_owned_case(db: Session, case_id: str, user_sub: str) -> Case:
@@ -286,18 +315,22 @@ def make_case_router(
                metadata={"input": {"attachments": attachments}})
         return _detail_payload(case)
 
-    @router.post("/{case_id}/analyze")
-    async def start_analyze(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)):
-        case = _get_owned_case(db, case_id, user_sub)
+    def _paths_for(case_id: str) -> dict[str, Path]:
+        found = {}
+        for s in slots:
+            p = _slot_file(case_id, s)
+            if p is not None:
+                found[s] = p
+        return found
+
+    def _prepare_analyze(case: Case, user_sub: str, db: Session) -> tuple[dict[str, Path], dict]:
+        """Flip the case to `analyzing` and build its audit `input`. Raises the
+        same 409s as the single-case endpoint for a case that isn't ready."""
         if case.status not in ANALYZABLE_STATUSES:
             hint = f"; upload {', '.join(min_slots_ready)} first" if case.status == "new" else ""
             raise HTTPException(status_code=409, detail=f"Cannot analyze from status '{case.status}'{hint}")
 
-        paths: dict[str, Path] = {}
-        for s in slots:
-            p = _slot_file(case_id, s)
-            if p is not None:
-                paths[s] = p
+        paths = _paths_for(case.id)
         missing = [s for s in min_slots_ready if s not in paths]
         if missing:
             raise HTTPException(status_code=409, detail=f"Missing required upload(s): {', '.join(missing)}")
@@ -314,43 +347,179 @@ def make_case_router(
             attachment_id = audit_client.upload_attachment(p.name, p.read_bytes())
             if attachment_id:
                 analyze_attachments.append({"filename": p.name, "attachment_id": attachment_id})
-        analyze_input = {"attachments": analyze_attachments}
+        return paths, {"attachments": analyze_attachments}
 
-        def run(emit: EmitFn) -> dict:
-            # Runs on sse_stream()'s worker thread — never reuse the
-            # request's `db` session here (it belongs to the request's own
-            # async context); open a fresh one instead, same reasoning as
-            # docgen-service's job callbacks (app/jobs/runner.py) using
-            # session_scope() rather than the request session.
-            try:
-                result = analyze(paths, emit, user_sub)
-            except Exception as exc:
-                error = {"error": f"{type(exc).__name__}: {exc}"}
-                persist_db = SessionLocal()
-                try:
-                    row = persist_db.get(Case, case_id)
-                    if row is not None:
-                        row.status = "failed"
-                        row.result = error
-                        persist_db.commit()
-                finally:
-                    persist_db.close()
-                _audit(service_scope, user_sub, "case.analyze", resource=case.name,
-                       metadata={"input": analyze_input, "output": error})
-                raise  # sse_stream() still surfaces this as an "error" SSE event
+    def _run_analyze(
+        case_id: str, case_name: str, user_sub: str,
+        paths: dict[str, Path], analyze_input: dict, emit: EmitFn,
+    ) -> dict:
+        """Run one case's analysis, persist its outcome and audit it. Shared by
+        the single-case endpoint and the batch one, so both record status,
+        result and audit trail identically. Runs on sse_stream()'s worker
+        thread — never reuse the request's `db` session here (it belongs to the
+        request's own async context); open a fresh one instead, same reasoning
+        as docgen-service's job callbacks (app/jobs/runner.py) using
+        session_scope() rather than the request session."""
+
+        def persist(status: str, result: dict) -> None:
             persist_db = SessionLocal()
             try:
                 row = persist_db.get(Case, case_id)
                 if row is not None:
-                    row.status = "done"
+                    row.status = status
                     row.result = result
                     persist_db.commit()
             finally:
                 persist_db.close()
-            audit_output = to_audit_output(result) if to_audit_output else result
-            _audit(service_scope, user_sub, "case.analyze", resource=case.name,
-                   metadata={"input": analyze_input, "output": audit_output})
-            return result
+
+        try:
+            result = analyze(paths, emit, user_sub)
+        except Exception as exc:
+            error = {"error": f"{type(exc).__name__}: {exc}"}
+            persist("failed", error)
+            _audit(service_scope, user_sub, "case.analyze", resource=case_name,
+                   metadata={"input": analyze_input, "output": error})
+            raise  # sse_stream() still surfaces this as an "error" SSE event
+        persist("done", result)
+        audit_output = to_audit_output(result) if to_audit_output else result
+        _audit(service_scope, user_sub, "case.analyze", resource=case_name,
+               metadata={"input": analyze_input, "output": audit_output})
+        return result
+
+    @router.post("/{case_id}/analyze")
+    async def start_analyze(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)):
+        case = _get_owned_case(db, case_id, user_sub)
+        paths, analyze_input = _prepare_analyze(case, user_sub, db)
+        name = case.name
+
+        def run(emit: EmitFn) -> dict:
+            return _run_analyze(case_id, name, user_sub, paths, analyze_input, emit)
+
+        return await sse_stream(run)
+
+    # ---------------------------------------------------------------- batch
+    #
+    # Reviewing several documents in one go, without giving up any of what a
+    # case buys: each item below becomes a real, persisted case that keeps its
+    # own status and result and shows up in the list afterwards. This endpoint
+    # only removes the per-case round trips (create, upload each slot, analyze)
+    # and the waiting in between.
+    #
+    # Multipart form, since the slots differ per service and can't be declared
+    # statically: one repeated field per upload slot, paired by position
+    # (`legal[i]` is reviewed against `property[i]`), plus optional repeated
+    # `names` for the case names (defaulting to the first slot's file name).
+    #
+    # On top of streaming.py's contract, every `event` frame produced inside an
+    # item carries `case` (0-based index) and `case_id`, and three batch-level
+    # stages bracket each one:
+    #
+    #     {"stage": "case_start",  "case": 0, "case_id": "...", "name": "..."}
+    #     {"stage": "case_result", "case": 0, "case_id": "...", "result": {...}}
+    #     {"stage": "case_error",  "case": 0, "case_id": "...", "error": "..."}
+    #
+    # Cases run one at a time on purpose: each engine pipeline already fans out
+    # internally (parallel field extraction, vision OCR), and sequential runs
+    # are what make a `case_start` frame unambiguous — every later frame,
+    # including `content` token chunks (bare strings by contract, with nowhere
+    # to put a tag), belongs to that case until the next `case_start`.
+
+    @router.post("/batch")
+    async def create_batch(
+        request: Request,
+        user_sub: str = Depends(_require_user),
+        db: Session = Depends(get_db),
+    ):
+        form = await request.form()
+        uploaded = {slot: [f for f in form.getlist(slot) if hasattr(f, "filename")] for slot in slots}
+        names = [str(n).strip() for n in form.getlist("names")]
+
+        counts = {slot: len(files) for slot, files in uploaded.items() if files}
+        if not counts:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No files uploaded; expected one field per slot: {', '.join(sorted(slots))}",
+            )
+        if len(set(counts.values())) > 1:
+            detail = ", ".join(f"{n} {slot}" for slot, n in sorted(counts.items()))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Uploaded file counts don't match ({detail}) — every case needs "
+                       "exactly one file per slot",
+            )
+        count = next(iter(counts.values()))
+        missing = [s for s in min_slots_ready if s not in counts]
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Missing required upload(s): {', '.join(missing)}")
+        if names and len(names) != count:
+            raise HTTPException(status_code=400, detail=f"Got {len(names)} names for {count} case(s)")
+
+        # Validate every file up front: a batch that would fail halfway leaves
+        # half-created cases behind, so reject the whole request instead.
+        for slot, files in uploaded.items():
+            for f in files:
+                suffix = Path(f.filename or "").suffix.lower()
+                if suffix not in slots[slot]:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"File type {suffix or '(none)'!r} is not allowed for slot '{slot}'; "
+                               f"expected one of: {', '.join(sorted(slots[slot]))}",
+                    )
+
+        # Create + populate every case in the request (async), then hand the
+        # blocking analyses to the worker thread below.
+        prepared: list[dict] = []
+        for i in range(count):
+            primary = uploaded[min_slots_ready[0]][i] if min_slots_ready else next(iter(uploaded.values()))[i]
+            name = names[i] if names else (Path(primary.filename or "").stem or f"Case {i + 1}")
+            case = Case(name=name, status="new", uploads={}, created_by=user_sub)
+            db.add(case)
+            db.commit()
+            _audit(service_scope, user_sub, "case.create", resource=name)
+
+            case_dir = _case_dir(case.id)
+            uploads: dict[str, str] = {}
+            for slot, files in uploaded.items():
+                f = files[i]
+                suffix = Path(f.filename or "").suffix.lower()
+                content = await f.read()
+                (case_dir / f"{slot}{suffix}").write_bytes(content)
+                filename = f.filename or f"{slot}{suffix}"
+                uploads[slot] = filename
+                attachment_id = audit_client.upload_attachment(filename, content)
+                attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
+                _audit(service_scope, user_sub, "case.upload", resource=f"{name}:{slot}",
+                       metadata={"input": {"attachments": attachments}})
+            case.uploads = uploads
+            if all(s in uploads for s in min_slots_ready):
+                case.status = "ready"
+            db.commit()
+
+            paths, analyze_input = _prepare_analyze(case, user_sub, db)
+            prepared.append({
+                "index": i, "case_id": case.id, "name": name,
+                "paths": paths, "analyze_input": analyze_input,
+            })
+
+        def run(emit: EmitFn) -> dict:
+            results = []
+            for item in prepared:
+                scope = {"case": item["index"], "case_id": item["case_id"]}
+                _emit_event(emit, {"stage": "case_start", **scope, "name": item["name"]})
+                try:
+                    result = _run_analyze(
+                        item["case_id"], item["name"], user_sub,
+                        item["paths"], item["analyze_input"],
+                        _scoped_emit(emit, scope),
+                    )
+                except Exception as exc:  # one bad case must not sink the rest
+                    error = f"{type(exc).__name__}: {exc}"
+                    _emit_event(emit, {"stage": "case_error", **scope, "error": error})
+                    results.append({**scope, "name": item["name"], "error": error})
+                    continue
+                _emit_event(emit, {"stage": "case_result", **scope, "result": result})
+                results.append({**scope, "name": item["name"], "result": result})
+            return {"cases": results}
 
         return await sse_stream(run)
 

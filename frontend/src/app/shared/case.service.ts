@@ -17,6 +17,30 @@ export interface CaseDetail<TResult = unknown> extends CaseSummary {
   error: string | null;
 }
 
+// One upload slot of a service's case — the `key`s are the multipart field
+// names case_store.py's router expects (see each service's upload_slots).
+export interface SlotDef {
+  key: string;
+  label: string;
+  /** `accept` attribute for the file input. */
+  accept: string;
+}
+
+// One staged item of a batch submission: one file per slot, which the server
+// turns into its own persisted case (see case_store.py's POST /cases/batch).
+export interface BatchItem {
+  /** Client-side row id; the server's case id arrives on the case_start frame. */
+  key: string;
+  files: Record<string, File | null>;
+  caseId: string | null;
+  name: string;
+  /** True once the user types a name, so picking a file stops overwriting it. */
+  nameEdited?: boolean;
+  running: boolean;
+  error: string;
+  done: boolean;
+}
+
 // Every stateless review service (collateral/valuation/insurance/docdiff)
 // exposes the identical /cases REST+SSE shape (see case_store.py) — this is
 // the shared client for it. A concrete per-service class just supplies
@@ -32,6 +56,10 @@ export abstract class CaseService<TResult = unknown> {
   abstract readonly routeBase: string;
   /** e.g. 'Collateral' — shown as "<label> Cases" by the shared list page. */
   abstract readonly label: string;
+  /** This service's upload slots, in the order the server pairs them. */
+  abstract readonly slots: SlotDef[];
+  /** Singular noun for one batch item, e.g. 'pair' / 'report' / 'policy'. */
+  readonly itemNoun: string = 'document';
 
   constructor(protected http: HttpClient) {}
 
@@ -62,6 +90,21 @@ export abstract class CaseService<TResult = unknown> {
   // old one-shot /review/stream, just pointed at a case instead.
   analyzeCase(caseId: string, onFrame: (eventType: string, data: string) => void): Promise<void> {
     return consumeSse(`${this.apiBase}/cases/${caseId}/analyze`, null, onFrame);
+  }
+
+  /**
+   * Create and analyze several cases in one request, streaming each one's
+   * outcome as it lands (see case_store.py's POST /cases/batch). One repeated
+   * form field per slot, paired by position, plus a `names` field per item —
+   * so item i is `slots.map(s => files[s][i])`, named `names[i]`.
+   */
+  analyzeBatch(items: BatchItem[], onFrame: (eventType: string, data: string) => void): Promise<void> {
+    const form = new FormData();
+    for (const item of items) {
+      for (const slot of this.slots) form.append(slot.key, item.files[slot.key]!);
+      form.append('names', item.name);
+    }
+    return consumeSse(`${this.apiBase}/cases/batch`, form, onFrame);
   }
 }
 
