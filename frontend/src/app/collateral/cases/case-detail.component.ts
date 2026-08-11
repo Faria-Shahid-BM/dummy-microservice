@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CollateralResult, CollateralService } from '../collateral.service';
 import { CaseDetail } from '../../shared/case.service';
+import { BatchAddComponent } from '../../shared/batch-add.component';
 import { applyStageEvent, freshProgress, parseSseError, ReviewProgress } from '../../sse.util';
 import { StageDef, StageProgressComponent } from '../../stage-progress/stage-progress.component';
 
@@ -20,7 +21,7 @@ const COLLATERAL_STAGES: StageDef[] = [
 @Component({
   selector: 'app-collateral-case-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, StageProgressComponent],
+  imports: [CommonModule, RouterLink, BatchAddComponent, StageProgressComponent],
   templateUrl: './case-detail.component.html'
 })
 export class CaseDetailComponent implements OnInit {
@@ -42,7 +43,7 @@ export class CaseDetailComponent implements OnInit {
   progress: ReviewProgress = freshProgress();
   streamingText = '';
 
-  constructor(private route: ActivatedRoute, private collateral: CollateralService) {}
+  constructor(private route: ActivatedRoute, public collateral: CollateralService) {}
 
   ngOnInit(): void {
     this.caseId = this.route.snapshot.paramMap.get('caseId') ?? '';
@@ -112,7 +113,12 @@ export class CaseDetailComponent implements OnInit {
   }
 
   analyze(): void {
-    if (!this.canAnalyze) return;
+    // Reviewing only the extra items is legitimate — this case may have
+    // nothing uploaded yet.
+    if (!this.canAnalyze) {
+      this.runExtras();
+      return;
+    }
     this.analyzeError = '';
     this.analyzing = true;
     this.progress = freshProgress();
@@ -141,7 +147,21 @@ export class CaseDetailComponent implements OnInit {
       })
       .finally(() => {
         this.analyzing = false;
+        this.runExtras();
         if (!this.case || this.case.status === 'analyzing') this.loadCase();
       });
+  }
+
+  // Extra documents staged beside this case's uploads (app-batch-add), each
+  // becoming its own case. Reviewed after this one, so a stack goes through in
+  // a single press of Review.
+  @ViewChild(BatchAddComponent) extras?: BatchAddComponent;
+
+  get hasExtras(): boolean {
+    return this.extras?.hasPending ?? false;
+  }
+
+  private runExtras(): void {
+    if (this.extras?.hasPending) void this.extras.run();
   }
 }

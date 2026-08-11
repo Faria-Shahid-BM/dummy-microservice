@@ -2,98 +2,6 @@
   <h2>{{ caseService.label }} Cases</h2>
 </div>
 
-<!-- Batch review: one block per item, each becoming its own persisted case.
-     Everything already reviewed keeps its result — it's a real case in the
-     list below, so nothing here is lost on reload. -->
-<section class="card" *ngIf="showBatch">
-  <h2>Review several {{ caseService.itemNoun }}s at once</h2>
-
-  <div class="pair-block" *ngFor="let item of batchItems; let i = index">
-    <div class="pair-head">
-      <span class="pair-title">{{ caseService.itemNoun }} {{ i + 1 }}</span>
-      <button
-        type="button"
-        class="clear"
-        *ngIf="batchItems.length > 1"
-        [disabled]="item.running"
-        (click)="removeBatchItem(i)"
-      >
-        Remove
-      </button>
-    </div>
-    <div class="file-field" *ngFor="let slot of caseService.slots">
-      <span>{{ slot.label }}</span>
-      <input
-        type="file"
-        [accept]="slot.accept"
-        [disabled]="item.running"
-        (change)="setBatchFile(item, slot.key, $event)"
-      />
-    </div>
-    <div class="field">
-      <span>Case name</span>
-      <input
-        type="text"
-        [(ngModel)]="item.name"
-        [name]="'batch-name-' + item.key"
-        [disabled]="item.running"
-        (input)="item.nameEdited = true"
-        placeholder="defaults to the file name"
-      />
-    </div>
-  </div>
-
-  <div class="pair-actions">
-    <button type="button" class="clear" [disabled]="batchRunning" (click)="addBatchItem()">
-      + Add another {{ caseService.itemNoun }}
-    </button>
-    <button [disabled]="batchRunning || !pendingBatchItems.length" (click)="runBatch()">
-      {{ batchSubmitLabel() }}
-    </button>
-  </div>
-
-  <p class="error" *ngIf="batchError">{{ batchError }}</p>
-  <p class="hint">
-    Calls a real LLM — this can take a little while. Each one becomes its own case and is reviewed
-    after the previous finishes; anything already reviewed keeps its result.
-  </p>
-
-  <ng-container *ngIf="batchItemsWithOutcome.length">
-    <h3>Progress</h3>
-    <div class="tab-bar" role="tablist">
-      <button
-        type="button"
-        class="tab"
-        role="tab"
-        *ngFor="let item of batchItems; let i = index"
-        [class.active]="batchActive === i"
-        [disabled]="!item.running && !item.done && !item.error"
-        [attr.aria-selected]="batchActive === i"
-        (click)="selectBatchItem(i)"
-      >
-        {{ item.name || caseService.itemNoun + ' ' + (i + 1) }}
-        <span class="tab-dot running" *ngIf="item.running" title="in progress"></span>
-        <span class="tab-dot error" *ngIf="item.error" title="failed"></span>
-        <span class="tab-dot done" *ngIf="item.done" title="done"></span>
-      </button>
-    </div>
-
-    <ng-container *ngFor="let item of batchItems; let i = index">
-      <div class="tab-panel" role="tabpanel" *ngIf="batchActive === i">
-        <p class="empty" *ngIf="!item.running && !item.done && !item.error">
-          This {{ caseService.itemNoun }} hasn't been reviewed yet.
-        </p>
-        <p class="hint" *ngIf="item.running">Reviewing…</p>
-        <p class="error" *ngIf="item.error">{{ item.error }}</p>
-        <p class="hint" *ngIf="item.done">Done — the full result is on the case.</p>
-        <button type="button" class="clear" *ngIf="item.caseId" (click)="openBatchCase(item)">
-          Open case
-        </button>
-      </div>
-    </ng-container>
-  </ng-container>
-</section>
-
 <section class="card">
   <div class="log-header">
     <h2>All cases</h2>
@@ -117,9 +25,6 @@
           <p class="error" *ngIf="createError">{{ createError }}</p>
         </div>
       </div>
-      <button type="button" class="clear" (click)="toggleBatch()">
-        {{ showBatch ? 'Hide batch review' : 'Review several at once' }}
-      </button>
       <button class="clear" (click)="load()" [disabled]="loading">
         {{ loading ? 'Loading…' : 'Refresh' }}
       </button>

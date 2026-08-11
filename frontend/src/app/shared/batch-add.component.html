@@ -1,0 +1,72 @@
+<!-- Extra items staged alongside this case's own uploads. Each becomes its own
+     case when the parent's Review button runs. -->
+<div class="pair-block" *ngFor="let item of items; let i = index">
+  <div class="pair-head">
+    <span class="pair-title">extra {{ noun }} {{ i + 1 }}</span>
+    <button type="button" class="clear" [disabled]="item.running" (click)="remove(i)">Remove</button>
+  </div>
+
+  <div class="file-field" *ngFor="let slot of service.slots">
+    <span>{{ slot.label }}</span>
+    <input
+      type="file"
+      [accept]="slot.accept"
+      [disabled]="item.running || disabled"
+      (change)="setFile(item, slot.key, $event)"
+    />
+  </div>
+
+  <div class="field">
+    <span>Case name</span>
+    <input
+      type="text"
+      [(ngModel)]="item.name"
+      [name]="'batch-name-' + item.key"
+      [disabled]="item.running || disabled"
+      (input)="item.nameEdited = true"
+      placeholder="defaults to the file name"
+    />
+  </div>
+</div>
+
+<button type="button" class="clear" [disabled]="running || disabled" (click)="add()">
+  + Add another {{ noun }}
+</button>
+<p class="hint" *ngIf="items.length">
+  Reviewed after this case, one after another — each becomes its own case, keeping its own result.
+</p>
+<p class="error" *ngIf="error">{{ error }}</p>
+
+<!-- Progress for the extra items; this case's own progress is the parent's. -->
+<ng-container *ngIf="withOutcome.length">
+  <h3>Extra {{ plural }}</h3>
+  <div class="tab-bar" role="tablist">
+    <button
+      type="button"
+      class="tab"
+      role="tab"
+      *ngFor="let item of items; let i = index"
+      [class.active]="active === i"
+      [disabled]="!item.running && !item.done && !item.error"
+      [attr.aria-selected]="active === i"
+      (click)="select(i)"
+    >
+      {{ item.name || noun + ' ' + (i + 1) }}
+      <span class="tab-dot running" *ngIf="item.running" title="in progress"></span>
+      <span class="tab-dot error" *ngIf="item.error" title="failed"></span>
+      <span class="tab-dot done" *ngIf="item.done" title="done"></span>
+    </button>
+  </div>
+
+  <ng-container *ngFor="let item of items; let i = index">
+    <div class="tab-panel" role="tabpanel" *ngIf="active === i">
+      <p class="empty" *ngIf="!item.running && !item.done && !item.error">
+        Not reviewed yet — it runs when you press Review above.
+      </p>
+      <p class="hint" *ngIf="item.running">Reviewing…</p>
+      <p class="error" *ngIf="item.error">{{ item.error }}</p>
+      <p class="hint" *ngIf="item.done">Done — the full result is on its own case.</p>
+      <button type="button" class="clear" *ngIf="item.caseId" (click)="open(item)">Open case</button>
+    </div>
+  </ng-container>
+</ng-container>

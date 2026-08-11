@@ -1,15 +1,16 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CaseDetail } from '../../shared/case.service';
+import { BatchAddComponent } from '../../shared/batch-add.component';
 import { DiffChange, DiffSegment, DocdiffService, DocumentDiffResult, RawDocumentDiffResult } from '../docdiff.service';
 import { parseSseError } from '../../sse.util';
 
 @Component({
   selector: 'app-docdiff-case-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, BatchAddComponent],
   templateUrl: './case-detail.component.html'
 })
 export class CaseDetailComponent implements OnInit {
@@ -28,7 +29,7 @@ export class CaseDetailComponent implements OnInit {
   analyzing = false;
   analyzeError = '';
 
-  constructor(private route: ActivatedRoute, private docdiff: DocdiffService) {}
+  constructor(private route: ActivatedRoute, public docdiff: DocdiffService) {}
 
   ngOnInit(): void {
     this.caseId = this.route.snapshot.paramMap.get('caseId') ?? '';
@@ -99,7 +100,12 @@ export class CaseDetailComponent implements OnInit {
   }
 
   analyze(): void {
-    if (!this.canAnalyze) return;
+    // Reviewing only the extra items is legitimate — this case may have
+    // nothing uploaded yet.
+    if (!this.canAnalyze) {
+      this.runExtras();
+      return;
+    }
     this.analyzeError = '';
     this.analyzing = true;
 
@@ -116,6 +122,7 @@ export class CaseDetailComponent implements OnInit {
       })
       .finally(() => {
         this.analyzing = false;
+        this.runExtras();
         if (!this.case || this.case.status === 'analyzing') this.loadCase();
       });
   }
@@ -199,5 +206,18 @@ export class CaseDetailComponent implements OnInit {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('flash');
     setTimeout(() => el.classList.remove('flash'), 1500);
+  }
+
+  // Extra documents staged beside this case's uploads (app-batch-add), each
+  // becoming its own case. Reviewed after this one, so a stack goes through in
+  // a single press of Review.
+  @ViewChild(BatchAddComponent) extras?: BatchAddComponent;
+
+  get hasExtras(): boolean {
+    return this.extras?.hasPending ?? false;
+  }
+
+  private runExtras(): void {
+    if (this.extras?.hasPending) void this.extras.run();
   }
 }
