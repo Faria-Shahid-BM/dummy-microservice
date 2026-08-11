@@ -33,9 +33,8 @@ export interface BatchItem {
   key: string;
   files: Record<string, File | null>;
   caseId: string | null;
+  /** Derived from the first slot's file name — never typed by hand. */
   name: string;
-  /** True once the user types a name, so picking a file stops overwriting it. */
-  nameEdited?: boolean;
   running: boolean;
   error: string;
   done: boolean;

@@ -10,10 +10,13 @@
     <h2>Review an insurance policy</h2>
     <div class="file-field">
       <span>Insurance policy (.docx or .pdf) — {{ case.uploads['policy'] || 'not uploaded' }}</span>
-      <input type="file" accept=".docx,.pdf" (change)="onPolicyFile($event)" [disabled]="case.status === 'analyzing'" />
-      <button [disabled]="uploadingPolicy || !policyFile" (click)="uploadPolicy()">
-        {{ uploadingPolicy ? 'Uploading…' : 'Upload' }}
-      </button>
+      <input
+        type="file"
+        accept=".docx,.pdf"
+        [disabled]="uploading['policy'] || case.status === 'analyzing'"
+        (change)="onSlotFile('policy', $event)"
+      />
+      <span class="hint" *ngIf="uploading['policy']">Uploading…</span>
     </div>
     <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 

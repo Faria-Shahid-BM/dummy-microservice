@@ -13,24 +13,20 @@
       <input
         type="file"
         accept=".docx,.pdf"
-        (change)="onOriginalFile($event)"
-        [disabled]="case.status === 'analyzing'"
+        [disabled]="uploading['original'] || case.status === 'analyzing'"
+        (change)="onSlotFile('original', $event)"
       />
-      <button [disabled]="uploadingOriginal || !originalFile" (click)="uploadOriginal()">
-        {{ uploadingOriginal ? 'Uploading…' : 'Upload' }}
-      </button>
+      <span class="hint" *ngIf="uploading['original']">Uploading…</span>
     </div>
     <div class="file-field">
       <span>Returned / signed document (.docx or .pdf) — {{ case.uploads['returned'] || 'not uploaded' }}</span>
       <input
         type="file"
         accept=".docx,.pdf"
-        (change)="onReturnedFile($event)"
-        [disabled]="case.status === 'analyzing'"
+        [disabled]="uploading['returned'] || case.status === 'analyzing'"
+        (change)="onSlotFile('returned', $event)"
       />
-      <button [disabled]="uploadingReturned || !returnedFile" (click)="uploadReturned()">
-        {{ uploadingReturned ? 'Uploading…' : 'Upload' }}
-      </button>
+      <span class="hint" *ngIf="uploading['returned']">Uploading…</span>
     </div>
     <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 

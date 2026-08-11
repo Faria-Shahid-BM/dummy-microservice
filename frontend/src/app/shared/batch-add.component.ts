@@ -1,6 +1,5 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { BatchItem, CaseService } from './case.service';
 
@@ -22,7 +21,7 @@ let batchRowSeq = 0;
 @Component({
   selector: 'app-batch-add',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule],
   templateUrl: './batch-add.component.html'
 })
 export class BatchAddComponent {
@@ -101,7 +100,7 @@ export class BatchAddComponent {
     item.caseId = null;
     item.error = '';
     item.done = false;
-    if (!item.nameEdited) item.name = this.defaultName(item);
+    item.name = this.defaultName(item);
   }
 
   private defaultName(item: BatchItem): string {

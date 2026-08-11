@@ -34,9 +34,9 @@ export class CaseDetailComponent implements OnInit {
   loading = false;
   error = '';
 
-  policyFile: File | null = null;
-  uploadingPolicy = false;
   uploadError = '';
+  /** Per-slot in-flight flag, keyed by slot name. */
+  uploading: Record<string, boolean> = {};
 
   analyzing = false;
   analyzeError = '';
@@ -117,30 +117,33 @@ export class CaseDetailComponent implements OnInit {
     });
   }
 
+  // One step: picking a file uploads it. A separate "Upload" button per slot
+  // was two clicks for one intent, and left a chosen-but-not-uploaded state
+  // that looked identical to uploaded.
+  onSlotFile(slot: string, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';   // so re-picking the same file still fires (change)
+    if (!file) return;
+    this.uploadError = '';
+    this.uploading[slot] = true;
+    this.insurance.uploadSlot(this.caseId, slot, file).subscribe({
+      next: (c) => {
+        this.case = c;
+        this.uploading[slot] = false;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.uploadError = err.error?.detail ?? 'upload failed';
+        this.uploading[slot] = false;
+      }
+    });
+  }
+
   get canAnalyze(): boolean {
     return this.case?.status === 'ready' || this.case?.status === 'done' || this.case?.status === 'failed';
   }
 
-  onPolicyFile(event: Event): void {
-    this.policyFile = (event.target as HTMLInputElement).files?.[0] ?? null;
-  }
 
-  uploadPolicy(): void {
-    if (!this.policyFile) return;
-    this.uploadError = '';
-    this.uploadingPolicy = true;
-    this.insurance.uploadSlot(this.caseId, 'policy', this.policyFile).subscribe({
-      next: (c) => {
-        this.case = c;
-        this.policyFile = null;
-        this.uploadingPolicy = false;
-      },
-      error: (err: HttpErrorResponse) => {
-        this.uploadError = err.error?.detail ?? 'upload failed';
-        this.uploadingPolicy = false;
-      }
-    });
-  }
 
   analyze(): void {
     // Reviewing only the extra items is legitimate — this case may have

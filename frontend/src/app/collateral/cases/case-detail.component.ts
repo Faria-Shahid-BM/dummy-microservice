@@ -32,11 +32,9 @@ export class CaseDetailComponent implements OnInit {
   loading = false;
   error = '';
 
-  legalFile: File | null = null;
-  propertyFile: File | null = null;
-  uploadingLegal = false;
-  uploadingProperty = false;
   uploadError = '';
+  /** Per-slot in-flight flag, keyed by slot name. */
+  uploading: Record<string, boolean> = {};
 
   analyzing = false;
   analyzeError = '';
@@ -66,51 +64,35 @@ export class CaseDetailComponent implements OnInit {
     });
   }
 
+  // One step: picking a file uploads it. A separate "Upload" button per slot
+  // was two clicks for one intent, and left a chosen-but-not-uploaded state
+  // that looked identical to uploaded.
+  onSlotFile(slot: string, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';   // so re-picking the same file still fires (change)
+    if (!file) return;
+    this.uploadError = '';
+    this.uploading[slot] = true;
+    this.collateral.uploadSlot(this.caseId, slot, file).subscribe({
+      next: (c) => {
+        this.case = c;
+        this.uploading[slot] = false;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.uploadError = err.error?.detail ?? 'upload failed';
+        this.uploading[slot] = false;
+      }
+    });
+  }
+
   get canAnalyze(): boolean {
     return this.case?.status === 'ready' || this.case?.status === 'done' || this.case?.status === 'failed';
   }
 
-  onLegalFile(event: Event): void {
-    this.legalFile = (event.target as HTMLInputElement).files?.[0] ?? null;
-  }
 
-  onPropertyFile(event: Event): void {
-    this.propertyFile = (event.target as HTMLInputElement).files?.[0] ?? null;
-  }
 
-  uploadLegal(): void {
-    if (!this.legalFile) return;
-    this.uploadError = '';
-    this.uploadingLegal = true;
-    this.collateral.uploadSlot(this.caseId, 'legal', this.legalFile).subscribe({
-      next: (c) => {
-        this.case = c;
-        this.legalFile = null;
-        this.uploadingLegal = false;
-      },
-      error: (err: HttpErrorResponse) => {
-        this.uploadError = err.error?.detail ?? 'upload failed';
-        this.uploadingLegal = false;
-      }
-    });
-  }
 
-  uploadProperty(): void {
-    if (!this.propertyFile) return;
-    this.uploadError = '';
-    this.uploadingProperty = true;
-    this.collateral.uploadSlot(this.caseId, 'property', this.propertyFile).subscribe({
-      next: (c) => {
-        this.case = c;
-        this.propertyFile = null;
-        this.uploadingProperty = false;
-      },
-      error: (err: HttpErrorResponse) => {
-        this.uploadError = err.error?.detail ?? 'upload failed';
-        this.uploadingProperty = false;
-      }
-    });
-  }
 
   analyze(): void {
     // Reviewing only the extra items is legitimate — this case may have

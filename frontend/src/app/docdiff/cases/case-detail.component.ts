@@ -20,11 +20,9 @@ export class CaseDetailComponent implements OnInit {
   loading = false;
   error = '';
 
-  originalFile: File | null = null;
-  returnedFile: File | null = null;
-  uploadingOriginal = false;
-  uploadingReturned = false;
   uploadError = '';
+  /** Per-slot in-flight flag, keyed by slot name. */
+  uploading: Record<string, boolean> = {};
 
   analyzing = false;
   analyzeError = '';
@@ -53,51 +51,35 @@ export class CaseDetailComponent implements OnInit {
     });
   }
 
+  // One step: picking a file uploads it. A separate "Upload" button per slot
+  // was two clicks for one intent, and left a chosen-but-not-uploaded state
+  // that looked identical to uploaded.
+  onSlotFile(slot: string, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';   // so re-picking the same file still fires (change)
+    if (!file) return;
+    this.uploadError = '';
+    this.uploading[slot] = true;
+    this.docdiff.uploadSlot(this.caseId, slot, file).subscribe({
+      next: (c) => {
+        this.case = c;
+        this.uploading[slot] = false;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.uploadError = err.error?.detail ?? 'upload failed';
+        this.uploading[slot] = false;
+      }
+    });
+  }
+
   get canAnalyze(): boolean {
     return this.case?.status === 'ready' || this.case?.status === 'done' || this.case?.status === 'failed';
   }
 
-  onOriginalFile(event: Event): void {
-    this.originalFile = (event.target as HTMLInputElement).files?.[0] ?? null;
-  }
 
-  onReturnedFile(event: Event): void {
-    this.returnedFile = (event.target as HTMLInputElement).files?.[0] ?? null;
-  }
 
-  uploadOriginal(): void {
-    if (!this.originalFile) return;
-    this.uploadError = '';
-    this.uploadingOriginal = true;
-    this.docdiff.uploadSlot(this.caseId, 'original', this.originalFile).subscribe({
-      next: (c) => {
-        this.case = c;
-        this.originalFile = null;
-        this.uploadingOriginal = false;
-      },
-      error: (err: HttpErrorResponse) => {
-        this.uploadError = err.error?.detail ?? 'upload failed';
-        this.uploadingOriginal = false;
-      }
-    });
-  }
 
-  uploadReturned(): void {
-    if (!this.returnedFile) return;
-    this.uploadError = '';
-    this.uploadingReturned = true;
-    this.docdiff.uploadSlot(this.caseId, 'returned', this.returnedFile).subscribe({
-      next: (c) => {
-        this.case = c;
-        this.returnedFile = null;
-        this.uploadingReturned = false;
-      },
-      error: (err: HttpErrorResponse) => {
-        this.uploadError = err.error?.detail ?? 'upload failed';
-        this.uploadingReturned = false;
-      }
-    });
-  }
 
   analyze(): void {
     // Reviewing only the extra items is legitimate — this case may have

@@ -1,5 +1,6 @@
-<!-- Extra items staged alongside this case's own uploads. Each becomes its own
-     case when the parent's Review button runs. -->
+<!-- Extra items staged alongside this case's own uploads: the same slots again,
+     one file picker each. No name field — you're adding documents to review,
+     not filling in case paperwork, so the name comes from the file. -->
 <div class="pair-block" *ngFor="let item of items; let i = index">
   <div class="pair-head">
     <span class="pair-title">extra {{ noun }} {{ i + 1 }}</span>
@@ -15,25 +16,14 @@
       (change)="setFile(item, slot.key, $event)"
     />
   </div>
-
-  <div class="field">
-    <span>Case name</span>
-    <input
-      type="text"
-      [(ngModel)]="item.name"
-      [name]="'batch-name-' + item.key"
-      [disabled]="item.running || disabled"
-      (input)="item.nameEdited = true"
-      placeholder="defaults to the file name"
-    />
-  </div>
 </div>
 
 <button type="button" class="clear" [disabled]="running || disabled" (click)="add()">
   + Add another {{ noun }}
 </button>
 <p class="hint" *ngIf="items.length">
-  Reviewed after this case, one after another — each becomes its own case, keeping its own result.
+  Reviewed after this case, one after another — press Review below to run them all. Each is filed
+  under its file name so its result is kept separately.
 </p>
 <p class="error" *ngIf="error">{{ error }}</p>
 
