@@ -30,15 +30,18 @@
     </div>
     <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
-    <!-- Same upload block, repeatable: each extra one becomes its own case,
-         reviewed after this one when Review is pressed. -->
-    <app-batch-add
+    <!-- The same slots again, as many times as needed: every pair on this
+         case is reviewed in its own pass and keeps its own result below. -->
+    <app-case-pairs
+      part="uploads"
       [service]="docdiff"
-      [disabled]="analyzing || case.status === 'analyzing'"
-      (finished)="loadCase()"
-    ></app-batch-add>
+      [case]="case"
+      [run]="run"
+      [analyzing]="analyzing"
+      (caseChanged)="case = $event"
+    ></app-case-pairs>
 
-    <button [disabled]="(!canAnalyze && !hasExtras) || analyzing" (click)="analyze()">
+    <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
       {{ analyzing ? 'Comparing…' : case.status === 'done' || case.status === 'failed' ? 'Re-compare' : 'Compare' }}
     </button>
     <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
@@ -46,8 +49,23 @@
 
   <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
 
-  <section class="card" *ngIf="diffResult">
-    <h2>Result</h2>
+  <section class="card">
+    <h2>Results</h2>
+    <!-- One tab per pair on this case, each holding that pair's own result. -->
+    <app-case-pairs
+      part="results"
+      [service]="docdiff"
+      [case]="case"
+      [run]="run"
+      [resultTemplate]="pairResult"
+      [analyzing]="analyzing"
+    ></app-case-pairs>
+  </section>
+
+  <!-- engines/document_diff.py returns a rawer shape than the redline view
+       needs; diffFor() adds the change<->segment linkage, memoized per pair. -->
+  <ng-template #pairResult let-raw>
+    <ng-container *ngIf="diffFor(raw) as diffResult">
     <div class="stat-row">
       <div class="stat-card">
         <div class="n">{{ (diffResult.similarity * 100).toFixed(1) }}%</div>
@@ -114,5 +132,6 @@
         </tbody>
       </table>
     </div>
-  </section>
+    </ng-container>
+  </ng-template>
 </ng-container>

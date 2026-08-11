@@ -20,13 +20,16 @@
     </div>
     <p class="error" *ngIf="uploadError">{{ uploadError }}</p>
 
-    <!-- Same upload block, repeatable: each extra one becomes its own case,
-         reviewed after this one when Review is pressed. -->
-    <app-batch-add
+    <!-- The same slots again, as many times as needed: every pair on this
+         case is reviewed in its own pass and keeps its own result below. -->
+    <app-case-pairs
+      part="uploads"
       [service]="insurance"
-      [disabled]="analyzing || case.status === 'analyzing'"
-      (finished)="loadCase()"
-    ></app-batch-add>
+      [case]="case"
+      [run]="run"
+      [analyzing]="analyzing"
+      (caseChanged)="case = $event"
+    ></app-case-pairs>
 
     <!-- The bank policy the review below is graded against: picking a file
          uploads it straight away, so this and every later case switch to it.
@@ -39,7 +42,7 @@
       (change)="uploadBankPolicy($event); bankPolicyInput.value = ''"
     />
     <div class="button-row">
-      <button [disabled]="(!canAnalyze && !hasExtras) || analyzing" (click)="analyze()">
+      <button [disabled]="!canAnalyze || analyzing" (click)="analyze()">
         {{ analyzing ? 'Reviewing…' : case.status === 'done' || case.status === 'failed' ? 'Re-review' : 'Review' }}
       </button>
       <button
@@ -73,20 +76,24 @@
     <p class="hint">Calls a real LLM — this can take a little while.</p>
   </section>
 
-  <section class="card" *ngIf="analyzing">
-    <h2>Progress</h2>
-    <app-stage-progress
-      [steps]="insuranceStages"
-      [currentKey]="progress.stageKey"
-      [detail]="progress.detail"
-      [complete]="progress.complete"
-    ></app-stage-progress>
-  </section>
 
   <p class="error" *ngIf="case.status === 'failed' && case.error">{{ case.error }}</p>
 
-  <section class="card" *ngIf="case.result">
-    <h2>Result</h2>
-    <app-json-view [value]="case.result"></app-json-view>
+  <section class="card">
+    <h2>Results</h2>
+    <!-- One tab per pair on this case, each holding that pair's own result. -->
+    <app-case-pairs
+      part="results"
+      [service]="insurance"
+      [case]="case"
+      [run]="run"
+      [stages]="insuranceStages"
+      [resultTemplate]="pairResult"
+      [analyzing]="analyzing"
+    ></app-case-pairs>
   </section>
+
+  <ng-template #pairResult let-result>
+    <app-json-view [value]="result"></app-json-view>
+  </ng-template>
 </ng-container>

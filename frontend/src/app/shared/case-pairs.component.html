@@ -1,0 +1,95 @@
+<!-- part="uploads": the extra pairs' upload blocks, beside the case's own -->
+<ng-container *ngIf="part === 'uploads'">
+  <div class="pair-block" *ngFor="let pair of extras">
+    <div class="pair-head">
+      <span class="pair-title">{{ noun }} {{ pair.index + 1 }}</span>
+      <button type="button" class="clear" [disabled]="busy || analyzing" (click)="removePair(pair)">
+        Remove
+      </button>
+    </div>
+
+    <div class="file-field" *ngFor="let slot of service.slots">
+      <span>{{ slot.label }} — {{ pair.uploads[slot.key] || 'not uploaded' }}</span>
+      <input
+        type="file"
+        [accept]="slot.accept"
+        [disabled]="busy || analyzing"
+        (change)="onFile(pair, slot.key, $event)"
+      />
+    </div>
+  </div>
+
+  <button type="button" class="clear" [disabled]="busy || analyzing" (click)="addPair()">
+    + Add another {{ noun }}
+  </button>
+  <p class="hint" *ngIf="extras.length">
+    Every {{ noun }} on this case is reviewed in its own pass, one after another, and keeps its own
+    result in a tab below.
+  </p>
+  <p class="error" *ngIf="error">{{ error }}</p>
+</ng-container>
+
+<!-- part="results": one tab per pair, each holding that pair's own result -->
+<ng-container *ngIf="part === 'results'">
+  <div class="tab-bar" role="tablist">
+    <button
+      type="button"
+      class="tab"
+      role="tab"
+      *ngFor="let pair of pairs"
+      [class.active]="run.active === pair.index"
+      [attr.aria-selected]="run.active === pair.index"
+      (click)="run.select(pair.index)"
+    >
+      {{ label(pair) }}
+      <span class="tab-dot running" *ngIf="run.state(pair.index).running" title="in progress"></span>
+      <span
+        class="tab-dot error"
+        *ngIf="!run.state(pair.index).running && (run.state(pair.index).error || pair.error)"
+        title="failed"
+      ></span>
+      <span
+        class="tab-dot done"
+        *ngIf="!run.state(pair.index).running && !run.state(pair.index).error && !pair.error && pair.result"
+        title="done"
+      ></span>
+    </button>
+  </div>
+
+  <ng-container *ngFor="let pair of pairs">
+    <div class="tab-panel" role="tabpanel" *ngIf="run.active === pair.index">
+      <!-- which documents this tab is about, so a result is never ambiguous -->
+      <p class="hint">
+        <ng-container *ngFor="let slot of service.slots; let last = last"
+          >{{ pair.uploads[slot.key] || 'not uploaded' }}<span *ngIf="!last"> · </span></ng-container
+        >
+      </p>
+
+      <ng-container *ngIf="run.state(pair.index).running">
+        <app-stage-progress
+          [steps]="stages"
+          [currentKey]="run.state(pair.index).progress.stageKey"
+          [detail]="run.state(pair.index).progress.detail"
+          [complete]="run.state(pair.index).progress.complete"
+        ></app-stage-progress>
+        <ng-container *ngIf="run.state(pair.index).streamingText">
+          <h3>Live output</h3>
+          <div class="redline">
+            {{ run.state(pair.index).streamingText }}<span class="streaming-cursor"></span>
+          </div>
+        </ng-container>
+      </ng-container>
+
+      <p class="error" *ngIf="run.state(pair.index).error">{{ run.state(pair.index).error }}</p>
+      <p class="error" *ngIf="!run.state(pair.index).error && pair.error">{{ pair.error }}</p>
+
+      <p class="empty" *ngIf="!run.state(pair.index).running && !pair.result && !pair.error && !run.state(pair.index).error">
+        Not reviewed yet.
+      </p>
+
+      <ng-container *ngIf="pair.result && resultTemplate">
+        <ng-container *ngTemplateOutlet="resultTemplate; context: { $implicit: pair.result }"></ng-container>
+      </ng-container>
+    </div>
+  </ng-container>
+</ng-container>

@@ -1,22 +1,25 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CaseDetail } from '../../shared/case.service';
-import { BatchAddComponent } from '../../shared/batch-add.component';
+import { CasePairsComponent } from '../../shared/case-pairs.component';
+import { PairRun } from '../../shared/pair-run';
 import { DiffChange, DiffSegment, DocdiffService, DocumentDiffResult, RawDocumentDiffResult } from '../docdiff.service';
-import { parseSseError } from '../../sse.util';
 
 @Component({
   selector: 'app-docdiff-case-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, BatchAddComponent],
+  imports: [CommonModule, RouterLink, CasePairsComponent],
   templateUrl: './case-detail.component.html'
 })
 export class CaseDetailComponent implements OnInit {
   caseId = '';
   case: CaseDetail<RawDocumentDiffResult> | null = null;
-  diffResult: DocumentDiffResult | null = null;
+  // engines/document_diff.py's shape -> the richer one the redline view needs,
+  // memoized per raw result so the template can call diffFor() freely (change
+  // detection runs it often, the conversion is not free).
+  private readonly diffCache = new WeakMap<object, DocumentDiffResult>();
   loading = false;
   error = '';
 
@@ -26,6 +29,8 @@ export class CaseDetailComponent implements OnInit {
 
   analyzing = false;
   analyzeError = '';
+  /** Which pair is running, how far along, and which tab is on screen. */
+  readonly run = new PairRun();
 
   constructor(private route: ActivatedRoute, public docdiff: DocdiffService) {}
 
@@ -41,7 +46,6 @@ export class CaseDetailComponent implements OnInit {
     this.docdiff.getCase(this.caseId).subscribe({
       next: (c) => {
         this.case = c;
-        this.diffResult = c.result ? this.toDiffResult(c.result) : null;
         this.loading = false;
       },
       error: (err: HttpErrorResponse) => {
@@ -82,30 +86,29 @@ export class CaseDetailComponent implements OnInit {
 
 
   analyze(): void {
-    // Reviewing only the extra items is legitimate — this case may have
-    // nothing uploaded yet.
-    if (!this.canAnalyze) {
-      this.runExtras();
-      return;
-    }
+    if (!this.canAnalyze || this.analyzing || !this.case) return;
     this.analyzeError = '';
     this.analyzing = true;
+    // One tab per pair on the case; the server analyzes them in the same order.
+    this.run.start(this.case.pairs.length);
 
     this.docdiff
       .analyzeCase(this.caseId, (eventType, data) => {
-        if (eventType === 'result') {
-          this.loadCase(); // pick up the now-persisted status + result
-        } else if (eventType === 'error') {
-          this.analyzeError = parseSseError(data);
-        }
+        this.run.onFrame(eventType, data, (index, result) => {
+          // Fill that pair's tab the moment its result lands, rather than
+          // waiting for the whole run and a reload.
+          const pair = this.case?.pairs[index];
+          if (pair) pair.result = result as never;
+        });
+        if (eventType === 'error') this.analyzeError = this.run.error;
       })
       .catch((err) => {
-        this.analyzeError = err instanceof Error ? err.message : 'comparison failed';
+        this.analyzeError = err instanceof Error ? err.message : 'analysis failed';
       })
       .finally(() => {
         this.analyzing = false;
-        this.runExtras();
-        if (!this.case || this.case.status === 'analyzing') this.loadCase();
+        this.run.finish();
+        this.loadCase();   // pick up the persisted per-pair results + status
       });
   }
 
@@ -120,6 +123,15 @@ export class CaseDetailComponent implements OnInit {
   // against a live docdiff-service response), and zip the result 1:1 against
   // `changes`. If the counts don't line up the way that predicts, don't risk
   // mislabeling — fall back to unlinked segments instead.
+  diffFor(raw: RawDocumentDiffResult): DocumentDiffResult {
+    let converted = this.diffCache.get(raw as object);
+    if (!converted) {
+      converted = this.toDiffResult(raw);
+      this.diffCache.set(raw as object, converted);
+    }
+    return converted;
+  }
+
   private toDiffResult(res: RawDocumentDiffResult): DocumentDiffResult {
     const rawSegments = res.segments ?? [];
 
@@ -190,16 +202,4 @@ export class CaseDetailComponent implements OnInit {
     setTimeout(() => el.classList.remove('flash'), 1500);
   }
 
-  // Extra documents staged beside this case's uploads (app-batch-add), each
-  // becoming its own case. Reviewed after this one, so a stack goes through in
-  // a single press of Review.
-  @ViewChild(BatchAddComponent) extras?: BatchAddComponent;
-
-  get hasExtras(): boolean {
-    return this.extras?.hasPending ?? false;
-  }
-
-  private runExtras(): void {
-    if (this.extras?.hasPending) void this.extras.run();
-  }
 }

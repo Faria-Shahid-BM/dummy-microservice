@@ -11,10 +11,22 @@ export interface CaseSummary {
   created_at: string;
 }
 
+// One pair on a case: a full set of the service's slots, analyzed in its own
+// pass and keeping its own result (see case_store.py). Pair 0 is the case's own
+// uploads; extras are added with addPair().
+export interface CasePair<TResult = unknown> {
+  index: number;
+  uploads: Record<string, string>;
+  result: TResult | null;
+  error: string | null;
+}
+
 // Only present on the detail payload (see case_store.py's _detail_payload).
 export interface CaseDetail<TResult = unknown> extends CaseSummary {
   result: TResult | null;
   error: string | null;
+  /** Always present, always includes pair 0 — one entry per pair to render. */
+  pairs: CasePair<TResult>[];
 }
 
 // One upload slot of a service's case — the `key`s are the multipart field
@@ -24,20 +36,6 @@ export interface SlotDef {
   label: string;
   /** `accept` attribute for the file input. */
   accept: string;
-}
-
-// One staged item of a batch submission: one file per slot, which the server
-// turns into its own persisted case (see case_store.py's POST /cases/batch).
-export interface BatchItem {
-  /** Client-side row id; the server's case id arrives on the case_start frame. */
-  key: string;
-  files: Record<string, File | null>;
-  caseId: string | null;
-  /** Derived from the first slot's file name — never typed by hand. */
-  name: string;
-  running: boolean;
-  error: string;
-  done: boolean;
 }
 
 // Every stateless review service (collateral/valuation/insurance/docdiff)
@@ -91,19 +89,23 @@ export abstract class CaseService<TResult = unknown> {
     return consumeSse(`${this.apiBase}/cases/${caseId}/analyze`, null, onFrame);
   }
 
-  /**
-   * Create and analyze several cases in one request, streaming each one's
-   * outcome as it lands (see case_store.py's POST /cases/batch). One repeated
-   * form field per slot, paired by position, plus a `names` field per item —
-   * so item i is `slots.map(s => files[s][i])`, named `names[i]`.
-   */
-  analyzeBatch(items: BatchItem[], onFrame: (eventType: string, data: string) => void): Promise<void> {
+  // --- extra pairs on a case ---
+  // Another full set of this service's slots, reviewed in its own pass and
+  // keeping its own result, all on the same case.
+
+  addPair(caseId: string): Observable<CaseDetail<TResult>> {
+    return this.http.post<CaseDetail<TResult>>(`${this.apiBase}/cases/${caseId}/pairs`, {});
+  }
+
+  removePair(caseId: string, index: number): Observable<CaseDetail<TResult>> {
+    return this.http.delete<CaseDetail<TResult>>(`${this.apiBase}/cases/${caseId}/pairs/${index}`);
+  }
+
+  uploadPairSlot(caseId: string, index: number, slot: string, file: File): Observable<CaseDetail<TResult>> {
     const form = new FormData();
-    for (const item of items) {
-      for (const slot of this.slots) form.append(slot.key, item.files[slot.key]!);
-      form.append('names', item.name);
-    }
-    return consumeSse(`${this.apiBase}/cases/batch`, form, onFrame);
+    form.append('file', file);
+    return this.http.post<CaseDetail<TResult>>(
+      `${this.apiBase}/cases/${caseId}/pairs/${index}/uploads/${slot}`, form);
   }
 }
 
