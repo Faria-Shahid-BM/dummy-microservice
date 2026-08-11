@@ -77,6 +77,24 @@ header h1 {
   box-shadow: var(--shadow-card);
   padding: 1.5rem 1.75rem;
   margin-bottom: 1.5rem;
+  /* Nothing escapes a card: text wraps (see the table rules), and anything that
+     genuinely can't wrap — a wide fixed-column table, a long unbroken token —
+     scrolls inside the card rather than spilling over its edge. */
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* Long values must break rather than widen their container. `anywhere` (not
+   `break-word`) also lets the browser count the break when computing the
+   intrinsic width, which is what stops a table from growing in the first
+   place. */
+p,
+li,
+dd,
+.hint,
+.error,
+code {
+  overflow-wrap: anywhere;
 }
 
 .card h2 {
@@ -114,6 +132,9 @@ h3 {
 .field select,
 .field textarea {
   width: 100%;
+  /* Cards span the window now; a single-line input stretched to 1400px is
+     unusable, so cap the short controls. Textareas keep the full width. */
+  max-width: 560px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -127,6 +148,8 @@ h3 {
 .field textarea {
   resize: vertical;
   line-height: 1.5;
+  /* Long-form editing (template descriptors) wants all the room it can get. */
+  max-width: none;
 }
 
 .field input:focus,
@@ -300,6 +323,9 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* Action clusters sit in table cells — let them stack on a narrow screen
+     instead of setting a floor on the table's width. */
+  flex-wrap: wrap;
 }
 
 .button-grid {
@@ -317,6 +343,14 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
+  /* Headers pair a subject name (a long file name, in approvals) with a status
+     or button row — wrap onto a second line rather than stretching the card. */
+  flex-wrap: wrap;
+}
+
+.log-header > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .log-entry {
@@ -422,7 +456,14 @@ button:disabled {
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--color-border-soft);
   color: var(--color-text);
+  /* Short values (dates, counts, statuses) read better on one line. Long ones
+     belong in a .wrap-cell; either way the card scrolls rather than letting a
+     row escape it. */
   white-space: nowrap;
+}
+
+.audit-table th {
+  overflow-wrap: anywhere;
 }
 
 .audit-table tbody tr:hover {
@@ -507,8 +548,21 @@ button:disabled {
 
 .audit-table td.wrap-cell {
   white-space: normal;
-  word-break: break-word;
-  max-width: 240px;
+  /* `anywhere` breaks unbroken runs — file names like
+     ADIB-__Personal_Guarantee__Bilingual__.docx have no spaces to break at. */
+  overflow-wrap: anywhere;
+  /* Wide enough that a file name or note reads as a line or two instead of a
+     ragged 240px column, but still bounded so one long cell can't crowd out
+     every other column. */
+  max-width: 30ch;
+  min-width: 12ch;
+}
+
+/* A cell holding free-form nested content (a json-view of fill provenance)
+   rather than a single value: no nowrap, no clamp, bounded by the table. */
+.audit-table td.detail-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .audit-table td.wrap-cell .cell-text {
@@ -542,6 +596,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  flex-wrap: wrap;
   font-size: 0.85rem;
   color: var(--color-text-faint);
   transition: color 0.15s ease;
@@ -594,38 +649,68 @@ button:disabled {
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--color-text-faint);
+  /* Engine stage payloads include file names and page counts; without these a
+     long one would widen the flex row rather than wrap in it. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* ---------------------------------------------------------------- */
 /* Generic JSON result viewer (valuation/insurance panels)            */
 /* ---------------------------------------------------------------- */
 
+/* These tables nest one per JSON level and hold arbitrary backend strings (a
+   fill provenance's find/replace text runs to hundreds of characters), so the
+   default `auto` layout — which sizes columns to their content — let one deep
+   row widen every ancestor table. `fixed` makes each table take exactly the
+   width it is given and wrap inside it. */
 .json-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.82rem;
   margin: 0.25rem 0;
 }
 
 .json-table th {
+  /* Percentage rather than a fixed width so it keeps shrinking as levels nest. */
+  width: 18%;
   text-align: left;
   vertical-align: top;
   color: var(--color-text-muted);
   font-weight: 600;
   padding: 0.4rem 0.75rem 0.4rem 0;
   border-bottom: 1px solid var(--color-border-soft);
-  white-space: nowrap;
+  /* Keys are identifiers like TOTAL_ECONOMIC_GROUP_PROPOSED_WORDS — they must
+     wrap, not run past the column. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .json-table td {
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--color-border-soft);
   color: var(--color-text);
+  vertical-align: top;
+  /* Required, not redundant: a json-view rendered inside a result table is also
+     matched by the descendant rule `.audit-table td`, which sets nowrap. Left
+     unset, these cells inherit that, report a huge min-content width, and widen
+     every ancestor table. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Block, so a nested viewer fills its cell and is bounded by it instead of
+   sizing as inline content. */
+app-json-view {
+  display: block;
+  min-width: 0;
 }
 
 .json-list {
   margin: 0.25rem 0;
   padding-left: 1.2rem;
+  overflow-wrap: anywhere;
 }
 
 /* ---------------------------------------------------------------- */
@@ -1096,7 +1181,15 @@ app-admin-shell {
 .main-content {
   flex: 1;
   padding: 2.25rem 2.5rem 4rem;
-  max-width: 860px;
+  /* Fill the window rather than sitting in a narrow 860px column: these pages
+     are mostly wide result tables, and cramming them into half the screen both
+     looked broken and forced everything to grow downwards. */
+  width: 100%;
+  max-width: 1600px;
+  /* A flex item defaults to min-width:auto, i.e. it refuses to shrink below its
+     content's intrinsic width — so one wide table would stretch this past
+     max-width and push content out past the card and the viewport. */
+  min-width: 0;
 }
 
 .topbar {
@@ -1354,11 +1447,15 @@ input[type='file']::file-selector-button {
 
 .notification-title {
   color: var(--color-text);
+  /* Titles are subject names (template/document file names) — wrap them inside
+     the fixed-width dropdown instead of widening it. */
+  overflow-wrap: anywhere;
 }
 
 .notification-body {
   margin-top: 0.15rem;
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 /* ---------------------------------------------------------------- */

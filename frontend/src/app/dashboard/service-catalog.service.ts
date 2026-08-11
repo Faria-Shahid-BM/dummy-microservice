@@ -83,7 +83,11 @@ export class ServiceCatalogService {
 
   get entitledServices(): ServiceMeta[] {
     const granted = this.session.session?.scopes ?? [];
-    return SERVICE_CATALOG.filter((s) => granted.includes(s.key));
+    return SERVICE_CATALOG.filter((s) =>
+      // docgen is entitled by either of its scopes — a checker holds
+      // "docgen_check", which on its own must still show the entry.
+      s.key === 'docgen' ? this.session.canUseDocgen : granted.includes(s.key)
+    );
   }
 
   select(meta: ServiceMeta): void {

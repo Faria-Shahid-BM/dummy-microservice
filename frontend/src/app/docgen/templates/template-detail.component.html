@@ -66,7 +66,7 @@
             </td>
           </tr>
           <tr *ngIf="analyzeJobIdByVersion[v.id] || analyzeErrorByVersion[v.id]">
-            <td colspan="7">
+            <td colspan="7" class="detail-cell">
               <app-job-status
                 *ngIf="analyzeJobIdByVersion[v.id]"
                 [jobId]="analyzeJobIdByVersion[v.id]"
@@ -77,7 +77,7 @@
             </td>
           </tr>
           <tr *ngIf="descriptorByVersion[v.id] !== undefined">
-            <td colspan="7">
+            <td colspan="7" class="detail-cell">
               <div class="field">
                 <span>Descriptor (Markdown)</span>
                 <textarea rows="10" [(ngModel)]="descriptorByVersion[v.id]" [name]="'descriptor-' + v.id" [disabled]="readOnly"></textarea>

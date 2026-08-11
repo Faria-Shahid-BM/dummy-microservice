@@ -11,6 +11,12 @@
     </div>
   </div>
 
+  <p class="hint">
+    Permissions are carried in the sign-in token, so a change reaches someone the next time they
+    sign in. <code>docgen_check</code> makes a user the checker who approves docgen work — it
+    includes <code>docgen</code> access, so ticking it grants both.
+  </p>
+
   <p class="error" *ngIf="error">{{ error }}</p>
   <p class="empty" *ngIf="!error && !users.length && !loading">No users yet.</p>
 

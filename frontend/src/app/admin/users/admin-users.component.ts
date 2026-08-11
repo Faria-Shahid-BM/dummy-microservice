@@ -43,9 +43,18 @@ export class AdminUsersComponent implements OnInit {
   }
 
   toggleUserService(user: ManagedUser, scope: string): void {
-    const scopes = user.scopes.includes(scope)
+    let scopes = user.scopes.includes(scope)
       ? user.scopes.filter((s) => s !== scope)
       : [...user.scopes, scope];
+
+    // "docgen_check" is the checker role *within* docgen, not access to it, so
+    // the two travel together: auth-service adds "docgen" whenever
+    // "docgen_check" is granted, and removing docgen access here must take the
+    // checker role with it — otherwise the server would just re-add docgen and
+    // the checkbox would look stuck.
+    if (scope === 'docgen' && !scopes.includes('docgen')) {
+      scopes = scopes.filter((s) => s !== 'docgen_check');
+    }
 
     this.http
       .put<ManagedUser>(`${KONG_BASE}/api/auth/users/${user.username}/scopes`, { scopes })

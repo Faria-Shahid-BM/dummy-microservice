@@ -70,4 +70,22 @@ export class SessionService {
   get isAdmin(): boolean {
     return this.session?.scopes?.includes('admin') ?? false;
   }
+
+  has(scope: string): boolean {
+    return this.session?.scopes?.includes(scope) ?? false;
+  }
+
+  // "docgen_check" designates the checker who approves docgen work, so it grants
+  // docgen access as much as "docgen" does — the sidebar entry, the /docgen
+  // routes and the notification bell all key off this, not off "docgen" alone.
+  // auth-service now also implies "docgen" alongside it (see _normalize_scopes),
+  // but a session started before that still needs this to be usable.
+  get canUseDocgen(): boolean {
+    return this.has('docgen') || this.has('docgen_check') || this.isAdmin;
+  }
+
+  // Only the checker (or an admin) may approve/reject submitted work.
+  get canCheckDocgen(): boolean {
+    return this.has('docgen_check') || this.isAdmin;
+  }
 }

@@ -21,7 +21,11 @@ from app.models import AuthSession, Profile, User, utcnow
 # --- Kong JWT (A1: this service trusts the gateway's token) ---
 JWT_SECRET = os.environ.get("JWT_SECRET", "mysecret123")
 JWT_ISSUER = os.environ.get("JWT_ISSUER", "poc-issuer")
-DOCGEN_SCOPES = {"docgen", "admin"}   # a token needs one of these to use docgen
+# A token needs one of these to use docgen. "docgen_check" counts on its own:
+# it designates the checker who approves docgen work, so a token carrying only
+# it (issued before auth-service started implying "docgen") must still get in —
+# otherwise the checker is locked out of the very thing they approve.
+DOCGEN_SCOPES = {"docgen", "docgen_check", "admin"}
 
 
 # last_seen writes are throttled to once a minute to avoid write amplification
