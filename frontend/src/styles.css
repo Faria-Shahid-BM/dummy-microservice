@@ -1256,6 +1256,31 @@ app-admin-shell {
   margin-bottom: 1.5rem;
 }
 
+/* "Collateral Cases / demo" — the reviewer, then the case. */
+.crumbs {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.crumb-link {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.crumb-link:hover {
+  color: var(--color-primary-darker);
+  text-decoration: underline;
+}
+
+.crumb-sep {
+  color: var(--color-text-faint);
+  font-weight: 400;
+}
+
 .topbar h2 {
   margin: 0;
   font-size: 1.3rem;

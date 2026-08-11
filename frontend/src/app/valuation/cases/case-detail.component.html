@@ -1,6 +1,13 @@
 <div class="topbar">
-  <h2>{{ case?.name || 'Case' }}</h2>
-  <a routerLink="/valuation/cases" class="back-link">← All cases</a>
+  <!-- Which reviewer this case belongs to, then the case: inside a case the
+       name alone doesn't say what you're looking at. Same wording as that
+       reviewer's list page, and it links back there. -->
+  <h2 class="crumbs">
+    <a class="crumb-link" [routerLink]="[valuation.routeBase, 'cases']">{{ valuation.label }} Cases</a>
+    <span class="crumb-sep" aria-hidden="true">/</span>
+    <span>{{ case?.name || 'Case' }}</span>
+  </h2>
+  <a [routerLink]="[valuation.routeBase, 'cases']" class="back-link">← All cases</a>
 </div>
 
 <p class="error" *ngIf="error">{{ error }}</p>
