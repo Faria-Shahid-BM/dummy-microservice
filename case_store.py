@@ -46,11 +46,12 @@ from typing import Any, Callable
 
 import audit_client
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import JSON, DateTime, String, create_engine, select
+from sqlalchemy import JSON, DateTime, String, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from security import require_scope
+from security import get_raw_token, require_scope
 from streaming import sse_stream
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/app.db")
@@ -82,11 +83,35 @@ class Case(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # The three below are only ever set for cases synced from an external
+    # source (see `before_list` on make_case_router) — NULL for every
+    # ordinary manually-created case.
+    external_key: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
+    source_doc_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# Columns added after this table's first release — create_all() only creates
+# missing tables, never new columns on one that already exists, so an
+# existing SQLite/Postgres `cases` table needs each of these added by hand
+# once. Cheap stand-in for a real migration tool (see POC_TO_PRODUCTION.md
+# gap #13); safe to run on every boot since it's a no-op once the column
+# exists.
+_ADDED_COLUMNS = (
+    ("external_key", "VARCHAR(255)"),
+    ("source_doc_id", "VARCHAR(64)"),
+    ("reviewed_at", "TIMESTAMP"),
+)
 
 
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(_engine)
+    existing = {c["name"] for c in inspect(_engine).get_columns("cases")}
+    with _engine.begin() as conn:
+        for name, ddl_type in _ADDED_COLUMNS:
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE cases ADD COLUMN {name} {ddl_type}"))
 
 
 def get_db():
@@ -154,9 +179,73 @@ def _stored_pair_outcomes(case: Case) -> list[dict] | None:
     return None
 
 
-def _audit(service: str, user: str, action: str, resource: str | None = None,
+def _outcomes_snapshot(case: Case) -> list[dict]:
+    """The per-pair outcomes as they stand right now.
+
+    Must be taken before analysis flips the case to `analyzing`: a
+    single-pair case stores the bare engine result, so telling a result from
+    a failure relies on the status, and re-deriving it later would silently
+    drop pair 0's stored result.
+    """
+    stored = _stored_pair_outcomes(case)
+    if stored is not None:
+        return [dict(o) for o in stored]
+    if case.status == "done" and case.result is not None:
+        return [{"result": case.result}]
+    if case.status == "failed" and isinstance(case.result, dict) and "error" in case.result:
+        return [{"error": case.result["error"]}]
+    return [{}]
+
+
+def _invalidate_pair(case: Case, index: int) -> None:
+    """Replacing a pair's document throws away that pair's stored result.
+
+    Analysis only runs pairs without a result, so a replaced document had to
+    stop counting as reviewed — otherwise the new file would sit there
+    looking analyzed while every Compare silently skipped it."""
+    total = len(_extra_pairs(case)) + 1
+    outcomes = _outcomes_snapshot(case)
+    outcomes = [dict(outcomes[i]) if i < len(outcomes) else {} for i in range(total)]
+    if index < total:
+        outcomes[index] = {}
+    if total == 1:
+        case.result = None
+    elif any(o for o in outcomes):
+        case.result = {PAIRS_RESULT_KEY: outcomes}
+    else:
+        case.result = None
+    # Back to a state that invites another run, rather than claiming a
+    # verdict this case no longer has for every pair.
+    if case.status in ("done", "failed"):
+        case.status = "ready"
+
+
+def write_slot_file(
+    case: Case, slot: str, suffix: str, content: bytes, filename: str, min_slots_ready: list[str]
+) -> None:
+    """Write bytes into a case's slot (pair 0), update `uploads`, and drop
+    that pair's stored result — the same "replacing a document un-reviews it"
+    behavior for every caller of this, whether that's the interactive upload
+    endpoint below or an external sync source (e.g. doc_rev-service pulling a
+    generated document from docgen-service). Caller validates the slot name
+    and suffix and commits; this only touches disk + the in-memory row."""
+    case_dir = _case_dir(case.id)
+    dest = case_dir / f"{slot}{suffix}"
+    dest.write_bytes(content)
+    for stale in case_dir.glob(f"{slot}.*"):
+        if stale != dest and stale.is_file():
+            stale.unlink(missing_ok=True)
+    uploads = dict(case.uploads or {})
+    uploads[slot] = filename
+    case.uploads = uploads
+    _invalidate_pair(case, 0)
+    if all(s in uploads for s in min_slots_ready):
+        case.status = "ready"
+
+
+def _audit(service: str, token: str | None, action: str, resource: str | None = None,
            metadata: dict | None = None) -> None:
-    audit_client.audit(user, service, action, resource=resource, metadata=metadata)
+    audit_client.audit(service, action, token, resource=resource, metadata=metadata)
 
 
 def _emit_event(emit: EmitFn | None, payload: dict) -> None:
@@ -182,6 +271,14 @@ def _scoped_emit(emit: EmitFn, scope: dict[str, Any]) -> EmitFn:
     return scoped
 
 
+def remove_case(db: Session, case: Case) -> None:
+    """Delete a case's files and row. Shared by the interactive delete
+    endpoint and a service's `before_list` hook dropping a case whose
+    external source no longer backs it (e.g. an unapproved document)."""
+    shutil.rmtree(_case_dir(case.id), ignore_errors=True)
+    db.delete(case)
+
+
 def _get_owned_case(db: Session, case_id: str, user_sub: str) -> Case:
     # 404, not 403, on a case that exists but belongs to someone else —
     # don't reveal that the id is valid.
@@ -191,6 +288,19 @@ def _get_owned_case(db: Session, case_id: str, user_sub: str) -> Case:
     return case
 
 
+def _iso_utc(dt: datetime) -> str:
+    """ISO-8601 with an explicit UTC offset. Every timestamp this module
+    stores is written with datetime.now(timezone.utc), but SQLite drops
+    tzinfo on round-trip, so a naive value read back is still UTC — not the
+    server's local time. Without the marker, a browser's Date parser treats
+    a timezone-less date-time string as local time and never converts it,
+    so the client renders the raw UTC clock digits as if they were already
+    local."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 def _list_payload(c: Case) -> dict[str, Any]:
     return {
         "id": c.id,
@@ -198,7 +308,8 @@ def _list_payload(c: Case) -> dict[str, Any]:
         "status": c.status,
         "uploads": _main_uploads(c),
         "extra_pairs": len(_extra_pairs(c)),
-        "created_at": c.created_at.isoformat(),
+        "created_at": _iso_utc(c.created_at),
+        "reviewed_at": _iso_utc(c.reviewed_at) if c.reviewed_at else None,
     }
 
 
@@ -264,6 +375,8 @@ def make_case_router(
     min_slots_ready: list[str],
     analyze: AnalyzeFn,
     to_audit_output: Callable[[dict], dict] | None = None,
+    before_list: Callable[[str, str | None, Session], None] | None = None,
+    allow_extra_pairs: bool = True,
 ) -> APIRouter:
     """Build a `/cases` router for a stateless review service.
 
@@ -280,6 +393,17 @@ def make_case_router(
     DTO — e.g. doc_rev-service's `CompareAuditOutput.model_validate(result)`
     — so what's audited is declared as real fields, not filtered out of the
     full result by key name.
+
+    `before_list`: optional hook run at the top of `GET /cases`, given
+    `(user_sub, raw_token, db)` — lets a service mirror an external source
+    into this user's cases before they're read back (e.g. doc_rev-service
+    pulling generated documents from docgen-service). Every other service
+    using this router omits it, so their `/cases` behaves exactly as before.
+
+    `allow_extra_pairs`: set False to reject `POST /{case_id}/pairs` — for a
+    service whose cases each mirror one external document (e.g. docdiff's
+    synced cases), a second pair would have no source to sync `original`
+    from, so it's disabled outright rather than left as manual-only clutter.
     """
     unknown = set(min_slots_ready) - set(upload_slots)
     if unknown:
@@ -299,7 +423,13 @@ def make_case_router(
         return sub
 
     @router.get("")
-    def list_cases(user_sub: str = Depends(_require_user), db: Session = Depends(get_db)) -> dict:
+    def list_cases(
+        user_sub: str = Depends(_require_user),
+        token: str | None = Depends(get_raw_token),
+        db: Session = Depends(get_db),
+    ) -> dict:
+        if before_list is not None:
+            before_list(user_sub, token, db)
         rows = (
             db.execute(select(Case).where(Case.created_by == user_sub).order_by(Case.created_at.desc()))
             .scalars()
@@ -309,7 +439,10 @@ def make_case_router(
 
     @router.post("", status_code=201)
     def create_case(
-        body: CaseCreateBody, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)
+        body: CaseCreateBody,
+        user_sub: str = Depends(_require_user),
+        token: str | None = Depends(get_raw_token),
+        db: Session = Depends(get_db),
     ) -> dict:
         name = body.name.strip()
         if not name:
@@ -319,7 +452,7 @@ def make_case_router(
         db.commit()
         # No metadata: `name` is already the Resource field above; nothing
         # else about a bare case-create is worth an audit reader's time.
-        _audit(service_scope, user_sub, "case.create", resource=name)
+        _audit(service_scope, token, "case.create", resource=name)
         return _detail_payload(case)
 
     @router.get("/{case_id}")
@@ -327,38 +460,20 @@ def make_case_router(
         return _detail_payload(_get_owned_case(db, case_id, user_sub))
 
     @router.delete("/{case_id}")
-    def delete_case(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)) -> dict:
+    def delete_case(
+        case_id: str,
+        user_sub: str = Depends(_require_user),
+        token: str | None = Depends(get_raw_token),
+        db: Session = Depends(get_db),
+    ) -> dict:
         case = _get_owned_case(db, case_id, user_sub)
         if case.status == "analyzing":
             raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
-        shutil.rmtree(_case_dir(case_id), ignore_errors=True)
         name = case.name
-        db.delete(case)
+        remove_case(db, case)
         db.commit()
-        _audit(service_scope, user_sub, "case.delete", resource=name)
+        _audit(service_scope, token, "case.delete", resource=name)
         return {"ok": True}
-
-    def _invalidate_pair(case: Case, index: int) -> None:
-        """Replacing a pair's document throws away that pair's stored result.
-
-        Analysis only runs pairs without a result, so a replaced document had to
-        stop counting as reviewed — otherwise the new file would sit there
-        looking analyzed while every Compare silently skipped it."""
-        total = len(_extra_pairs(case)) + 1
-        outcomes = _outcomes_snapshot(case)
-        outcomes = [dict(outcomes[i]) if i < len(outcomes) else {} for i in range(total)]
-        if index < total:
-            outcomes[index] = {}
-        if total == 1:
-            case.result = None
-        elif any(o for o in outcomes):
-            case.result = {PAIRS_RESULT_KEY: outcomes}
-        else:
-            case.result = None
-        # Back to a state that invites another run, rather than claiming a
-        # verdict this case no longer has for every pair.
-        if case.status in ("done", "failed"):
-            case.status = "ready"
 
     def _check_slot(slot: str) -> None:
         if slot not in slots:
@@ -382,6 +497,8 @@ def make_case_router(
     @router.post("/{case_id}/pairs", status_code=201)
     def add_pair(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)) -> dict:
         """Add another set of this service's slots to review under this case."""
+        if not allow_extra_pairs:
+            raise HTTPException(status_code=404, detail="Extra pairs are not available for this service")
         case = _get_owned_case(db, case_id, user_sub)
         if case.status == "analyzing":
             raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
@@ -430,6 +547,7 @@ def make_case_router(
         case_id: str, index: int, slot: str,
         file: UploadFile = File(...),
         user_sub: str = Depends(_require_user),
+        token: str | None = Depends(get_raw_token),
         db: Session = Depends(get_db),
     ) -> dict:
         case = _get_owned_case(db, case_id, user_sub)
@@ -470,7 +588,7 @@ def make_case_router(
         attachment_id = audit_client.upload_attachment(filename, content)
         attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
         label = f"{case.name}:{slot}" if index == 0 else f"{case.name}:pair{index + 1}:{slot}"
-        _audit(service_scope, user_sub, "case.upload", resource=label,
+        _audit(service_scope, token, "case.upload", resource=label,
                metadata={"input": {"attachments": attachments}})
         return _detail_payload(case)
 
@@ -480,6 +598,7 @@ def make_case_router(
         slot: str,
         file: UploadFile = File(...),
         user_sub: str = Depends(_require_user),
+        token: str | None = Depends(get_raw_token),
         db: Session = Depends(get_db),
     ) -> dict:
         case = _get_owned_case(db, case_id, user_sub)
@@ -501,32 +620,36 @@ def make_case_router(
                        f"expected one of: {', '.join(sorted(allowed))}",
             )
 
-        case_dir = _case_dir(case_id)
-        dest = case_dir / f"{slot}{suffix}"
         content = await file.read()
-        dest.write_bytes(content)
-        # Replace semantics: one file per slot — drop other-suffix leftovers
-        # from a previous upload to this same slot.
-        for stale in case_dir.glob(f"{slot}.*"):
-            if stale != dest and stale.is_file():
-                stale.unlink(missing_ok=True)
-
-        uploads = dict(case.uploads or {})
-        filename = file.filename or dest.name
-        uploads[slot] = filename
-        case.uploads = uploads
-        _invalidate_pair(case, 0)
-        if all(s in uploads for s in min_slots_ready):
-            case.status = "ready"
+        filename = file.filename or f"{slot}{suffix}"
+        write_slot_file(case, slot, suffix, content, filename, min_slots_ready)
         db.commit()
 
         attachment_id = audit_client.upload_attachment(filename, content)
         attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
         # `slot` is already part of the Resource field above; the file itself
         # is the only thing worth showing again here.
-        _audit(service_scope, user_sub, "case.upload", resource=f"{case.name}:{slot}",
+        _audit(service_scope, token, "case.upload", resource=f"{case.name}:{slot}",
                metadata={"input": {"attachments": attachments}})
         return _detail_payload(case)
+
+    @router.get("/{case_id}/uploads/{slot}")
+    def download_slot(
+        case_id: str,
+        slot: str,
+        user_sub: str = Depends(_require_user),
+        db: Session = Depends(get_db),
+    ) -> FileResponse:
+        """The raw bytes of whatever's in this slot — lets a reviewer look at a
+        document before deciding what to compare it against, same file either
+        way (uploaded by hand or synced from an external source)."""
+        case = _get_owned_case(db, case_id, user_sub)
+        _check_slot(slot)
+        path = _slot_file(case_id, slot)
+        if path is None:
+            raise HTTPException(status_code=404, detail=f"No file uploaded to slot '{slot}'")
+        filename = (_main_uploads(case)).get(slot) or path.name
+        return FileResponse(path, filename=filename)
 
     def _paths_for(case_id: str) -> dict[str, Path]:
         found = {}
@@ -548,23 +671,6 @@ def make_case_router(
                     found[slot] = f
             out.append(found)
         return out
-
-    def _outcomes_snapshot(case: Case) -> list[dict]:
-        """The per-pair outcomes as they stand right now.
-
-        Must be taken before analysis flips the case to `analyzing`: a
-        single-pair case stores the bare engine result, so telling a result from
-        a failure relies on the status, and re-deriving it later would silently
-        drop pair 0's stored result.
-        """
-        stored = _stored_pair_outcomes(case)
-        if stored is not None:
-            return [dict(o) for o in stored]
-        if case.status == "done" and case.result is not None:
-            return [{"result": case.result}]
-        if case.status == "failed" and isinstance(case.result, dict) and "error" in case.result:
-            return [{"error": case.result["error"]}]
-        return [{}]
 
     def _reviewed(case: Case, index: int) -> bool:
         """Has this pair already produced a result? A stored error counts as not
@@ -665,6 +771,8 @@ def make_case_router(
                 row.result = {PAIRS_RESULT_KEY: outcomes}
             if status is not None:
                 row.status = status
+                if status == "done":
+                    row.reviewed_at = datetime.now(timezone.utc)
             persist_db.commit()
             return outcomes
         finally:
@@ -679,6 +787,7 @@ def make_case_router(
                         "result yet), 'all', or a single pair index.",
         ),
         user_sub: str = Depends(_require_user),
+        token: str | None = Depends(get_raw_token),
         db: Session = Depends(get_db),
     ):
         """Analyze this case's pairs, one after another, streaming each pair's
@@ -724,7 +833,7 @@ def make_case_router(
                     error = f"{type(exc).__name__}: {exc}"
                     updates[i] = {"error": error}
                     _merge_outcomes(case_id, baseline, updates, "analyzing")
-                    _audit(service_scope, user_sub, "case.analyze", resource=label,
+                    _audit(service_scope, token, "case.analyze", resource=label,
                            metadata={"input": analyze_input, "output": {"error": error}})
                     _emit_event(emit, {"stage": "pair_error", "pair": i, "error": error})
                     continue
@@ -733,7 +842,7 @@ def make_case_router(
                 # pairs already done rather than nothing.
                 _merge_outcomes(case_id, baseline, updates, "analyzing")
                 audit_output = to_audit_output(result) if to_audit_output else result
-                _audit(service_scope, user_sub, "case.analyze", resource=label,
+                _audit(service_scope, token, "case.analyze", resource=label,
                        metadata={"input": analyze_input, "output": audit_output})
                 _emit_event(emit, {"stage": "pair_result", "pair": i, "result": result})
 

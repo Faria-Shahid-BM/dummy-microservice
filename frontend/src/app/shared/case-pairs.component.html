@@ -15,13 +15,30 @@
       </div>
 
       <div class="file-field" *ngFor="let slot of service.slots">
-        <span>{{ slot.label }} — {{ pair.uploads[slot.key] || 'not uploaded' }}</span>
+        <span>
+          {{ slot.label }} —
+          {{ pair.uploads[slot.key] || (service.managedSlots.includes(slot.key) ? 'not generated yet' : 'not uploaded') }}
+        </span>
+        <app-doc-preview
+          *ngIf="pair.uploads[slot.key]"
+          [service]="service"
+          [caseId]="case.id"
+          [slot]="slot.key"
+          [fileName]="pair.uploads[slot.key]"
+        ></app-doc-preview>
+        <!-- A managed slot (e.g. `original`) is never user-uploaded, so it gets no
+             file picker at all — not even a disabled one, which would still read as
+             "you could upload here." Just the filename above and the hint below. -->
         <input
           type="file"
+          *ngIf="!service.managedSlots.includes(slot.key)"
           [accept]="slot.accept"
-          [disabled]="busy || analyzing || !editable(pair)"
+          [disabled]="busy || analyzing || !editable(pair, slot.key)"
           (change)="onFile(pair, slot.key, $event)"
         />
+        <p class="hint" *ngIf="service.managedSlots.includes(slot.key)">
+          Generated automatically — regenerate it in Document Generator to update this.
+        </p>
       </div>
 
       <p class="hint" *ngIf="!editable(pair)">
@@ -33,10 +50,10 @@
     </div>
   </ng-container>
 
-  <button type="button" class="clear" [disabled]="busy || analyzing" (click)="addPair()">
+  <button type="button" class="clear" *ngIf="service.allowExtraPairs" [disabled]="busy || analyzing" (click)="addPair()">
     + Add another {{ noun }}
   </button>
-  <p class="hint" *ngIf="extras.length">
+  <p class="hint" *ngIf="service.allowExtraPairs && extras.length">
     Every {{ noun }} on this case is reviewed in its own pass, one after another, and keeps its own
     result in a tab below. Already-reviewed {{ noun }}s are left alone — only the new ones run.
   </p>
@@ -45,7 +62,11 @@
 
 <!-- part="results": one tab per pair, each holding that pair's own result -->
 <ng-container *ngIf="part === 'results'">
-  <div class="tab-bar" role="tablist">
+  <!-- A case that can't hold extra pairs only ever has pair 0 — no tabs to
+       switch between, so the "pair" framing (and the tab bar itself) would
+       just be noise. `run.active` defaults to 0, so the lone panel below
+       still renders without needing a tab click. -->
+  <div class="tab-bar" role="tablist" *ngIf="service.allowExtraPairs">
     <button
       type="button"
       class="tab"

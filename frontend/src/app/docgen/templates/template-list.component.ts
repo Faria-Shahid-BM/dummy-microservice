@@ -3,12 +3,13 @@ import { Component, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { DataTableComponent, TableColumnDirective } from '../../shared/data-table.component';
 import { DocgenService, DocgenTemplate } from '../docgen.service';
 
 @Component({
   selector: 'app-template-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, DataTableComponent, TableColumnDirective],
   templateUrl: './template-list.component.html'
 })
 export class TemplateListComponent implements OnInit {

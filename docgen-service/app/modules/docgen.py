@@ -1030,6 +1030,63 @@ def list_documents(
     return {"documents": documents, "active_jobs": active_jobs}
 
 
+@router.get("/documents/mine")
+def list_my_documents(
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> dict:
+    """This user's own *approved* generated documents, latest approved version
+    only — cross-profile by design, for services (e.g. Document Reviewer)
+    that mirror a user's own output rather than a profile's. A template
+    instance with no approved version yet is omitted entirely, so a
+    downstream mirror never sees a document that hasn't cleared maker-checker
+    review.
+
+    "Latest version" is per (case_id, template_id, instance_label): a
+    regenerated document is a brand-new GeneratedDocument row (no versioning
+    exists on this table), so grouping on that triple and keeping the newest
+    created_at among the *approved* rows is what tells two runs of the same
+    template instance apart from two different template instances, without
+    resurfacing a regenerated draft that's still pending its own approval.
+    """
+    docs = db.execute(
+        select(GeneratedDocument, Case.name)
+        .join(Case, Case.id == GeneratedDocument.case_id)
+        .where(Case.created_by == user.id)
+        .order_by(GeneratedDocument.created_at)
+    ).all()
+    approved_ids = set(
+        db.execute(
+            select(Approval.subject_id).where(
+                Approval.subject_type == "generated_document",
+                Approval.subject_id.in_([d.id for d, _ in docs]),
+                Approval.state == "approved",
+            )
+        ).scalars()
+    ) if docs else set()
+    latest: dict[tuple[str, str | None, str], tuple[GeneratedDocument, str]] = {}
+    for d, case_name in docs:
+        if d.id not in approved_ids:
+            continue
+        key = (d.case_id, d.template_id, d.instance_label)
+        latest[key] = (d, case_name)  # rows are created_at-ordered, so last write wins
+    documents = [
+        {
+            "logical_key": f"{d.case_id}:{d.template_id or ''}:{d.instance_label}",
+            "doc_id": d.id,
+            "case_id": d.case_id,
+            "profile_id": d.profile_id,
+            "case_name": case_name,
+            "template_name": d.template_name,
+            "instance_label": d.instance_label,
+            "file_name": d.file_name,
+            "created_at": d.created_at.isoformat(),
+        }
+        for d, case_name in latest.values()
+    ]
+    return {"documents": documents}
+
+
 @router.get("/profiles/{profile_id}/cases/{case_id}/documents/download-all")
 def download_all_documents(
     profile_id: str,

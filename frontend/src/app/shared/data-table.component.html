@@ -1,0 +1,25 @@
+<p class="empty" *ngIf="!rows.length && empty">{{ empty }}</p>
+
+<div class="table-scroll" *ngIf="rows.length">
+  <table class="audit-table">
+    <thead>
+      <tr>
+        <th *ngFor="let col of columns" [style.width]="col.width">{{ col.header }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <ng-container *ngFor="let row of rows">
+        <tr [ngClass]="rowClass ? rowClass(row) : null">
+          <td *ngFor="let col of columns" [ngClass]="col.cellClass" [style.width]="col.width">
+            <ng-container *ngTemplateOutlet="col.template; context: { $implicit: row }"></ng-container>
+          </td>
+        </tr>
+        <tr *ngIf="rowDetail && isExpanded && isExpanded(row)">
+          <td [attr.colspan]="columns.length" class="detail-cell">
+            <ng-container *ngTemplateOutlet="rowDetail.template; context: { $implicit: row }"></ng-container>
+          </td>
+        </tr>
+      </ng-container>
+    </tbody>
+  </table>
+</div>

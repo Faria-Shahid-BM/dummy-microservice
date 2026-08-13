@@ -1,8 +1,5 @@
 import os
 import json
-import hmac
-import hashlib
-import secrets
 import sqlite3
 import datetime
 from pathlib import Path
@@ -11,7 +8,11 @@ from fastapi import FastAPI, Header, HTTPException, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from argon2 import PasswordHasher
+from argon2.exceptions import VerificationError, VerifyMismatchError
 import jwt
+
+import rehash_seed_passwords
 
 app = FastAPI()
 
@@ -22,9 +23,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Shared with Kong (kong.yml consumer) and the downstream services (security.py).
-SECRET = os.environ.get("JWT_SECRET", "mysecret123")
+# RS256: this service is the only one that holds the private key and can mint
+# a token. Kong and every downstream service (security.py) verify with the
+# matching public key — a public key isn't a secret, so nothing sensitive
+# needs to be shared with them, unlike an HS256 secret copied into every
+# service's env (a leak of any one container would forge tokens for all).
 ISSUER = os.environ.get("JWT_ISSUER", "poc-issuer")
+ALGORITHM = "RS256"
+JWT_PRIVATE_KEY_PATH = os.environ.get("JWT_PRIVATE_KEY_PATH", "/app/keys/jwt-private.pem")
+JWT_PUBLIC_KEY_PATH = os.environ.get("JWT_PUBLIC_KEY_PATH", "/app/keys/jwt-public.pem")
+
+
+def _load_key(path: str, marker: str) -> str:
+    """Read a signing/verification key, failing loudly at startup rather than
+    at the first login."""
+    try:
+        pem = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(
+            f"cannot read the JWT key at {path}: {exc}. "
+            "Generate a keypair with `python scripts/generate_jwt_keys.py` before starting."
+        ) from exc
+    if marker not in pem:
+        raise RuntimeError(f"{path} is not a PEM {marker.lower()}")
+    return pem
+
+
+PRIVATE_KEY = _load_key(JWT_PRIVATE_KEY_PATH, "PRIVATE KEY")
+PUBLIC_KEY = _load_key(JWT_PUBLIC_KEY_PATH, "PUBLIC KEY")
 
 DB_PATH = Path(os.environ.get("USERS_DB", "/app/users.db"))
 
@@ -42,20 +68,19 @@ SEED_USERS = {
 
 
 
-# ── Password hashing (PBKDF2-HMAC-SHA256, stdlib only) ──────────────────────
-def hash_password(password: str, salt: str | None = None) -> str:
-    """Return 'salt$hexdigest'. A fresh random salt is generated when omitted."""
-    salt = salt or secrets.token_hex(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 100_000)
-    return f"{salt}${dk.hex()}"
+# ── Password hashing (argon2id via argon2-cffi) ─────────────────────────────
+_hasher = PasswordHasher()  # argon2id defaults
+
+
+def hash_password(password: str) -> str:
+    return _hasher.hash(password)
 
 
 def verify_password(password: str, stored: str) -> bool:
     try:
-        salt, _digest = stored.split("$", 1)
-    except ValueError:
+        return _hasher.verify(stored, password)
+    except (VerifyMismatchError, VerificationError):
         return False
-    return hmac.compare_digest(hash_password(password, salt), stored)
 
 
 # ── SQLite user store ───────────────────────────────────────────────────────
@@ -114,6 +139,7 @@ def list_users() -> list[dict]:
 
 
 init_db()
+rehash_seed_passwords.main()  # idempotent: no-ops once every row is already argon2id
 
 
 # ── Admin authorization (defence in depth — the API enforces it) ────────────
@@ -123,7 +149,7 @@ def require_admin(authorization: str | None = Header(default=None)) -> dict:
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
     token = authorization.split(" ", 1)[1].strip()
     try:
-        payload = jwt.decode(token, SECRET, algorithms=["HS256"], issuer=ISSUER)
+        payload = jwt.decode(token, PUBLIC_KEY, algorithms=[ALGORITHM], issuer=ISSUER)
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
     if "admin" not in (payload.get("scopes") or []):
@@ -188,8 +214,8 @@ def login(body: LoginRequest, response: Response):
             "scopes": scopes,                      # <- carried to the services
             "exp": datetime.datetime.utcnow() + TOKEN_TTL,
         },
-        SECRET,
-        algorithm="HS256",
+        PRIVATE_KEY,
+        algorithm=ALGORITHM,
     )
     response.set_cookie(
         key=COOKIE_NAME,
@@ -220,7 +246,7 @@ def me(authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=401, detail="Not authenticated")
     token = authorization.split(" ", 1)[1].strip()
     try:
-        payload = jwt.decode(token, SECRET, algorithms=["HS256"], issuer=ISSUER)
+        payload = jwt.decode(token, PUBLIC_KEY, algorithms=[ALGORITHM], issuer=ISSUER)
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
     # Normalized like /login, so a cookie minted before the implication rule

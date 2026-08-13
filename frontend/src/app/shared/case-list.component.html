@@ -6,54 +6,52 @@
   <div class="log-header">
     <h2>All cases</h2>
     <div class="button-row">
-      <div class="topbar-item">
-        <button type="button" (click)="toggleAddCase()">+ Add case</button>
-        <div class="topbar-dropdown topbar-dropdown--right" *ngIf="showAddCase">
-          <div class="field">
-            <span>Case name</span>
-            <input
-              type="text"
-              [(ngModel)]="newCaseName"
-              name="newCaseName"
-              (keydown.enter)="createCase()"
-              autofocus
-            />
-          </div>
-          <button [disabled]="creating || !newCaseName.trim()" (click)="createCase()">
-            {{ creating ? 'Creating…' : 'Create' }}
-          </button>
-          <p class="error" *ngIf="createError">{{ createError }}</p>
-        </div>
-      </div>
+      <button type="button" class="clear" *ngIf="!caseService.hideAddCase" (click)="toggleAddCase()">+ Add case</button>
       <button class="clear" (click)="load()" [disabled]="loading">
         {{ loading ? 'Loading…' : 'Refresh' }}
       </button>
     </div>
   </div>
 
-  <p class="error" *ngIf="error">{{ error }}</p>
-  <p class="empty" *ngIf="!loading && !cases.length">No cases yet.</p>
-
-  <div class="table-scroll">
-    <table class="audit-table" *ngIf="cases.length">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Uploads</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let c of cases">
-          <td>{{ c.name }}</td>
-          <td>{{ c.status }}</td>
-          <td>{{ (c.uploads | keyvalue)?.length || 0 }}</td>
-          <td>
-            <a [routerLink]="[caseService.routeBase, 'cases', c.id]"><button type="button" class="clear">Open</button></a>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="modal-overlay" *ngIf="showAddCase && !caseService.hideAddCase" (click)="showAddCase = false">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <h3>Add case</h3>
+      <div class="field">
+        <span>Case name</span>
+        <input
+          type="text"
+          [(ngModel)]="newCaseName"
+          name="newCaseName"
+          (keydown.enter)="createCase()"
+          autofocus
+        />
+      </div>
+      <p class="error" *ngIf="createError">{{ createError }}</p>
+      <div class="modal-actions">
+        <button type="button" class="secondary" (click)="showAddCase = false">Cancel</button>
+        <button [disabled]="creating || !newCaseName.trim()" (click)="createCase()">
+          {{ creating ? 'Creating…' : 'Create' }}
+        </button>
+      </div>
+    </div>
   </div>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+
+  <app-data-table
+    [rows]="cases"
+    [empty]="loading ? '' : caseService.hideAddCase
+      ? 'No generated documents yet — generate one in Document Generator and it will appear here.'
+      : 'No cases yet.'"
+  >
+    <ng-template appColumn header="Name" let-c>{{ c.name }}</ng-template>
+    <ng-template appColumn header="Status" let-c>{{ c.status }}</ng-template>
+    <ng-template appColumn header="Uploads" let-c>{{ (c.uploads | keyvalue)?.length || 0 }}</ng-template>
+    <ng-template appColumn header="Last reviewed" *ngIf="caseService.showReviewedAt" let-c>
+      {{ c.reviewed_at ? (c.reviewed_at | date:'medium') : 'Not yet reviewed' }}
+    </ng-template>
+    <ng-template appColumn header="" let-c>
+      <a [routerLink]="[caseService.routeBase, 'cases', c.id]"><button type="button" class="clear">Open</button></a>
+    </ng-template>
+  </app-data-table>
 </section>

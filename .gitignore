@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 
+# JWT signing keys. The private key must never be committed; generate a
+# keypair per environment with scripts/generate_jwt_keys.py. The public key is
+# not sensitive but lives inline in kong.yml, so it isn't needed here either.
+keys/
+
 # Python
 __pycache__/
 *.py[cod]

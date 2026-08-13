@@ -8,15 +8,28 @@ import {
   DocgenService,
   DocumentProvenance,
   FillResponse,
-  GeneratedDocument
+  GeneratedDocument,
+  SelectedDocsFile
 } from '../docgen.service';
 import { JobStatusComponent } from '../job-status/job-status.component';
 import { JsonViewComponent } from '../../json-view/json-view.component';
+import { MarkdownFieldComponent } from '../markdown-field/markdown-field.component';
+import { DataTableComponent, RowDetailDirective, TableColumnDirective } from '../../shared/data-table.component';
 
 @Component({
   selector: 'app-case-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, JobStatusComponent, JsonViewComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    JobStatusComponent,
+    JsonViewComponent,
+    MarkdownFieldComponent,
+    DataTableComponent,
+    TableColumnDirective,
+    RowDetailDirective
+  ],
   templateUrl: './case-detail.component.html'
 })
 export class CaseDetailComponent implements OnInit {
@@ -24,6 +37,9 @@ export class CaseDetailComponent implements OnInit {
   case: DocgenCaseDetail | null = null;
   loading = false;
   error = '';
+
+  activeTab: 'input' | 'extract' | 'analyze' | 'select' | 'generate' | 'documents' = 'input';
+  private tabInitialized = false;
 
   inputFile: File | null = null;
   uploadingInput = false;
@@ -36,6 +52,7 @@ export class CaseDetailComponent implements OnInit {
   caseTextLoaded = false;
   caseTextError = '';
   savingCaseText = false;
+  editingCaseText = false;
 
   analyzeJobId: string | null = null;
   analyzeError = '';
@@ -44,6 +61,7 @@ export class CaseDetailComponent implements OnInit {
   analysisLoaded = false;
   analysisError = '';
   savingAnalysis = false;
+  editingAnalysis = false;
 
   selectJobId: string | null = null;
   selectError = '';
@@ -52,6 +70,9 @@ export class CaseDetailComponent implements OnInit {
   selectedLoaded = false;
   selectedError = '';
   savingSelected = false;
+  selectedView: SelectedDocsFile | null = null;
+  selectedParseError = '';
+  showSelectedJson = false;
 
   filling = false;
   fillResult: FillResponse | null = null;
@@ -89,12 +110,23 @@ export class CaseDetailComponent implements OnInit {
         if (c.has_analysis && !this.analysisLoaded) this.loadAnalysis();
         if (c.has_selected && !this.selectedLoaded) this.loadSelected();
         if (c.generated_count > 0) this.loadDocuments();
+        if (!this.tabInitialized) {
+          this.tabInitialized = true;
+          if (c.generated_count > 0) this.activeTab = 'documents';
+          else if (c.has_selected) this.activeTab = 'generate';
+          else if (c.has_case_text) this.activeTab = 'select';
+          else if (c.has_input) this.activeTab = 'extract';
+        }
       },
       error: (err: HttpErrorResponse) => {
         this.error = err.error?.detail ?? 'failed to load case';
         this.loading = false;
       }
     });
+  }
+
+  selectTab(tab: 'input' | 'extract' | 'analyze' | 'select' | 'generate' | 'documents'): void {
+    this.activeTab = tab;
   }
 
   // --- input ---
@@ -111,6 +143,7 @@ export class CaseDetailComponent implements OnInit {
       next: () => {
         this.uploadingInput = false;
         this.inputFile = null;
+        this.activeTab = 'extract';
         this.loadCase();
       },
       error: (err: HttpErrorResponse) => {
@@ -247,6 +280,7 @@ export class CaseDetailComponent implements OnInit {
       next: (res) => {
         this.selectedText = res.content;
         this.selectedLoaded = true;
+        this.parseSelected();
       },
       error: (err: HttpErrorResponse) => {
         this.selectedError = err.error?.detail ?? 'failed to load selection';
@@ -259,12 +293,38 @@ export class CaseDetailComponent implements OnInit {
     this.savingSelected = true;
     this.selectedError = '';
     this.docgen.putSelected(this.profileId, this.caseId, this.selectedText).subscribe({
-      next: () => (this.savingSelected = false),
+      next: () => {
+        this.savingSelected = false;
+        this.parseSelected();
+      },
       error: (err: HttpErrorResponse) => {
         this.selectedError = err.error?.detail ?? 'failed to save';
         this.savingSelected = false;
       }
     });
+  }
+
+  toggleSelectedJson(): void {
+    this.showSelectedJson = !this.showSelectedJson;
+  }
+
+  // The table view is only ever as good as the last successfully parsed
+  // JSON — on a parse failure, fall back to the raw editor so there's always
+  // a way to see and fix what's actually on disk.
+  private parseSelected(): void {
+    try {
+      const data = JSON.parse(this.selectedText || '{}');
+      this.selectedView = {
+        case_summary: data.case_summary,
+        selected_documents: Array.isArray(data.selected_documents) ? data.selected_documents : [],
+        ambiguous_documents: Array.isArray(data.ambiguous_documents) ? data.ambiguous_documents : []
+      };
+      this.selectedParseError = '';
+    } catch (err) {
+      this.selectedView = null;
+      this.selectedParseError = err instanceof Error ? err.message : 'could not parse the selection JSON';
+      this.showSelectedJson = true;
+    }
   }
 
   // --- fill ---
@@ -358,4 +418,9 @@ export class CaseDetailComponent implements OnInit {
       }
     });
   }
+
+  // Arrow-function class fields (not template expressions) so `this` stays
+  // bound when app-data-table invokes them as plain callbacks.
+  docRowClass = (doc: GeneratedDocument): string => (doc.needs_attention ? 'flagged-row' : '');
+  docIsExpanded = (doc: GeneratedDocument): boolean => !!this.provenanceByDoc[doc.id];
 }

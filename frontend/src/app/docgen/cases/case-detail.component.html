@@ -6,182 +6,289 @@
 <p class="error" *ngIf="error">{{ error }}</p>
 
 <ng-container *ngIf="case">
-  <!-- 1. input -->
   <section class="card">
-    <h2>1. Input document</h2>
-    <p class="hint" *ngIf="case.has_input">Current input: <code>{{ case.input_file_name }}</code></p>
-    <div class="file-field">
-      <span>Case input (.pdf or .docx) — replaces the current one</span>
-      <input type="file" accept=".pdf,.docx" (change)="onInputFile($event)" [disabled]="readOnly" />
+    <div class="tab-bar" role="tablist">
+      <button type="button" class="tab" role="tab" [class.active]="activeTab === 'input'" (click)="selectTab('input')">
+        1. Input
+      </button>
+      <button
+        type="button"
+        class="tab"
+        role="tab"
+        [class.active]="activeTab === 'extract'"
+        [disabled]="!case.has_input"
+        (click)="selectTab('extract')"
+      >
+        2. Extract
+      </button>
+      <button
+        type="button"
+        class="tab"
+        role="tab"
+        [class.active]="activeTab === 'analyze'"
+        [disabled]="!case.has_case_text"
+        (click)="selectTab('analyze')"
+      >
+        3. Analyze
+      </button>
+      <button
+        type="button"
+        class="tab"
+        role="tab"
+        [class.active]="activeTab === 'select'"
+        [disabled]="!case.has_case_text"
+        (click)="selectTab('select')"
+      >
+        4. Select
+      </button>
+      <button
+        type="button"
+        class="tab"
+        role="tab"
+        [class.active]="activeTab === 'generate'"
+        [disabled]="!case.has_selected"
+        (click)="selectTab('generate')"
+      >
+        5. Generate
+      </button>
+      <button
+        type="button"
+        class="tab"
+        role="tab"
+        [class.active]="activeTab === 'documents'"
+        [disabled]="!(case.generated_count > 0 || documents.length)"
+        (click)="selectTab('documents')"
+      >
+        6. Documents
+      </button>
     </div>
-    <button [disabled]="uploadingInput || !inputFile || readOnly" (click)="uploadInput()">
-      {{ uploadingInput ? 'Uploading…' : 'Upload' }}
-    </button>
-    <p class="error" *ngIf="inputError">{{ inputError }}</p>
-  </section>
 
-  <!-- 2. extract -->
-  <section class="card" *ngIf="case.has_input">
-    <h2>2. Extract case text</h2>
-    <button [disabled]="!!extractJobId || readOnly" (click)="runExtract()">
-      {{ extractJobId ? 'Extracting…' : (case.has_case_text ? 'Re-extract' : 'Extract') }}
-    </button>
-    <p class="error" *ngIf="extractError">{{ extractError }}</p>
-    <app-job-status
-      *ngIf="extractJobId"
-      [jobId]="extractJobId"
-      (done)="onExtractDone()"
-      (failed)="onExtractFailed()"
-    ></app-job-status>
-
-    <ng-container *ngIf="caseTextLoaded">
-      <h3>Case text</h3>
-      <div class="field">
-        <textarea rows="8" [(ngModel)]="caseText" name="caseText" [disabled]="readOnly"></textarea>
+    <!-- 1. input -->
+    <div class="tab-panel" role="tabpanel" *ngIf="activeTab === 'input'">
+      <div class="log-header">
+        <h2>Input document</h2>
       </div>
-      <button [disabled]="savingCaseText || readOnly" (click)="saveCaseText()">
-        {{ savingCaseText ? 'Saving…' : 'Save edits' }}
+      <p class="hint" *ngIf="case.has_input">Current input: <code>{{ case.input_file_name }}</code></p>
+      <div class="file-field">
+        <span>Case input (.pdf or .docx) — replaces the current one</span>
+        <input type="file" accept=".pdf,.docx" (change)="onInputFile($event)" [disabled]="readOnly" />
+      </div>
+      <button [disabled]="uploadingInput || !inputFile || readOnly" (click)="uploadInput()">
+        {{ uploadingInput ? 'Uploading…' : 'Upload' }}
       </button>
-      <p class="error" *ngIf="caseTextError">{{ caseTextError }}</p>
-    </ng-container>
-  </section>
+      <p class="error" *ngIf="inputError">{{ inputError }}</p>
+    </div>
 
-  <!-- 3. analyze (optional) -->
-  <section class="card" *ngIf="case.has_case_text">
-    <h2>3. Analyze (optional)</h2>
-    <button [disabled]="!!analyzeJobId || readOnly" (click)="runAnalyze()">
-      {{ analyzeJobId ? 'Analyzing…' : (case.has_analysis ? 'Re-analyze' : 'Analyze') }}
-    </button>
-    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
-    <app-job-status
-      *ngIf="analyzeJobId"
-      [jobId]="analyzeJobId"
-      (done)="onAnalyzeDone()"
-      (failed)="onAnalyzeFailed()"
-    ></app-job-status>
-
-    <ng-container *ngIf="analysisLoaded">
-      <h3>Credit analysis</h3>
-      <div class="field">
-        <textarea rows="8" [(ngModel)]="analysisText" name="analysisText" [disabled]="readOnly"></textarea>
+    <!-- 2. extract -->
+    <div class="tab-panel" role="tabpanel" *ngIf="activeTab === 'extract' && case.has_input">
+      <div class="log-header">
+        <h2>Extract case text</h2>
+        <div class="button-row">
+          <button type="button" class="clear" *ngIf="caseTextLoaded" (click)="editingCaseText = !editingCaseText">
+            {{ editingCaseText ? 'Preview' : 'Edit' }}
+          </button>
+          <button [disabled]="!!extractJobId || readOnly" (click)="runExtract()">
+            {{ extractJobId ? 'Extracting…' : (case.has_case_text ? 'Re-extract' : 'Extract') }}
+          </button>
+        </div>
       </div>
-      <button [disabled]="savingAnalysis || readOnly" (click)="saveAnalysis()">
-        {{ savingAnalysis ? 'Saving…' : 'Save edits' }}
-      </button>
-      <p class="error" *ngIf="analysisError">{{ analysisError }}</p>
-    </ng-container>
-  </section>
+      <p class="error" *ngIf="extractError">{{ extractError }}</p>
+      <app-job-status
+        *ngIf="extractJobId"
+        [jobId]="extractJobId"
+        (done)="onExtractDone()"
+        (failed)="onExtractFailed()"
+      ></app-job-status>
 
-  <!-- 4. select -->
-  <section class="card" *ngIf="case.has_case_text">
-    <h2>4. Select templates</h2>
-    <button [disabled]="!!selectJobId || readOnly" (click)="runSelect()">
-      {{ selectJobId ? 'Selecting…' : (case.has_selected ? 'Re-select' : 'Select') }}
-    </button>
-    <p class="error" *ngIf="selectError">{{ selectError }}</p>
-    <app-job-status
-      *ngIf="selectJobId"
-      [jobId]="selectJobId"
-      (done)="onSelectDone()"
-      (failed)="onSelectFailed()"
-    ></app-job-status>
-
-    <ng-container *ngIf="selectedLoaded">
-      <h3>Selected templates</h3>
-      <div class="field">
-        <textarea rows="6" [(ngModel)]="selectedText" name="selectedText" [disabled]="readOnly"></textarea>
-      </div>
-      <button [disabled]="savingSelected || readOnly" (click)="saveSelected()">
-        {{ savingSelected ? 'Saving…' : 'Save edits' }}
-      </button>
-      <p class="error" *ngIf="selectedError">{{ selectedError }}</p>
-    </ng-container>
-  </section>
-
-  <!-- 5. fill -->
-  <section class="card" *ngIf="case.has_selected">
-    <h2>5. Generate documents</h2>
-    <button [disabled]="filling || readOnly" (click)="runFill()">
-      {{ filling ? 'Starting…' : 'Generate documents' }}
-    </button>
-    <p class="error" *ngIf="fillError">{{ fillError }}</p>
-
-    <ng-container *ngIf="fillResult">
-      <h3 *ngIf="fillResult.jobs.length">In progress</h3>
-      <div *ngFor="let j of fillResult.jobs" class="field">
-        <span>{{ j.task_key }}</span>
-        <app-job-status [jobId]="j.job_id" (done)="onFillJobSettled()" (failed)="onFillJobSettled()"></app-job-status>
-      </div>
-
-      <h3 *ngIf="fillResult.skipped.length">Skipped</h3>
-      <ul class="observation-list" *ngIf="fillResult.skipped.length">
-        <li *ngFor="let s of fillResult.skipped">{{ s.task_key }} — {{ s.reason }}</li>
-      </ul>
-    </ng-container>
-  </section>
-
-  <!-- 6. documents -->
-  <section class="card" *ngIf="case.generated_count > 0 || documents.length">
-    <div class="log-header">
-      <h2>Generated documents</h2>
-      <div class="button-row">
-        <button class="clear" (click)="loadDocuments()" [disabled]="loadingDocuments">
-          {{ loadingDocuments ? 'Loading…' : 'Refresh' }}
+      <ng-container *ngIf="caseTextLoaded">
+        <app-markdown-field
+          [(value)]="caseText"
+          [disabled]="readOnly"
+          [editing]="editingCaseText"
+          [rows]="8"
+        ></app-markdown-field>
+        <button [disabled]="savingCaseText || readOnly" (click)="saveCaseText()">
+          {{ savingCaseText ? 'Saving…' : 'Save edits' }}
         </button>
-        <button class="clear" (click)="downloadAll()">Download all approved</button>
-      </div>
+        <p class="error" *ngIf="caseTextError">{{ caseTextError }}</p>
+      </ng-container>
     </div>
 
-    <p class="error" *ngIf="documentsError">{{ documentsError }}</p>
-    <p class="empty" *ngIf="!documents.length && !loadingDocuments">No documents yet.</p>
+    <!-- 3. analyze (optional) -->
+    <div class="tab-panel" role="tabpanel" *ngIf="activeTab === 'analyze' && case.has_case_text">
+      <div class="log-header">
+        <h2>Analyze (optional)</h2>
+        <div class="button-row">
+          <button type="button" class="clear" *ngIf="analysisLoaded" (click)="editingAnalysis = !editingAnalysis">
+            {{ editingAnalysis ? 'Preview' : 'Edit' }}
+          </button>
+          <button [disabled]="!!analyzeJobId || readOnly" (click)="runAnalyze()">
+            {{ analyzeJobId ? 'Analyzing…' : (case.has_analysis ? 'Re-analyze' : 'Analyze') }}
+          </button>
+        </div>
+      </div>
+      <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+      <app-job-status
+        *ngIf="analyzeJobId"
+        [jobId]="analyzeJobId"
+        (done)="onAnalyzeDone()"
+        (failed)="onAnalyzeFailed()"
+      ></app-job-status>
 
-    <div class="table-scroll">
-      <table class="audit-table" *ngIf="documents.length">
-        <thead>
-          <tr>
-            <th>Document</th>
-            <th>Applied</th>
-            <th>Failed</th>
-            <th>Unfilled</th>
-            <th>Approval</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <ng-container *ngFor="let doc of documents">
-            <tr [class.flagged-row]="doc.needs_attention">
-              <td class="wrap-cell"><span class="cell-text">{{ doc.file_name }}</span></td>
-              <td>{{ doc.applied_ops }}</td>
-              <td>{{ doc.failed_ops }}</td>
-              <td>{{ doc.unfilled_fields }}</td>
-              <td [ngClass]="'status-' + (doc.approval_state === 'approved' ? 'match' : doc.approval_state === 'rejected' ? 'mismatch' : 'missing')">
-                {{ doc.approval_state }}
-              </td>
-              <td>
-                <div class="button-row">
-                  <button
-                    type="button"
-                    class="clear"
-                    (click)="submitDocument(doc)"
-                    [disabled]="readOnly || (doc.approval_state !== 'draft' && doc.approval_state !== 'rejected')"
-                  >
-                    Submit
-                  </button>
-                  <button type="button" class="clear" (click)="downloadDocument(doc)">Download</button>
-                  <button type="button" class="clear" (click)="toggleProvenance(doc)">
-                    {{ provenanceByDoc[doc.id] ? 'Hide details' : 'Details' }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr *ngIf="provenanceByDoc[doc.id]">
-              <td colspan="6" class="detail-cell">
-                <app-json-view [value]="provenanceByDoc[doc.id]"></app-json-view>
-              </td>
-            </tr>
+      <ng-container *ngIf="analysisLoaded">
+        <app-markdown-field
+          [(value)]="analysisText"
+          [disabled]="readOnly"
+          [editing]="editingAnalysis"
+          [rows]="8"
+        ></app-markdown-field>
+        <button [disabled]="savingAnalysis || readOnly" (click)="saveAnalysis()">
+          {{ savingAnalysis ? 'Saving…' : 'Save edits' }}
+        </button>
+        <p class="error" *ngIf="analysisError">{{ analysisError }}</p>
+      </ng-container>
+    </div>
+
+    <!-- 4. select -->
+    <div class="tab-panel" role="tabpanel" *ngIf="activeTab === 'select' && case.has_case_text">
+      <div class="log-header">
+        <h2>Select templates</h2>
+        <div class="button-row">
+          <button
+            type="button"
+            class="clear"
+            *ngIf="selectedLoaded"
+            (click)="toggleSelectedJson()"
+          >
+            {{ showSelectedJson ? 'View as table' : 'Edit as JSON' }}
+          </button>
+          <button [disabled]="!!selectJobId || readOnly" (click)="runSelect()">
+            {{ selectJobId ? 'Selecting…' : (case.has_selected ? 'Re-select' : 'Select') }}
+          </button>
+        </div>
+      </div>
+      <p class="error" *ngIf="selectError">{{ selectError }}</p>
+      <app-job-status
+        *ngIf="selectJobId"
+        [jobId]="selectJobId"
+        (done)="onSelectDone()"
+        (failed)="onSelectFailed()"
+      ></app-job-status>
+
+      <ng-container *ngIf="selectedLoaded">
+        <ng-container *ngIf="!showSelectedJson && selectedView">
+          <p class="hint" *ngIf="selectedView.case_summary">{{ selectedView.case_summary }}</p>
+
+          <app-data-table [rows]="selectedView.selected_documents" empty="No documents selected yet.">
+            <ng-template appColumn header="Template" width="25%" let-d>{{ d.template_name }}</ng-template>
+            <ng-template appColumn header="Count" width="8%" let-d>{{ d.count }}</ng-template>
+            <ng-template appColumn header="Evidence" width="47%" cellClass="wrap-cell" let-d>
+              <span class="cell-text">{{ d.evidence }}</span>
+            </ng-template>
+            <ng-template appColumn header="Entities" width="20%" let-d>
+              {{ d.entities?.length ? d.entities.join(', ') : '—' }}
+            </ng-template>
+          </app-data-table>
+
+          <ng-container *ngIf="selectedView.ambiguous_documents?.length">
+            <h3>Ambiguous</h3>
+            <app-data-table [rows]="selectedView.ambiguous_documents!">
+              <ng-template appColumn header="Template" width="30%" let-d>{{ d.template_name }}</ng-template>
+              <ng-template appColumn header="Reason" width="70%" cellClass="wrap-cell" let-d>{{ d.reason }}</ng-template>
+            </app-data-table>
           </ng-container>
-        </tbody>
-      </table>
+        </ng-container>
+
+        <ng-container *ngIf="showSelectedJson">
+          <p class="error" *ngIf="selectedParseError">{{ selectedParseError }}</p>
+          <div class="field">
+            <textarea rows="6" [(ngModel)]="selectedText" name="selectedText" [disabled]="readOnly"></textarea>
+          </div>
+          <button [disabled]="savingSelected || readOnly" (click)="saveSelected()">
+            {{ savingSelected ? 'Saving…' : 'Save edits' }}
+          </button>
+        </ng-container>
+        <p class="error" *ngIf="selectedError">{{ selectedError }}</p>
+      </ng-container>
+    </div>
+
+    <!-- 5. fill -->
+    <div class="tab-panel" role="tabpanel" *ngIf="activeTab === 'generate' && case.has_selected">
+      <div class="log-header">
+        <h2>Generate documents</h2>
+        <button [disabled]="filling || readOnly" (click)="runFill()">
+          {{ filling ? 'Starting…' : 'Generate documents' }}
+        </button>
+      </div>
+      <p class="error" *ngIf="fillError">{{ fillError }}</p>
+
+      <ng-container *ngIf="fillResult">
+        <h3 *ngIf="fillResult.jobs.length">In progress</h3>
+        <div *ngFor="let j of fillResult.jobs" class="field">
+          <span>{{ j.task_key }}</span>
+          <app-job-status [jobId]="j.job_id" (done)="onFillJobSettled()" (failed)="onFillJobSettled()"></app-job-status>
+        </div>
+
+        <h3 *ngIf="fillResult.skipped.length">Skipped</h3>
+        <ul class="observation-list" *ngIf="fillResult.skipped.length">
+          <li *ngFor="let s of fillResult.skipped">{{ s.task_key }} — {{ s.reason }}</li>
+        </ul>
+      </ng-container>
+    </div>
+
+    <!-- 6. documents -->
+    <div class="tab-panel" role="tabpanel" *ngIf="activeTab === 'documents' && (case.generated_count > 0 || documents.length)">
+      <div class="log-header">
+        <h2>Generated documents</h2>
+        <div class="button-row">
+          <button class="clear" (click)="loadDocuments()" [disabled]="loadingDocuments">
+            {{ loadingDocuments ? 'Loading…' : 'Refresh' }}
+          </button>
+          <button class="clear" (click)="downloadAll()">Download all approved</button>
+        </div>
+      </div>
+
+      <p class="error" *ngIf="documentsError">{{ documentsError }}</p>
+
+      <app-data-table
+        [rows]="documents"
+        [empty]="loadingDocuments ? '' : 'No documents yet.'"
+        [rowClass]="docRowClass"
+        [isExpanded]="docIsExpanded"
+      >
+        <ng-template appColumn header="Document" cellClass="wrap-cell" let-doc>
+          <span class="cell-text">{{ doc.file_name }}</span>
+        </ng-template>
+        <ng-template appColumn header="Applied" let-doc>{{ doc.applied_ops }}</ng-template>
+        <ng-template appColumn header="Failed" let-doc>{{ doc.failed_ops }}</ng-template>
+        <ng-template appColumn header="Unfilled" let-doc>{{ doc.unfilled_fields }}</ng-template>
+        <ng-template appColumn header="Approval" let-doc>
+          <span
+            [ngClass]="'status-' + (doc.approval_state === 'approved' ? 'match' : doc.approval_state === 'rejected' ? 'mismatch' : 'missing')"
+          >
+            {{ doc.approval_state }}
+          </span>
+        </ng-template>
+        <ng-template appColumn header="" let-doc>
+          <div class="button-row">
+            <button
+              type="button"
+              class="clear"
+              (click)="submitDocument(doc)"
+              [disabled]="readOnly || (doc.approval_state !== 'draft' && doc.approval_state !== 'rejected')"
+            >
+              Submit
+            </button>
+            <button type="button" class="clear" (click)="downloadDocument(doc)">Download</button>
+            <button type="button" class="clear" (click)="toggleProvenance(doc)">
+              {{ provenanceByDoc[doc.id] ? 'Hide details' : 'Details' }}
+            </button>
+          </div>
+        </ng-template>
+        <ng-template appRowDetail let-doc>
+          <app-json-view [value]="provenanceByDoc[doc.id]"></app-json-view>
+        </ng-template>
+      </app-data-table>
     </div>
   </section>
 </ng-container>

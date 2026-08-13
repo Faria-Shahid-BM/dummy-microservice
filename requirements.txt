@@ -3,6 +3,7 @@ uvicorn[standard]
 python-multipart
 httpx
 PyJWT
+cryptography
 pdfplumber
 PyMuPDF
 python-docx

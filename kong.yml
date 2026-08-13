@@ -100,11 +100,15 @@ services:
   - name: audit-service
     url: http://audit-service:8000
     routes:
-      # GET only, and jwt-gated here at the edge: unlike every other service,
-      # audit-service has no scope check of its own (see audit-service/main.py)
-      # — anyone with a Kong-valid token could otherwise read the whole log.
-      # POST stays reachable only from other services over the internal
-      # Docker network, never through this route.
+      # GET only, and jwt-gated here at the edge: anyone with a Kong-valid
+      # token could otherwise read the whole log (audit-service itself now
+      # also re-verifies the token independently — see audit-service/main.py
+      # — but this route keeps the edge check too, same as every other
+      # service). POST stays reachable only from other services over the
+      # internal Docker network, never through this route; audit-service
+      # still re-verifies the producer's forwarded bearer token on POST so a
+      # compromised producer can't write an entry claiming to be someone
+      # else.
       - name: audit-read-route
         paths:
           - /api/audit
@@ -159,4 +163,14 @@ consumers:
   - username: poc-user
     jwt_secrets:
       - key: poc-issuer
-        secret: mysecret123
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuT2c4LeWO0cdRXU4VKCr
+          OpPoiCY33aXBL74lQ6NYibp+2OxCi4Ipcar4PAETQAhGLfD44dlCBfxS+uAG3u5D
+          hUn9QWxdW5PiIp1Kor3PGgU/FPgYt2SvE7UHN0U4ZkJa3ODrsVZHXHZTDJKZILPi
+          RxvF6tbUyu1WLkbYAI8uMS+asCmJuYoLAbLYH3c+Q3+al1UkFEuHQUZFJt2ybMUZ
+          bE9djqqxbrM/q5PFqtqKWnZIf/TZagnY5xcN7JIx2WkUy2gndk1cQs9ON7dMIpWl
+          HQXpqM3PHl4vCKsgBiG0+FcHRgxQwsDohurhRvFmot1hRkg9+2J6BJU6ljuJfpUc
+          IwIDAQAB
+          -----END PUBLIC KEY-----

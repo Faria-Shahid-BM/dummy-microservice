@@ -9,6 +9,7 @@ export interface CaseSummary {
   status: 'new' | 'ready' | 'analyzing' | 'done' | 'failed';
   uploads: Record<string, string>;
   created_at: string;
+  reviewed_at: string | null;
 }
 
 // One pair on a case: a full set of the service's slots, analyzed in its own
@@ -57,6 +58,22 @@ export abstract class CaseService<TResult = unknown> {
   abstract readonly slots: SlotDef[];
   /** Singular noun for one batch item, e.g. 'pair' / 'report' / 'policy'. */
   readonly itemNoun: string = 'document';
+  /** When true, cases come entirely from an external source (e.g. Document
+   * Generator) — the list page hides "+ Add case" since there's nothing for
+   * a user to manually start here. */
+  readonly hideAddCase: boolean = false;
+  /** Slot keys whose file picker is always locked, because that slot is
+   * populated by the same external source rather than by upload. */
+  readonly managedSlots: readonly string[] = [];
+  /** Show the list page's "Last reviewed" column. Off by default — most of
+   * these services don't have a meaningful notion of "reviewed" beyond the
+   * Status column already shown; Document Reviewer is the one place a
+   * reviewer actually cares when a case was last reviewed. */
+  readonly showReviewedAt: boolean = false;
+  /** False when a case can only ever hold one pair — e.g. a synced case
+   * mirrors exactly one external document, so a second pair would have
+   * nothing to populate its managed slot from. */
+  readonly allowExtraPairs: boolean = true;
 
   constructor(protected http: HttpClient) {}
 
@@ -80,6 +97,12 @@ export abstract class CaseService<TResult = unknown> {
     const form = new FormData();
     form.append('file', file);
     return this.http.post<CaseDetail<TResult>>(`${this.apiBase}/cases/${caseId}/uploads/${slot}`, form);
+  }
+
+  /** The raw bytes of whatever's in a slot right now — for previewing a
+   * document before deciding what to compare it against. */
+  downloadSlot(caseId: string, slot: string): Observable<Blob> {
+    return this.http.get(`${this.apiBase}/cases/${caseId}/uploads/${slot}`, { responseType: 'blob' });
   }
 
   // The analyze endpoint IS the SSE stream (see case_store.py) — same

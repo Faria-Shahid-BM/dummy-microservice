@@ -33,7 +33,10 @@
             "styles": [
               "src/styles.css"
             ],
-            "scripts": []
+            "scripts": [],
+            "allowedCommonJsDependencies": [
+              "mammoth"
+            ]
           },
           "configurations": {
             "production": {

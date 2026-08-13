@@ -26,21 +26,6 @@ class Settings(BaseSettings):
     data_dir: Path = BACKEND_ROOT / "data"
     frontend_dist: Path = BACKEND_ROOT.parent / "frontend" / "dist" / "cad-workbench" / "browser"
 
-    # --- sessions / cookies ---
-    cookie_secure: bool = True
-    session_idle_minutes: int = 480
-    session_absolute_hours: int = 24
-
-    # --- auth providers ---
-    auth_providers: str = "local"  # comma-separated: local,oidc
-    oidc_issuer: str = ""
-    oidc_client_id: str = ""
-    oidc_client_secret: str = ""
-    oidc_scopes: str = "openid profile email"
-    oidc_display_name: str = "Corporate SSO"
-    # secret for signing short-lived OIDC state; auto-generated if empty (dev only)
-    secret_key: str = ""
-
     # --- uploads ---
     max_upload_mb: int = 50
 
@@ -67,16 +52,6 @@ class Settings(BaseSettings):
     llm_model_analysis: str = "google/gemini-2.5-pro"
     llm_model_chat: str = "google/gemini-2.5-pro"
     llm_model_embedding: str = "openai/text-embedding-3-large"
-
-    @property
-    def auth_provider_list(self) -> list[str]:
-        return [p.strip() for p in self.auth_providers.split(",") if p.strip()]
-
-    @property
-    def oidc_enabled(self) -> bool:
-        return "oidc" in self.auth_provider_list and bool(
-            self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret
-        )
 
 
 settings = Settings()

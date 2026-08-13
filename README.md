@@ -56,7 +56,7 @@ Five business services sit behind the gateway: **collateral review**, **document
 | `valuation-service`     | `valuation-service/` | `/api/valuation/*`        | JWT  | LLM review of a valuation report vs approved-valuer panel + policy rules. |
 | `insurance-service`     | `insurance-service/` | `/api/insurance/*`        | JWT  | LLM compliance check of an insurance policy vs bank policy + rules.       |
 | `policyqa-service`      | `policyqa-service/`  | `/api/policyqa/*`         | JWT  | Retrieval-augmented policy Q&A; per-user document ingestion (RAG).        |
-| `audit-service`         | `audit-service/`     | `/api/audit/audit` (GET) | JWT (edge only)  | Append-only JSON-lines audit log. The one route with no self-check inside the service — Kong's JWT+`exp` check at the edge is the only gate. |
+| `audit-service`         | `audit-service/`     | `/api/audit/audit` (GET) | JWT (edge + service) | Append-only audit log. GET is gated by Kong's JWT+`exp` check at the edge *and* re-verified in-service; POST (internal-network only, no Kong route) requires the producer's forwarded bearer token and derives `user_id` from its verified `sub`, not from the request body. |
 | `kong`                  | (image `kong:3`)     | internal only (`http://kong:80`)| —    | API gateway, DB-less declarative config (`kong.yml`). No host port — reached only via the `frontend` container's nginx proxy. |
 | `frontend`              | `frontend/`          | `:80` (public)            | —    | Angular app built to static files and served by nginx; reverse-proxies `/api/*` to Kong. The only container that publishes a host port. |
 
@@ -82,7 +82,7 @@ Five business services sit behind the gateway: **collateral review**, **document
 | `POST /api/policyqa/chat`               | `policy_qa`   | `{query, history}` → `{answer, sources}` (RAG).           |
 | `POST /api/policyqa/ingest`             | `policy_qa`   | multipart `file` → builds the caller's own index.         |
 | `DELETE /api/policyqa/index`            | `policy_qa`   | Deletes the caller's index (chat falls back to bundled).  |
-| `GET /api/audit/audit`                  | JWT (edge)    | Returns all audit events. Gated by Kong's JWT+`exp` check only — audit-service has no scope check of its own, unlike every other business route. |
+| `GET /api/audit/audit`                  | any valid JWT | Returns all audit events. Gated by Kong's JWT+`exp` check at the edge and re-verified in-service (no specific scope required, unlike other business routes). |
 
 The admin endpoints have **no Kong JWT plugin** (login must be reachable), so auth-service enforces the `admin` scope itself.
 

@@ -3,6 +3,7 @@ import { Component, EventEmitter, Input, Output, TemplateRef } from '@angular/co
 import { HttpErrorResponse } from '@angular/common/http';
 import { StageDef, StageProgressComponent } from '../stage-progress/stage-progress.component';
 import { CaseDetail, CasePair, CaseService } from './case.service';
+import { DocPreviewComponent } from './doc-preview.component';
 import { PairRun } from './pair-run';
 
 // The pairs of one case: the extra-pair upload blocks that sit beside the case's
@@ -16,7 +17,7 @@ import { PairRun } from './pair-run';
 @Component({
   selector: 'app-case-pairs',
   standalone: true,
-  imports: [CommonModule, StageProgressComponent],
+  imports: [CommonModule, StageProgressComponent, DocPreviewComponent],
   templateUrl: './case-pairs.component.html'
 })
 export class CasePairsComponent<TResult> {
@@ -71,8 +72,11 @@ export class CasePairsComponent<TResult> {
   // pair is unreviewed again anyway.
   private unlocked = new Set<number>();
 
-  /** Can this pair's files still be chosen? Reviewed pairs are locked. */
-  editable(pair: CasePair<TResult>): boolean {
+  /** Can this pair's files still be chosen? Reviewed pairs are locked, and a
+   * managed slot (populated from an external source, e.g. a generated
+   * document) is locked always — unlocking a reviewed pair doesn't apply to it. */
+  editable(pair: CasePair<TResult>, slotKey?: string): boolean {
+    if (slotKey && this.service.managedSlots.includes(slotKey)) return false;
     return !this.reviewed(pair) || this.unlocked.has(pair.index);
   }
 

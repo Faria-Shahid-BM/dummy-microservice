@@ -7,18 +7,22 @@ import httpx
 AUDIT_BASE = "http://audit-service:8000"
 
 
-def audit(user_id: str, service: str, action: str, resource: str | None = None,
+def audit(service: str, action: str, token: str | None, resource: str | None = None,
           metadata: dict | None = None) -> None:
+    """``token`` is the caller's own already-Kong-verified bearer token,
+    forwarded so audit-service can derive `user_id` from a re-verified
+    signature instead of trusting a plain string a compromised producer
+    could send on anyone's behalf."""
     try:
         httpx.post(
             f"{AUDIT_BASE}/audit",
             json={
-                "user_id": user_id,
                 "service": service,
                 "action": action,
                 "resource": resource,
                 "metadata": metadata,
             },
+            headers={"Authorization": f"Bearer {token}"} if token else {},
             timeout=1.0,
         )
     except Exception:

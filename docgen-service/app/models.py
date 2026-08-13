@@ -40,8 +40,14 @@ ROLE_CHECKER = "checker"
 
 
 class User(Base):
-    """Single-organization user. ``org_role`` applies across all profiles;
-    ``can_edit_config`` gates profile/prompt configuration changes."""
+    """Identity cache for a centrally-authenticated user: auto-created and
+    kept in sync from the Kong-forwarded JWT on every request (see
+    ``current_user()`` in ``app/auth/deps.py``) — auth-service, not this
+    table, is the source of truth for who exists and what scopes they hold.
+    ``org_role``/``is_admin`` are recomputed from the token's ``scopes`` every
+    request; nothing here is independently editable. This table exists only
+    because 13+ other tables need a stable, FK-friendly id (and a display
+    name) for "who did this," which the JWT itself doesn't carry."""
 
     __tablename__ = "users"
 
@@ -49,30 +55,10 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     email: Mapped[str | None] = mapped_column(String(255))
     display_name: Mapped[str] = mapped_column(String(255), default="")
-    password_hash: Mapped[str | None] = mapped_column(String(255))  # null for SSO-only
-    auth_provider: Mapped[str] = mapped_column(String(16), default="local")  # local | oidc
-    external_subject: Mapped[str | None] = mapped_column(String(255), index=True)
     org_role: Mapped[str] = mapped_column(String(16), default=ROLE_MAKER)  # maker | checker
-    can_edit_config: Mapped[bool] = mapped_column(Boolean, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-
-class AuthSession(Base):
-    __tablename__ = "sessions"
-
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
-    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    csrf_token: Mapped[str] = mapped_column(String(64))
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    ip: Mapped[str | None] = mapped_column(String(64))
-    user_agent: Mapped[str | None] = mapped_column(String(400))
-
-    user: Mapped[User] = relationship()
 
 
 class Profile(Base):

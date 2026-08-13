@@ -37,10 +37,20 @@ services:
       LLM_MODEL_SELECTION: google/gemini-2.5-Flash
       LLM_MODEL_FILL: google/gemini-2.5-Flash
       LLM_MODEL_ANALYSIS: google/gemini-2.5-Flash
-      JWT_SECRET: mysecret123
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
     volumes:
       - docgen-data:/app/backend/data     # DB + all file storage, persisted
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./docgen-service/requirements.txt
+        - action: sync+restart
+          path: ./docgen-service
+          target: /app/backend
+          ignore:
+            - data/
 
   collateral-service:
     build:
@@ -52,27 +62,76 @@ services:
       MODEL_EXTRACTION: google/gemini-2.5-Flash
       # MODEL_VISION: anthropic/claude-sonnet-4.6
       MODEL_VISION: google/gemini-2.5-Flash
-      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
-      JWT_SECRET: mysecret123
+      # JWT scope enforcement (security.py) — public key must match auth-service + kong.yml
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
       # Cases persistence (case_store.py)
       DATABASE_URL: sqlite:///./data/app.db
       DATA_DIR: ./data
     volumes:
       - collateral-data:/app/data     # cases DB + uploaded files, persisted
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./requirements.txt
+        - action: sync+restart
+          path: ./engines
+          target: /app/engines
+        - action: sync+restart
+          path: ./provider.py
+          target: /app/provider.py
+        - action: sync+restart
+          path: ./security.py
+          target: /app/security.py
+        - action: sync+restart
+          path: ./streaming.py
+          target: /app/streaming.py
+        - action: sync+restart
+          path: ./case_store.py
+          target: /app/case_store.py
+        - action: sync+restart
+          path: ./audit_client.py
+          target: /app/audit_client.py
+        - action: sync+restart
+          path: ./collateral-service/main.py
+          target: /app/main.py
 
   document-diff-service:
     build:
       context: .
       dockerfile: doc_rev-service/Dockerfile
     environment:
-      JWT_SECRET: mysecret123
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
       # Cases persistence (case_store.py)
       DATABASE_URL: sqlite:///./data/app.db
       DATA_DIR: ./data
     volumes:
       - docdiff-data:/app/data       # cases DB + uploaded files, persisted
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./requirements.txt
+        - action: sync+restart
+          path: ./engines
+          target: /app/engines
+        - action: sync+restart
+          path: ./security.py
+          target: /app/security.py
+        - action: sync+restart
+          path: ./streaming.py
+          target: /app/streaming.py
+        - action: sync+restart
+          path: ./case_store.py
+          target: /app/case_store.py
+        - action: sync+restart
+          path: ./audit_client.py
+          target: /app/audit_client.py
+        - action: sync+restart
+          path: ./doc_rev-service/main.py
+          target: /app/main.py
 
   valuation-service:
     build:
@@ -84,14 +143,40 @@ services:
       MODEL_EXTRACTION: google/gemini-2.5-Flash
       # MODEL_VISION: anthropic/claude-sonnet-4.6
       MODEL_VISION: google/gemini-2.5-Flash
-      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
-      JWT_SECRET: mysecret123
+      # JWT scope enforcement (security.py) — public key must match auth-service + kong.yml
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
       # Cases persistence (case_store.py)
       DATABASE_URL: sqlite:///./data/app.db
       DATA_DIR: ./data
     volumes:
       - valuation-data:/app/data     # cases DB + uploaded files, persisted
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./requirements.txt
+        - action: sync+restart
+          path: ./engines
+          target: /app/engines
+        - action: sync+restart
+          path: ./provider.py
+          target: /app/provider.py
+        - action: sync+restart
+          path: ./security.py
+          target: /app/security.py
+        - action: sync+restart
+          path: ./streaming.py
+          target: /app/streaming.py
+        - action: sync+restart
+          path: ./case_store.py
+          target: /app/case_store.py
+        - action: sync+restart
+          path: ./audit_client.py
+          target: /app/audit_client.py
+        - action: sync+restart
+          path: ./valuation-service/main.py
+          target: /app/main.py
 
   insurance-service:
     build:
@@ -103,14 +188,40 @@ services:
       MODEL_EXTRACTION: google/gemini-2.5-Flash
       # MODEL_VISION: anthropic/claude-sonnet-4.6
       MODEL_VISION: google/gemini-2.5-Flash
-      # JWT scope enforcement (security.py) — must match auth-service + kong.yml
-      JWT_SECRET: mysecret123
+      # JWT scope enforcement (security.py) — public key must match auth-service + kong.yml
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
       # Cases persistence (case_store.py)
       DATABASE_URL: sqlite:///./data/app.db
       DATA_DIR: ./data
     volumes:
       - insurance-data:/app/data     # cases DB + uploaded files, persisted
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./requirements.txt
+        - action: sync+restart
+          path: ./engines
+          target: /app/engines
+        - action: sync+restart
+          path: ./provider.py
+          target: /app/provider.py
+        - action: sync+restart
+          path: ./security.py
+          target: /app/security.py
+        - action: sync+restart
+          path: ./streaming.py
+          target: /app/streaming.py
+        - action: sync+restart
+          path: ./case_store.py
+          target: /app/case_store.py
+        - action: sync+restart
+          path: ./audit_client.py
+          target: /app/audit_client.py
+        - action: sync+restart
+          path: ./insurance-service/main.py
+          target: /app/main.py
 
   policyqa-service:
     build:
@@ -122,31 +233,79 @@ services:
       MODEL_CHAT: google/gemini-2.5-Flash
       MODEL_EMBEDDING: openai/text-embedding-3-large
       MODEL_VISION: google/gemini-2.5-Flash 
-      DATA_DIR: /app/data    
-      JWT_SECRET: mysecret123
+      DATA_DIR: /app/data
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
     volumes:
-      - policyqa-data:/app/data   
+      - policyqa-data:/app/data
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./requirements.txt
+        - action: sync+restart
+          path: ./engines
+          target: /app/engines
+        - action: sync+restart
+          path: ./provider.py
+          target: /app/provider.py
+        - action: sync+restart
+          path: ./security.py
+          target: /app/security.py
+        - action: sync+restart
+          path: ./streaming.py
+          target: /app/streaming.py
+        - action: sync+restart
+          path: ./audit_client.py
+          target: /app/audit_client.py
+        - action: sync+restart
+          path: ./policyqa-service/main.py
+          target: /app/main.py
 
   auth-service:
     build: ./auth-service
     environment:
-      JWT_SECRET: mysecret123
+      # RS256: the only service that also gets the private key — it's the
+      # one thing allowed to mint tokens.
+      JWT_PRIVATE_KEY_PATH: /app/keys/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
       USERS_DB: /app/data/users.db      # on a volume so admin edits survive restarts
     volumes:
       - auth-data:/app/data
+      - ./keys:/app/keys:ro
     depends_on:
       kong:
         condition: service_healthy
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./auth-service/main.py
+          target: /app/main.py
 
   audit-service:
-    build: ./audit-service
+    build:
+      context: .
+      dockerfile: audit-service/Dockerfile
+    environment:
+      # security.py's require_any_token() re-verifies the caller's forwarded
+      # bearer token itself — public key must match auth-service + kong.yml.
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      JWT_ISSUER: poc-issuer
     volumes:
       - ./audit-logs:/app/logs
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
     depends_on:
       kong:
         condition: service_healthy
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./security.py
+          target: /app/security.py
+        - action: sync+restart
+          path: ./audit-service/main.py
+          target: /app/main.py
 
   # Public entry point: serves the built Angular app and reverse-proxies
   # /api/* to Kong (see frontend/nginx.conf). This is the only container that
@@ -160,6 +319,12 @@ services:
     depends_on:
       kong:
         condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend/src
+        - action: rebuild
+          path: ./frontend/package.json
 
 volumes:
   auth-data:

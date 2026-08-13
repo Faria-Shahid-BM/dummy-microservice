@@ -3,50 +3,49 @@
 </div>
 
 <section class="card">
-  <h2>New case</h2>
-  <div class="field">
-    <span>Case name</span>
-    <input type="text" [(ngModel)]="newCaseName" name="newCaseName" [disabled]="readOnly" />
-  </div>
-  <button [disabled]="creating || !newCaseName.trim() || readOnly" (click)="createCase()">
-    {{ creating ? 'Creating…' : 'Create case' }}
-  </button>
-  <p class="error" *ngIf="error">{{ error }}</p>
-  <p class="hint" *ngIf="readOnly">The Default profile is read-only — case creation is disabled.</p>
-</section>
-
-<section class="card">
   <div class="log-header">
     <h2>All cases</h2>
-    <button class="clear" (click)="load()" [disabled]="loading">
-      {{ loading ? 'Loading…' : 'Refresh' }}
-    </button>
+    <div class="button-row">
+      <button type="button" class="clear" (click)="toggleAddCase()" [disabled]="readOnly">+ Add case</button>
+      <button class="clear" (click)="load()" [disabled]="loading">
+        {{ loading ? 'Loading…' : 'Refresh' }}
+      </button>
+    </div>
   </div>
 
-  <p class="empty" *ngIf="!loading && !cases.length">No cases yet.</p>
-
-  <div class="table-scroll">
-    <table class="audit-table" *ngIf="cases.length">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Input</th>
-          <th>Documents</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let c of cases">
-          <td>{{ c.name }}</td>
-          <td>{{ c.status }}</td>
-          <td>{{ c.input_file_name || '—' }}</td>
-          <td>{{ c.generated_count }}</td>
-          <td>
-            <a [routerLink]="['/docgen/cases', c.id]"><button type="button" class="clear">Open</button></a>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="modal-overlay" *ngIf="showAddCase" (click)="showAddCase = false">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <h3>Add case</h3>
+      <div class="field">
+        <span>Case name</span>
+        <input
+          type="text"
+          [(ngModel)]="newCaseName"
+          name="newCaseName"
+          (keydown.enter)="createCase()"
+          autofocus
+        />
+      </div>
+      <p class="error" *ngIf="createError">{{ createError }}</p>
+      <div class="modal-actions">
+        <button type="button" class="secondary" (click)="showAddCase = false">Cancel</button>
+        <button [disabled]="creating || !newCaseName.trim()" (click)="createCase()">
+          {{ creating ? 'Creating…' : 'Create' }}
+        </button>
+      </div>
+    </div>
   </div>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="hint" *ngIf="readOnly">The Default profile is read-only — case creation is disabled.</p>
+
+  <app-data-table [rows]="cases" [empty]="loading ? '' : 'No cases yet.'">
+    <ng-template appColumn header="Name" let-c>{{ c.name }}</ng-template>
+    <ng-template appColumn header="Status" let-c>{{ c.status }}</ng-template>
+    <ng-template appColumn header="Input" let-c>{{ c.input_file_name || '—' }}</ng-template>
+    <ng-template appColumn header="Documents" let-c>{{ c.generated_count }}</ng-template>
+    <ng-template appColumn header="" let-c>
+      <a [routerLink]="['/docgen/cases', c.id]"><button type="button" class="clear">Open</button></a>
+    </ng-template>
+  </app-data-table>
 </section>

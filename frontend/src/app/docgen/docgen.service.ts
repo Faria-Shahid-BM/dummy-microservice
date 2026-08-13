@@ -64,6 +64,28 @@ export interface TextContent {
   content: string;
 }
 
+// The parsed shape of selected_docs.json (GET/PUT .../selected's `content`
+// string) — see docgen-service/app/engines/docgen/prompts/selector.md for
+// the schema the selector LLM is prompted to produce; case-detail renders
+// this as a table instead of the raw JSON text.
+export interface SelectedDocument {
+  template_name: string;
+  count: number;
+  evidence: string;
+  entities?: string[];
+}
+
+export interface AmbiguousDocument {
+  template_name: string;
+  reason: string;
+}
+
+export interface SelectedDocsFile {
+  case_summary?: string;
+  selected_documents: SelectedDocument[];
+  ambiguous_documents?: AmbiguousDocument[];
+}
+
 export interface FillResponseJob {
   task_key: string;
   job_id: string;

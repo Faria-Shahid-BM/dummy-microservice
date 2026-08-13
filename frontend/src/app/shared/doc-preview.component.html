@@ -1,0 +1,16 @@
+<button type="button" class="link" (click)="toggle()">
+  {{ open ? 'Hide preview' : 'Preview' }}
+</button>
+
+<div class="modal-overlay" *ngIf="open" (click)="toggle()">
+  <div class="modal-dialog doc-preview-dialog" (click)="$event.stopPropagation()">
+    <h3>{{ fileName }}</h3>
+    <p class="hint" *ngIf="loading">Loading…</p>
+    <p class="error" *ngIf="error">{{ error }}</p>
+    <iframe *ngIf="pdfUrl" [src]="pdfUrl" class="doc-preview-frame"></iframe>
+    <div *ngIf="html" class="doc-preview-content" [innerHTML]="html"></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" (click)="toggle()">Close</button>
+    </div>
+  </div>
+</div>

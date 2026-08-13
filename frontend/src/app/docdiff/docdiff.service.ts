@@ -51,5 +51,13 @@ export class DocdiffService extends CaseService<RawDocumentDiffResult> {
     { key: 'original', label: 'Original document (.docx or .pdf)', accept: '.docx,.pdf' },
     { key: 'returned', label: 'Returned document (.docx or .pdf)', accept: '.docx,.pdf' }
   ];
-  override readonly itemNoun = 'pair';
+  // No tab-per-pair UI here (see allowExtraPairs) — 'comparison' reads right
+  // in the one remaining place this shows up: "Review this comparison again."
+  override readonly itemNoun = 'comparison';
+  // Every case here mirrors a document generated in Document Generator —
+  // there's no manual "+ Add case", and `original` is never user-editable.
+  override readonly hideAddCase = true;
+  override readonly managedSlots = ['original'];
+  override readonly allowExtraPairs = false;
+  override readonly showReviewedAt = true;
 }

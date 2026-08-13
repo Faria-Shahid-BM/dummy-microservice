@@ -6,7 +6,7 @@ from pydantic import BaseModel
 import audit_client
 from engines import policy_qa, extraction
 from provider import Provider
-from security import require_scope
+from security import get_raw_token, require_scope
 from streaming import sse_stream
 
 app = FastAPI()
@@ -18,8 +18,8 @@ INDEXES_DIR = DATA_DIR / "indexes"
 ALLOWED_SUFFIXES = {".pdf", ".docx", ".txt", ".md"}
 _EXTRACTED = {".pdf", ".docx"}   # these go through text/OCR extraction first
 
-def audit(user, action, resource=None, metadata=None):
-    audit_client.audit(user, "policyqa-service", action, resource=resource, metadata=metadata)
+def audit(token, action, resource=None, metadata=None):
+    audit_client.audit("policyqa-service", action, token, resource=resource, metadata=metadata)
 
 def _user_index_dir(username: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", username) or "user"   # safe folder name
@@ -40,7 +40,7 @@ class ChatBody(BaseModel):
     history: list[dict] = []
 
 @app.post("/chat")
-def chat(body: ChatBody, user=Depends(require_scope("policy_qa"))):
+def chat(body: ChatBody, user=Depends(require_scope("policy_qa")), token: str | None = Depends(get_raw_token)):
     username = user.get("sub", "unknown")
     idx = _user_index_dir(username)
     result = policy_qa.answer(
@@ -50,7 +50,7 @@ def chat(body: ChatBody, user=Depends(require_scope("policy_qa"))):
         chat_model=os.environ["MODEL_CHAT"],
         embed_model=os.environ["MODEL_EMBEDDING"],
     )
-    audit(username, "chat", metadata={
+    audit(token, "chat", metadata={
         "input": {"query": body.query, "history_turns": len(body.history)},
         "output": result,
     })
@@ -58,7 +58,9 @@ def chat(body: ChatBody, user=Depends(require_scope("policy_qa"))):
 
 # ── chat/stream: same answer, but the reply streams live as SSE ─────
 @app.post("/chat/stream")
-async def chat_stream(body: ChatBody, user=Depends(require_scope("policy_qa"))):
+async def chat_stream(
+    body: ChatBody, user=Depends(require_scope("policy_qa")), token: str | None = Depends(get_raw_token)
+):
     """Same contract as /chat, but the model's reply streams token-by-token
     (event: content) instead of arriving as one blocking response. See
     streaming.py for the SSE event contract; the final `answer`/`sources`
@@ -75,7 +77,7 @@ async def chat_stream(body: ChatBody, user=Depends(require_scope("policy_qa"))):
             embed_model=os.environ["MODEL_EMBEDDING"],
             emit=emit,
         )
-        audit(username, "chat_stream", metadata={
+        audit(token, "chat_stream", metadata={
             "input": {"query": body.query, "history_turns": len(body.history)},
             "output": result,
         })
@@ -85,7 +87,9 @@ async def chat_stream(body: ChatBody, user=Depends(require_scope("policy_qa"))):
 
 # ── ingest: upload a policy → build THIS user's index ─────────────
 @app.post("/ingest")
-async def ingest(file: UploadFile = File(...), user=Depends(require_scope("policy_qa"))):
+async def ingest(
+    file: UploadFile = File(...), user=Depends(require_scope("policy_qa")), token: str | None = Depends(get_raw_token)
+):
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise HTTPException(422, f"Unsupported type {suffix!r}; allowed: {sorted(ALLOWED_SUFFIXES)}")
@@ -111,7 +115,7 @@ async def ingest(file: UploadFile = File(...), user=Depends(require_scope("polic
         tmp_path.unlink(missing_ok=True)               # never leave the raw upload behind
     attachment_id = audit_client.upload_attachment(file.filename or tmp_path.name, raw)
     attachments = [{"filename": file.filename, "attachment_id": attachment_id}] if attachment_id else []
-    audit(username, "ingest", resource=file.filename, metadata={
+    audit(token, "ingest", resource=file.filename, metadata={
         "input": {"attachments": attachments},
         "output": info,
     })
@@ -119,10 +123,10 @@ async def ingest(file: UploadFile = File(...), user=Depends(require_scope("polic
 
 # ── delete: remove this user's index (chat falls back to bundled) ─
 @app.delete("/index")
-def delete_index(user=Depends(require_scope("policy_qa"))):
+def delete_index(user=Depends(require_scope("policy_qa")), token: str | None = Depends(get_raw_token)):
     username = user.get("sub", "unknown")
     idx = _user_index_dir(username)
     deleted = [n for n in ("chunks.json", "vectors.bin", "meta.json", "source.txt")
                if (idx / n).exists() and ((idx / n).unlink() or True)]
-    audit(username, "delete_index", metadata={"input": {}, "output": {"deleted": deleted}})
+    audit(token, "delete_index", metadata={"input": {}, "output": {"deleted": deleted}})
     return {"ok": True, "deleted": deleted}

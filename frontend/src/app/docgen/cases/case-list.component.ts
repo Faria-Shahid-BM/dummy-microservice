@@ -3,12 +3,13 @@ import { Component, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { DataTableComponent, TableColumnDirective } from '../../shared/data-table.component';
 import { DocgenCase, DocgenService } from '../docgen.service';
 
 @Component({
   selector: 'app-case-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, DataTableComponent, TableColumnDirective],
   templateUrl: './case-list.component.html'
 })
 export class CaseListComponent implements OnInit {
@@ -16,14 +17,12 @@ export class CaseListComponent implements OnInit {
   loading = false;
   error = '';
 
+  showAddCase = false;
   newCaseName = '';
   creating = false;
+  createError = '';
 
   constructor(private docgen: DocgenService, private router: Router) {}
-
-  ngOnInit(): void {
-    this.load();
-  }
 
   private get profileId(): string | null {
     return this.docgen.activeProfile?.id ?? null;
@@ -31,6 +30,10 @@ export class CaseListComponent implements OnInit {
 
   get readOnly(): boolean {
     return this.docgen.activeProfile?.is_default ?? false;
+  }
+
+  ngOnInit(): void {
+    this.load();
   }
 
   load(): void {
@@ -49,18 +52,24 @@ export class CaseListComponent implements OnInit {
     });
   }
 
+  toggleAddCase(): void {
+    this.showAddCase = !this.showAddCase;
+    this.createError = '';
+  }
+
   createCase(): void {
     if (!this.profileId || !this.newCaseName.trim()) return;
-    this.error = '';
+    this.createError = '';
     this.creating = true;
     this.docgen.createCase(this.profileId, this.newCaseName.trim()).subscribe({
       next: (created) => {
         this.creating = false;
         this.newCaseName = '';
+        this.showAddCase = false;
         this.router.navigate(['/docgen/cases', created.id]);
       },
       error: (err: HttpErrorResponse) => {
-        this.error = err.error?.detail ?? 'failed to create case';
+        this.createError = err.error?.detail ?? 'failed to create case';
         this.creating = false;
       }
     });

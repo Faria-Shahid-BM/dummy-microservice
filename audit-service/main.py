@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import JSON, DateTime, Integer, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
+from security import require_any_token
+
 app = FastAPI()
 os.makedirs("logs", exist_ok=True)
 
@@ -18,7 +20,6 @@ _ATTACHMENT_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 _engine = create_engine("sqlite:///logs/audit.db", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
-
 
 class Base(DeclarativeBase):
     pass
@@ -51,7 +52,11 @@ def get_db():
 
 
 class AuditEvent(BaseModel):
-    user_id: str
+    # No user_id here: it used to be a plain string the producer sent, so any
+    # process reachable on the internal network could write an entry
+    # claiming to be anyone. It's derived instead from the caller's verified
+    # bearer token (see log_event) — the one field an audit trail can't
+    # afford to take on trust.
     service: str
     action: str
     resource: str | None = None
@@ -140,9 +145,12 @@ def _serialize(row: AuditRow) -> dict:
 
 
 @app.post("/audit")
-def log_event(event: AuditEvent, db: Session = Depends(get_db)):
+def log_event(event: AuditEvent, db: Session = Depends(get_db), token: dict = Depends(require_any_token)):
+    sub = token.get("sub")
+    if not sub:
+        raise HTTPException(status_code=401, detail="Token has no subject")
     row = AuditRow(
-        user_id=event.user_id,
+        user_id=sub,
         service=event.service,
         action=event.action,
         resource=event.resource,
@@ -154,13 +162,13 @@ def log_event(event: AuditEvent, db: Session = Depends(get_db)):
 
 
 @app.get("/audit")
-def get_logs(db: Session = Depends(get_db)):
+def get_logs(db: Session = Depends(get_db), token: dict = Depends(require_any_token)):
     rows = db.execute(select(AuditRow).order_by(AuditRow.id.asc())).scalars().all()
     return [_serialize(r) for r in rows]
 
 
 @app.get("/audit/{entry_id}")
-def get_entry(entry_id: int, db: Session = Depends(get_db)):
+def get_entry(entry_id: int, db: Session = Depends(get_db), token: dict = Depends(require_any_token)):
     row = db.get(AuditRow, entry_id)
     if row is None:
         raise HTTPException(404)

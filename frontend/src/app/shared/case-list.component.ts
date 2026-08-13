@@ -3,6 +3,7 @@ import { Component, Inject, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { DataTableComponent, TableColumnDirective } from './data-table.component';
 import { CASE_SERVICE, CaseService, CaseSummary } from './case.service';
 
 // Shared by every stateless review service (collateral/valuation/insurance/
@@ -12,7 +13,7 @@ import { CASE_SERVICE, CaseService, CaseSummary } from './case.service';
 @Component({
   selector: 'app-case-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, DataTableComponent, TableColumnDirective],
   templateUrl: './case-list.component.html'
 })
 export class CaseListComponent implements OnInit {

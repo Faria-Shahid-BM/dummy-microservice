@@ -14,16 +14,12 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from app.core.config import settings
 from app.core.db import Base, engine
-from app.core.security import CSRF_HEADER, SESSION_COOKIE, token_digest
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 log = logging.getLogger("app")
-
-_CSRF_EXEMPT = ("/api/auth/login", "/api/auth/oidc/start", "/api/auth/oidc/callback")
-_MUTATING = ("POST", "PUT", "PATCH", "DELETE")
 
 
 def _seed_default_profile() -> None:
@@ -96,14 +92,11 @@ def create_app() -> FastAPI:
         return response
 
     # --- routers ------------------------------------------------------------
-    from app import admin, audit, notify, profiles
-    from app.auth import router as auth_router
+    from app import audit, notify, profiles
     from app.control import approvals, profile_config, templates
     from app.jobs import router as jobs_router
     from app.modules import collateral, docgen, document_reviewer, insurance, policy_qa, valuation
 
-    app.include_router(auth_router.router)
-    app.include_router(admin.router)
     app.include_router(audit.router)
     app.include_router(notify.router)
     app.include_router(profiles.router)

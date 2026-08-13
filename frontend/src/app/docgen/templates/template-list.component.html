@@ -39,32 +39,14 @@
     </button>
   </div>
 
-  <p class="empty" *ngIf="!loading && !templates.length">No templates yet.</p>
-
-  <div class="table-scroll">
-    <table class="audit-table" *ngIf="templates.length">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Language</th>
-          <th>Status</th>
-          <th>Current version</th>
-          <th>Versions</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let t of templates">
-          <td>{{ t.name }}</td>
-          <td>{{ t.language }}</td>
-          <td>{{ t.status }}</td>
-          <td>{{ t.current_version_no ?? '—' }}</td>
-          <td>{{ t.version_count }}</td>
-          <td>
-            <a [routerLink]="['/docgen/templates', t.id]"><button type="button" class="clear">Open</button></a>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <app-data-table [rows]="templates" [empty]="loading ? '' : 'No templates yet.'">
+    <ng-template appColumn header="Name" let-t>{{ t.name }}</ng-template>
+    <ng-template appColumn header="Language" let-t>{{ t.language }}</ng-template>
+    <ng-template appColumn header="Status" let-t>{{ t.status }}</ng-template>
+    <ng-template appColumn header="Current version" let-t>{{ t.current_version_no ?? '—' }}</ng-template>
+    <ng-template appColumn header="Versions" let-t>{{ t.version_count }}</ng-template>
+    <ng-template appColumn header="" let-t>
+      <a [routerLink]="['/docgen/templates', t.id]"><button type="button" class="clear">Open</button></a>
+    </ng-template>
+  </app-data-table>
 </section>
