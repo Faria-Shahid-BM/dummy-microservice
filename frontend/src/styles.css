@@ -1,36 +1,36 @@
 :root {
-  --color-bg: #f6f8f2;
+  --color-bg: #f7f7f7;
   --color-surface: #ffffff;
-  --color-sidebar: #eef2e7;
-  --color-border: #dfe6d3;
-  --color-border-soft: #ebefe3;
+  --color-sidebar: #4a1f25;
+  --color-border: #e3e3e3;
+  --color-border-soft: #efefef;
 
-  --color-text: #263021;
-  --color-text-muted: #74806a;
-  --color-text-faint: #94a086;
+  --color-text: #1a1a1a;
+  --color-text-muted: #6a6a6a;
+  --color-text-faint: #9a9a9a;
 
-  --color-primary: #87ae73;
-  --color-primary-dark: #5f8a4a;
-  --color-primary-darker: #4c7239;
-  --color-primary-light: #e7f0e0;
+  --color-primary: #722f37;
+  --color-primary-dark: #5a242b;
+  --color-primary-darker: #471b21;
+  --color-primary-light: #f5e8ea;
 
-  --color-success: #3f8f4f;
-  --color-error: #c0392b;
-  --color-warning: #b06a1a;
-  --color-warning-bg: #fbf1e2;
-  --color-warning-border: #eeddb8;
+  --color-success: #2e7d32;
+  --color-error: #c62828;
+  --color-warning: #ed6c02;
+  --color-warning-bg: #fdf0e6;
+  --color-warning-border: #f8d9c0;
 
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  --shadow-card: 0 1px 2px rgba(38, 48, 33, 0.05), 0 1px 8px rgba(38, 48, 33, 0.04);
-  --shadow-button: 0 1px 2px rgba(76, 114, 57, 0.25);
-  --shadow-button-hover: 0 4px 10px rgba(76, 114, 57, 0.32);
+  --shadow-card: 0 1px 2px rgba(26, 26, 26, 0.05), 0 1px 8px rgba(26, 26, 26, 0.04);
+  --shadow-button: 0 1px 2px rgba(114, 47, 55, 0.25);
+  --shadow-button-hover: 0 4px 10px rgba(114, 47, 55, 0.32);
 
   --gradient-primary: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  --gradient-primary-hover: linear-gradient(135deg, #94ba81, var(--color-primary-darker));
-  --gradient-disabled: linear-gradient(135deg, #d3dccb, #c1cbb6);
+  --gradient-primary-hover: linear-gradient(135deg, #8d3f48, var(--color-primary-darker));
+  --gradient-disabled: linear-gradient(135deg, #dcdcdc, #c8c8c8);
 }
 
 * {
@@ -269,7 +269,7 @@ button:active:not(:disabled) {
 
 button:disabled {
   background: var(--gradient-disabled);
-  color: #f4f6f0;
+  color: #f7f7f7;
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -1005,7 +1005,7 @@ button.link:disabled {
   background: var(--color-surface);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card), 0 8px 24px rgba(38, 48, 33, 0.12);
+  box-shadow: var(--shadow-card), 0 8px 24px rgba(26, 26, 26, 0.12);
   padding: 0.75rem;
   z-index: 30;
 }
@@ -1038,7 +1038,7 @@ button.link:disabled {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 24, 17, 0.45);
+  background: rgba(26, 26, 26, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1052,7 +1052,7 @@ button.link:disabled {
   background: var(--color-surface);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card), 0 8px 24px rgba(38, 48, 33, 0.12);
+  box-shadow: var(--shadow-card), 0 8px 24px rgba(26, 26, 26, 0.12);
   padding: 1.25rem;
 }
 
@@ -1165,7 +1165,7 @@ app-admin-shell {
   width: 230px;
   flex-shrink: 0;
   background: var(--color-sidebar);
-  border-right: 1px solid var(--color-border);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   padding: 1.5rem 1.1rem;
   display: flex;
   flex-direction: column;
@@ -1220,7 +1220,7 @@ app-admin-shell {
   border-radius: 50%;
   background: transparent;
   border: none;
-  color: var(--color-text-muted);
+  color: rgba(245, 232, 234, 0.82);
   font-family: inherit;
   font-weight: 700;
   font-size: 0.7rem;
@@ -1233,14 +1233,14 @@ app-admin-shell {
 }
 
 .sidebar-item-mini:hover {
-  background: var(--color-primary-light);
-  color: var(--color-primary-darker);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
   box-shadow: none;
   transform: none;
 }
 
 .sidebar-item-mini.active {
-  background: var(--gradient-primary);
+  background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
 }
 
@@ -1252,11 +1252,19 @@ app-admin-shell {
   font-size: 1.05rem;
   font-weight: 700;
   margin: 0 0 0.3rem;
+  color: rgba(245, 232, 234, 0.95);
 }
 
+/* The sidebar is dark, so its text overrides the light-background defaults
+   .subtitle and .empty carry everywhere else in the app. */
 .sidebar .subtitle {
   font-size: 0.75rem;
   margin-bottom: 1.75rem;
+  color: rgba(245, 232, 234, 0.5);
+}
+
+.sidebar .empty {
+  color: rgba(245, 232, 234, 0.5);
 }
 
 .sidebar-item {
@@ -1265,7 +1273,7 @@ app-admin-shell {
   text-align: left;
   background: transparent;
   border: none;
-  color: var(--color-text-muted);
+  color: rgba(245, 232, 234, 0.82);
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
   font-family: inherit;
@@ -1279,14 +1287,16 @@ app-admin-shell {
 }
 
 .sidebar-item:hover:not(:disabled) {
-  background: var(--color-primary-light);
-  color: var(--color-primary-darker);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
   box-shadow: none;
   transform: none;
 }
 
+/* A white overlay rather than the primary gradient: wine-on-wine would barely
+   read against this sidebar. */
 .sidebar-item.active {
-  background: var(--gradient-primary);
+  background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
   font-weight: 600;
 }
@@ -1298,9 +1308,9 @@ app-admin-shell {
 .sidebar-footer {
   margin-top: auto;
   padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.8rem;
-  color: var(--color-text-faint);
+  color: rgba(245, 232, 234, 0.5);
 }
 
 .sidebar-footer button {
@@ -1483,7 +1493,7 @@ input[type='file']::file-selector-button {
 .redline .seg-delete {
   color: var(--color-error);
   text-decoration: line-through;
-  background: rgba(192, 57, 43, 0.1);
+  background: rgba(198, 40, 40, 0.1);
   border-radius: 3px;
   padding: 0 2px;
   margin: 0 1px;
@@ -1492,7 +1502,7 @@ input[type='file']::file-selector-button {
 .redline .seg-insert {
   color: var(--color-success);
   text-decoration: underline;
-  background: rgba(63, 143, 79, 0.12);
+  background: rgba(46, 125, 50, 0.12);
   border-radius: 3px;
   padding: 0 2px;
   margin: 0 1px;
