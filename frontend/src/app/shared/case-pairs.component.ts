@@ -27,8 +27,11 @@ export class CasePairsComponent<TResult> {
   @Input({ required: true }) run!: PairRun;
   /** Stage checklist for this service's pipeline. */
   @Input() stages: StageDef[] = [];
-  /** Rendered per finished pair, with that pair's result as $implicit. */
-  @Input() resultTemplate?: TemplateRef<{ $implicit: TResult }>;
+  /** Rendered per finished pair, with that pair's result as $implicit and the
+   * pair itself as `pair` — a result template that needs to call back to the
+   * server (e.g. for the document text a citation points into) needs to know
+   * which pair it belongs to. */
+  @Input() resultTemplate?: TemplateRef<{ $implicit: TResult; pair: CasePair<TResult> }>;
   /** True while an analysis is in flight — freezes staging. */
   @Input() analyzing = false;
 

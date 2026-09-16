@@ -1,0 +1,24 @@
+<aside class="evidence-panel" *ngIf="view" role="complementary" aria-label="Value in the document">
+  <header class="evidence-head">
+    <div class="evidence-titles">
+      <p class="evidence-doc">
+        {{ view.docLabel }}<span *ngIf="view.fileName"> · {{ view.fileName }}</span
+        ><span *ngIf="view.page"> · page {{ view.page }}</span>
+      </p>
+      <h3>{{ view.fieldLabel }}</h3>
+    </div>
+    <button type="button" class="clear" (click)="closed.emit()" aria-label="Close">✕</button>
+  </header>
+
+  <p class="evidence-value">“{{ view.value }}”</p>
+
+  <p class="hint" *ngIf="view.loading">Loading the document text…</p>
+  <p class="error" *ngIf="view.error">{{ view.error }}</p>
+
+  <ng-container *ngIf="!view.loading && !view.error">
+    <p class="evidence-verdict" [ngClass]="'tone-' + verdictTone">{{ verdictText }}</p>
+    <!-- Kept on ONE line on purpose: inside <pre>, any newline or indentation
+         between these bindings would be rendered as part of the document. -->
+    <pre class="evidence-text">{{ before }}<mark id="evidence-hit" *ngIf="hit">{{ hit }}</mark>{{ after }}</pre>
+  </ng-container>
+</aside>

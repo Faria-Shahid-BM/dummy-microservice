@@ -2,9 +2,16 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { CollateralResult, CollateralService } from '../collateral.service';
-import { CaseDetail } from '../../shared/case.service';
+import {
+  CollateralComparisonRow,
+  CollateralResult,
+  CollateralService,
+  ExtractedDocument,
+  ExtractedField
+} from '../collateral.service';
+import { CaseDetail, CasePair } from '../../shared/case.service';
 import { CasePairsComponent } from '../../shared/case-pairs.component';
+import { EvidencePanelComponent, EvidenceView } from '../../shared/evidence-panel.component';
 import { PairRun } from '../../shared/pair-run';
 import { StageDef, StageProgressComponent } from '../../stage-progress/stage-progress.component';
 
@@ -15,17 +22,53 @@ const COLLATERAL_STAGES: StageDef[] = [
   { key: 'extract_text', label: 'Extracting documents' },
   { key: 'extract_fields', label: 'Extracting fields' },
   { key: 'compare', label: 'Comparing fields' },
+  // Only emitted when the mechanical comparison left something ambiguous; a
+  // stage that never arrives is ticked off by the next one that does.
+  { key: 'adjudicate', label: 'Resolving wording differences' },
   { key: 'observations', label: 'Generating observations' }
 ];
+
+// A match the engine had to interpret its way to is worth flagging in the
+// table: it is a weaker kind of agreement than the two documents saying the
+// same thing. 'exact' and 'normalized' need no badge — those are literal.
+const BASIS_BADGES: Record<string, string> = {
+  fuzzy: 'near-identical',
+  trimmed: 'same core value',
+  semantic: 'same meaning'
+};
+
+// The two upload slots, as the engine names the documents it read them as, and
+// as a reviewer reads them.
+type DocKey = 'legal_opinion' | 'property_document';
+const DOC_FOR_SLOT: Record<string, DocKey> = {
+  legal: 'legal_opinion',
+  property: 'property_document'
+};
+const DOC_LABEL: Record<string, string> = {
+  legal: 'Legal opinion',
+  property: 'Property document'
+};
 
 @Component({
   selector: 'app-collateral-case-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, CasePairsComponent, StageProgressComponent],
+  imports: [
+    CommonModule,
+    RouterLink,
+    CasePairsComponent,
+    StageProgressComponent,
+    EvidencePanelComponent
+  ],
   templateUrl: './case-detail.component.html'
 })
 export class CaseDetailComponent implements OnInit {
   readonly collateralStages = COLLATERAL_STAGES;
+
+  /** The value currently being traced back to its document, if any. */
+  evidence: EvidenceView | null = null;
+  // Clicking a second value while the first is still loading must not let the
+  // slower response land in the panel; only the newest click owns it.
+  private evidenceRequest = 0;
 
   caseId = '';
   case: CaseDetail<CollateralResult> | null = null;
@@ -62,6 +105,106 @@ export class CaseDetailComponent implements OnInit {
   }
 
 
+  // --- tracing a value back to the document it came from ---
+  // The engine reports each document as {section: {field: leaf}}; the table
+  // works in flat field names, so flatten once per document and remember it
+  // (change detection calls the template's lookups constantly).
+  private readonly fieldsByName = new WeakMap<object, Map<string, ExtractedField>>();
+
+  private leaf(result: CollateralResult, doc: DocKey, field: string): ExtractedField | null {
+    const document: ExtractedDocument | undefined = result.extracted?.[doc];
+    if (!document) return null;
+    let index = this.fieldsByName.get(document as object);
+    if (!index) {
+      index = new Map<string, ExtractedField>();
+      for (const section of Object.values(document)) {
+        for (const [name, field_] of Object.entries(section)) index.set(name, field_);
+      }
+      this.fieldsByName.set(document as object, index);
+    }
+    return index.get(field) ?? null;
+  }
+
+  /** Results stored before citations existed have nothing to trace to, so they
+   * render as plain text with no affordance at all. */
+  inspectable(result: CollateralResult): boolean {
+    return !!result.extracted;
+  }
+
+  /** Whether this value was actually found in its document. */
+  hasEvidence(result: CollateralResult, doc: DocKey, row: CollateralComparisonRow): boolean {
+    return !!this.leaf(result, doc, row.field)?.evidence;
+  }
+
+  evidenceHint(result: CollateralResult, doc: DocKey, row: CollateralComparisonRow): string {
+    return this.hasEvidence(result, doc, row)
+      ? 'Show where this came from in the document'
+      : 'This value was not found in the document — open to check';
+  }
+
+  /** Open the panel on one field of one document of one pair. */
+  showEvidence(
+    pair: CasePair<CollateralResult>,
+    slot: 'legal' | 'property',
+    row: CollateralComparisonRow
+  ): void {
+    const result = pair.result;
+    if (!result?.extracted) return;
+    const doc = DOC_FOR_SLOT[slot];
+    const leaf = this.leaf(result, doc, row.field);
+    const source = result.sources?.[doc];
+    const request = ++this.evidenceRequest;
+
+    this.evidence = {
+      docLabel: DOC_LABEL[slot],
+      fileName: pair.uploads?.[slot] ?? '',
+      fieldLabel: row.label,
+      value: (slot === 'legal' ? row.legal_value : row.property_value) ?? '',
+      span: leaf?.evidence ?? null,
+      // A page number only means something where the document was read page by
+      // page — a .docx has no pages, so naming one would be inventing it.
+      page: source?.paged ? leaf?.evidence?.page ?? null : null,
+      text: null,
+      loading: true,
+      error: ''
+    };
+
+    this.collateral.sourceText(this.caseId, pair.index, slot).subscribe({
+      next: (text) => {
+        if (request !== this.evidenceRequest || !this.evidence) return;
+        this.evidence = { ...this.evidence, text, loading: false };
+      },
+      error: (err: HttpErrorResponse) => {
+        if (request !== this.evidenceRequest || !this.evidence) return;
+        this.evidence = {
+          ...this.evidence,
+          loading: false,
+          error: err.error?.detail ?? 'could not load the document text'
+        };
+      }
+    });
+  }
+
+  closeEvidence(): void {
+    this.evidenceRequest++;   // orphan any response still in flight
+    this.evidence = null;
+  }
+
+  /** Short badge for a match that needed interpreting, '' for a literal one. */
+  basisBadge(row: CollateralComparisonRow): string {
+    return (row.match_basis && BASIS_BADGES[row.match_basis]) || '';
+  }
+
+  /** Hover text: why the engine let this row pass, and how close the wording was. */
+  basisTitle(row: CollateralComparisonRow): string {
+    const reason = row.match_reason?.trim();
+    if (reason) return reason;
+    if (row.match_basis === 'fuzzy' && row.similarity != null) {
+      return `Wording differs but the values agree once normalized (${Math.round(row.similarity * 100)}% similar).`;
+    }
+    return 'Matched on meaning rather than on identical wording.';
+  }
+
   /** Pairs with no result yet — what the main button will run. */
   get pendingPairs(): number {
     return (this.case?.pairs ?? []).filter((p) => p.result == null).length;
@@ -94,6 +237,10 @@ export class CaseDetailComponent implements OnInit {
     if (!this.canAnalyze || this.analyzing || !this.case) return;
     this.analyzeError = '';
     this.analyzing = true;
+    // A re-run rewrites both the citations and the text they point into, so
+    // anything on screen or cached from the previous run is about to be stale.
+    this.closeEvidence();
+    this.collateral.clearSourceTexts();
     // One tab per pair on the case; the server analyzes them in the same order.
     this.run.start(this.case.pairs.length);
 

@@ -6,9 +6,21 @@ PROPERTY / TITLE document. The pipeline:
   1) Extract a fixed CAD field set from EACH document with an LLM
      (the canonical schema ported from the original collateral-reviewer:
      property_information / ownership_information / legal_information, each
-     field -> {value, source_page}).
-  2) Compare the two documents field-by-field with normalization
-     (match / mismatch / missing).
+     field -> {value, source_page, core} — ``value`` verbatim for display and
+     provenance, ``core`` the same fact with the surrounding narrative removed
+     so the comparison has one fact to compare rather than a whole clause).
+     Every extracted value is then located back in the document text it came
+     from (``app.engines.evidence``), so a field is a citation rather than a
+     claim — and a value that CANNOT be found is reported as such.
+  2) Compare the two documents field-by-field (match / mismatch / missing) in
+     three tiers: typed canonicalization then graded similarity, both
+     deterministic and both in ``app.engines.field_match``; then a single
+     batched LLM adjudication of only the rows those two left ambiguous.
+     Because extraction captures values verbatim by design, the same fact
+     routinely arrives worded differently in the two documents — the tiers exist
+     so that stops reading as a discrepancy. Every match records WHY it
+     matched (``match_basis``), since a match resolved by judgement is weaker
+     evidence than a literal one.
   3) Generate plain-English, one-sentence observations for the discrepancies
      in a banking collateral-review tone (single LLM call, validated 1:1
      against the discrepancy count, deterministic fallback otherwise).
@@ -27,16 +39,29 @@ arguments.
 from __future__ import annotations
 
 import json
-import re
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Mapping
 
+# from app.engines.evidence import has_page_markers, locate_value
 # from app.engines.extraction import extract_document
+# from app.engines.field_match import ...
 # from app.engines.util import EngineParseError, parse_json_response
-from engines.extraction import extract_document
+from engines.evidence import has_page_markers, locate_value
+from engines.extraction import TranscriptionResult, extract_document
+from engines.field_match import (
+    BASIS_SEMANTIC,
+    BASIS_TRIMMED,
+    JUDGED_BASES,
+    STATUS_MATCH,
+    STATUS_MISMATCH,
+    STATUS_MISSING,
+    canon_text,
+    compare_field,
+)
 from engines.util import EngineParseError, parse_json_response
 
 if TYPE_CHECKING:  # pragma: no cover — typing only; engines stay import-pure
@@ -51,128 +76,44 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1) Canonical CAD field set
-#    Ported verbatim from the original extraction/schemas.py. Each leaf field is
-#    {value, source_page}. The two top-level docs ("legal_opinion",
-#    "property_document") share an identical field layout.
+#    Field names ported verbatim from the original extraction/schemas.py. The
+#    two top-level docs ("legal_opinion", "property_document") share an
+#    identical field layout.
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _blank_field() -> dict[str, Any]:
+    """One leaf of the schema.
+
+    ``value`` is the text exactly as the document words it — that is what the
+    reviewer reads, what the observations quote, and what ``source_page``
+    points at, so it is never trimmed or rewritten. ``core`` is the same fact
+    with the surrounding narrative removed ("1621 of Book No-I dated
+    12.03.2024" -> "1621 of Book No-I"), and exists ONLY so the comparison has
+    a single fact to compare instead of a whole clause. Nothing is dropped from
+    the result: ``core`` narrows what is compared, never what is stored.
+    """
+    return {"value": None, "source_page": None, "core": None}
+
+
 EXTRACTION_SCHEMA: dict[str, Any] = {
-
-    "legal_opinion": {
-
+    document: {
         "property_information": {
-
-            "property_address": {
-                "value": None,
-                "source_page": None
-            },
-
-            "plot_or_survey_number": {
-                "value": None,
-                "source_page": None
-            },
-
-            "land_registration_number": {
-                "value": None,
-                "source_page": None
-            },
-
-            "property_description": {
-                "value": None,
-                "source_page": None
-            }
+            "property_address": _blank_field(),
+            "plot_or_survey_number": _blank_field(),
+            "land_registration_number": _blank_field(),
+            "property_description": _blank_field(),
         },
-
         "ownership_information": {
-
-            "property_owner_name": {
-                "value": None,
-                "source_page": None
-            },
-
-            "mortgagor_name": {
-                "value": None,
-                "source_page": None
-            }
+            "property_owner_name": _blank_field(),
+            "mortgagor_name": _blank_field(),
         },
-
         "legal_information": {
-
-            "legal_opinion_date": {
-                "value": None,
-                "source_page": None
-            },
-
-            "registration_authority": {
-                "value": None,
-                "source_page": None
-            },
-
-            "mortgage_enforceability_reference": {
-                "value": None,
-                "source_page": None
-            }
-        }
-    },
-
-
-    "property_document": {
-
-        "property_information": {
-
-            "property_address": {
-                "value": None,
-                "source_page": None
-            },
-
-            "plot_or_survey_number": {
-                "value": None,
-                "source_page": None
-            },
-
-            "land_registration_number": {
-                "value": None,
-                "source_page": None
-            },
-
-            "property_description": {
-                "value": None,
-                "source_page": None
-            }
+            "legal_opinion_date": _blank_field(),
+            "registration_authority": _blank_field(),
+            "mortgage_enforceability_reference": _blank_field(),
         },
-
-        "ownership_information": {
-
-            "property_owner_name": {
-                "value": None,
-                "source_page": None
-            },
-
-            "mortgagor_name": {
-                "value": None,
-                "source_page": None
-            }
-        },
-
-        "legal_information": {
-
-            "legal_opinion_date": {
-                "value": None,
-                "source_page": None
-            },
-
-            "registration_authority": {
-                "value": None,
-                "source_page": None
-            },
-
-            "mortgage_enforceability_reference": {
-                "value": None,
-                "source_page": None
-            }
-        }
     }
-
+    for document in ("legal_opinion", "property_document")
 }
 
 
@@ -206,6 +147,24 @@ def _emit_event(emit: EmitFn | None, payload: dict[str, Any]) -> None:
     """Send a compact, SINGLE-encoded JSON event (the POC double-encoded)."""
     if emit is not None:
         emit("event", json.dumps(payload, separators=(",", ":")))
+
+
+def _parse_json_array(response: str | None) -> list[Any] | None:
+    """Parse a JSON ARRAY out of an LLM response. Slices the first '[' to the
+    last ']' and json-loads it (``strict=False`` per the shared tolerant-parser
+    policy; ``parse_json_response`` itself is object-only). Returns None on any
+    failure so callers can fall back deterministically."""
+    if not response:
+        return None
+    start = response.find("[")
+    end = response.rfind("]") + 1
+    if start == -1 or end <= start:
+        return None
+    try:
+        arr = json.loads(response[start:end], strict=False)
+    except json.JSONDecodeError:
+        return None
+    return arr if isinstance(arr, list) else None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -259,9 +218,13 @@ def _merge_document_fields(schema_section: dict[str, Any],
             value = field_data.get("value")
             if value is None:
                 continue
-            schema_section[section_name][field_name]["value"] = value
-            schema_section[section_name][field_name]["source_page"] = \
-                field_data.get("source_page")
+            leaf = schema_section[section_name][field_name]
+            leaf["value"] = value
+            leaf["source_page"] = field_data.get("source_page")
+            # A model that ignores "core" (or returns a blank one) simply leaves
+            # it null, and the comparison falls back to the full value.
+            core = field_data.get("core")
+            leaf["core"] = core if core not in (None, "") else None
 
 
 def extract_fields(text: str, doc_name: str, provider: "LLMProvider",
@@ -294,20 +257,113 @@ def extract_fields(text: str, doc_name: str, provider: "LLMProvider",
     return schema
 
 
+def attach_evidence(fields: dict[str, Any], text: str) -> dict[str, int]:
+    """Locate every extracted value back in its document's text, IN PLACE.
+
+    Each populated leaf gains ``evidence``: ``{start, end, page, found_by,
+    confidence}`` pointing into ``text``, or None when the document does not
+    contain the value at all. That None is the point of doing this — it says the
+    model reported something the document does not say, which nothing else in
+    the pipeline can tell you.
+
+    ``evidence`` is added HERE rather than declared in ``EXTRACTION_SCHEMA``
+    because the schema doubles as the shape shown to the model in the extraction
+    prompt: a field in there is a field the model would try to fill, and where a
+    value sits in the text is ours to establish, never the model's to claim.
+
+    The offsets index the exact ``text`` passed in, so whoever stores them must
+    store that same text (or be able to reproduce it byte for byte) or they
+    point at nothing. Returns ``{"found": n, "total": n}`` over the fields that
+    had a value at all.
+    """
+    found = 0
+    total = 0
+    for section in fields.values():
+        for leaf in section.values():
+            if canon_text(leaf.get("value")) is None:
+                leaf["evidence"] = None
+                continue
+            total += 1
+            span = locate_value(text, leaf.get("value"), leaf.get("core"))
+            if span is None:
+                leaf["evidence"] = None
+                continue
+            found += 1
+            leaf["evidence"] = {
+                "start": span.start,
+                "end": span.end,
+                "page": span.page,
+                "found_by": span.found_by,
+                "confidence": span.confidence,
+            }
+    return {"found": found, "total": total}
+
+
+def _source_report(source: TranscriptionResult,
+                   fields: dict[str, Any]) -> dict[str, Any]:
+    """Attach this document's evidence and describe the text it was read from.
+
+    ``paged`` is the honest answer to "can page numbers be trusted here?" — only
+    a page-by-page extraction carries ``=== PAGE N ===`` markers, so for a .docx
+    or a text-layer PDF it is False and every ``evidence.page`` is null. A
+    consumer should show no page at all in that case rather than fall back to
+    the model's ``source_page``, which had nothing in the text to derive from.
+    """
+    located = attach_evidence(fields, source.text)
+    return {
+        "chars": len(source.text),
+        "pages_total": source.pages_total,
+        "pages_failed": list(source.pages_failed),
+        "paged": has_page_markers(source.text),
+        "values_located": located["found"],
+        "values_total": located["total"],
+    }
+
+
 # ──────────────────────────────────────────────────────────────────────────────
-# 4) Field-by-field comparison (with normalization)
+# 4) Field-by-field comparison — Tiers 1 & 2, deterministic
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _norm(value: Any) -> str | None:
-    """Normalize a field value for equality: None/empty -> None; otherwise
-    collapse internal whitespace, strip, and casefold. Used only for the
-    match/mismatch/missing decision — raw values are preserved in the row."""
-    if value is None:
-        return None
-    s = re.sub(r"\s+", " ", str(value)).strip()
-    if not s:
-        return None
-    return s.casefold()
+# Private row key carrying "Tier 1 and 2 could not decide this one" from the
+# comparison to the adjudicator. ``adjudicate_comparison`` strips it, so it never
+# reaches the stored result contract.
+_ESCALATE_KEY = "_needs_adjudication"
+
+
+def _compare_leaves(field: str, legal_leaf: Mapping[str, Any],
+                    property_leaf: Mapping[str, Any]) -> tuple[Any, str | None]:
+    """Decide one field from its two schema leaves, using ``core`` as a fallback.
+
+    The full values are compared first, so a field that already agrees as
+    written is settled without the trimmed form entering into it. Only when
+    that fails does the extractor's ``core`` get a turn — the same fact with the
+    surrounding narrative set aside, which is what lets "1621 of Book No-I dated
+    12.03.2024" meet "1621, Book No. I".
+
+    ``core`` can only ever HELP: it can turn a mismatch into a match (recorded
+    as basis "trimmed", so the row is visibly one where text was set aside), or
+    it can push a borderline row to the Tier-3 adjudicator. It can never turn a
+    match into a mismatch, and it can never make a present value "missing" — so
+    an extractor that omits ``core``, or trims it badly, lands back on exactly
+    the full-value behaviour. Returns (verdict, reason).
+    """
+    full = compare_field(field, legal_leaf.get("value"), property_leaf.get("value"))
+    if full.status != STATUS_MISMATCH:
+        return full, None
+
+    core_legal = legal_leaf.get("core")
+    core_property = property_leaf.get("core")
+    if core_legal is None or core_property is None:
+        return full, None
+
+    core = compare_field(field, core_legal, core_property)
+    if core.status == STATUS_MATCH:
+        return (replace(core, basis=BASIS_TRIMMED),
+                f'the entries agree on "{core_legal}" and "{core_property}"; '
+                f'the rest of each entry is surrounding detail')
+    # The trimmed forms did not settle it either — but if they came closer than
+    # the full text did, that is worth asking the adjudicator about.
+    return replace(full, escalate=full.escalate or core.escalate), None
 
 
 def _compare_section(legal_fields: dict[str, Any], property_fields: dict[str, Any],
@@ -315,30 +371,35 @@ def _compare_section(legal_fields: dict[str, Any], property_fields: dict[str, An
     """Compare a list of fields within one schema section.
 
     Each result row is {field, label, legal_value (raw), property_value (raw),
-    status}. Status: "missing" if either normalized side is empty, "match" if
-    the normalized values are equal, else "mismatch".
+    status, match_basis, match_reason, similarity}. Raw values are always
+    preserved for display and for quoting in observations; the decision itself
+    runs on the field's canonical form (see ``field_match.compare_field``) and,
+    failing that, on the extractor's trimmed ``core`` (see ``_compare_leaves``).
+
+    Status: "missing" if either side has no value at all, "match" if the two
+    values are equivalent, else "mismatch". Rows the deterministic tiers found
+    ambiguous carry a private escalation flag for the Tier-3 adjudicator and
+    remain "mismatch" until it positively resolves them.
     """
     results: list[dict[str, Any]] = []
     for field in field_names:
-        legal_value = legal_fields[section][field]["value"]
-        property_value = property_fields[section][field]["value"]
+        legal_leaf = legal_fields[section][field]
+        property_leaf = property_fields[section][field]
+        legal_value = legal_leaf["value"]
+        property_value = property_leaf["value"]
 
-        n_legal = _norm(legal_value)
-        n_property = _norm(property_value)
-
-        if n_legal is None or n_property is None:
-            status = "missing"
-        elif n_legal == n_property:
-            status = "match"
-        else:
-            status = "mismatch"
+        verdict, reason = _compare_leaves(field, legal_leaf, property_leaf)
 
         results.append({
             "field": field,
             "label": FIELD_LABELS.get(field, field),
             "legal_value": legal_value,
             "property_value": property_value,
-            "status": status,
+            "status": verdict.status,
+            "match_basis": verdict.basis,
+            "match_reason": reason,
+            "similarity": verdict.score,
+            _ESCALATE_KEY: verdict.escalate,
         })
     return results
 
@@ -388,7 +449,12 @@ def compare_legal_info(legal_fields: dict[str, Any],
 def run_all_comparisons(legal_fields: dict[str, Any],
                         property_fields: dict[str, Any]) -> list[dict[str, Any]]:
     """Run every section comparison and return the flat list of comparison rows
-    (property, then ownership, then legal)."""
+    (property, then ownership, then legal).
+
+    Rows are PRE-adjudication: ambiguous ones still carry the private escalation
+    flag and their conservative "mismatch" status. Pass them through
+    ``adjudicate_comparison`` before storing or counting them.
+    """
     return (
         compare_property_info(legal_fields, property_fields)
         + compare_ownership(legal_fields, property_fields)
@@ -397,7 +463,98 @@ def run_all_comparisons(legal_fields: dict[str, Any],
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 5) Plain-English observations for the discrepancies
+# 5) Tier 3 — one batched LLM adjudication of the ambiguous rows
+# ──────────────────────────────────────────────────────────────────────────────
+
+# A cleared discrepancy is not reviewed by a human, so the model has to be sure:
+# below this self-reported confidence the deterministic mismatch stands.
+ADJUDICATION_MIN_CONFIDENCE = 0.7
+
+
+def _build_adjudication_prompt(rows: list[dict[str, Any]], *,
+                               prompt: str | None = None) -> str:
+    """Build the single-call prompt asking whether each ambiguous pair of values
+    refers to the same underlying fact (``prompts/collateral_adjudication.md``;
+    ``prompt`` overrides that shipped template)."""
+    pairs = [
+        {
+            "index": i,
+            "field": row.get("label") or row.get("field"),
+            "legal_opinion_value": row.get("legal_value"),
+            "property_document_value": row.get("property_value"),
+            "textual_similarity": row.get("similarity"),
+        }
+        for i, row in enumerate(rows)
+    ]
+    payload = json.dumps(pairs, indent=2, default=str)
+    template = prompt if prompt is not None else _load_prompt("collateral_adjudication.md")
+    return template.replace("{payload}", payload)
+
+
+def adjudicate_comparison(comparison: list[dict[str, Any]],
+                          provider: "LLMProvider", model: str, *,
+                          prompt: str | None = None,
+                          emit: EmitFn | None = None) -> list[dict[str, Any]]:
+    """Resolve the rows Tiers 1 and 2 left ambiguous, IN PLACE, and return them.
+
+    One LLM call for every ambiguous row (at most one per field), asking only
+    whether the two values name the same fact. Three invariants keep this safe:
+
+      * Only flagged rows are sent. A row the deterministic tiers decided —
+        either way — is never re-litigated by a model.
+      * The verdict can only turn "mismatch" into "match" (basis "semantic",
+        with the model's reason recorded). It can never manufacture a
+        discrepancy, so the worst case is the pre-adjudication result.
+      * The response is used only if it lines up 1:1 with what was sent and
+        clears ``ADJUDICATION_MIN_CONFIDENCE``; anything else is discarded whole
+        and every conservative mismatch stands.
+
+    The escalation flag is stripped either way, so the returned rows are the
+    public contract: {field, label, legal_value, property_value, status,
+    match_basis, match_reason, similarity}.
+    """
+    pending = [row for row in comparison if row.get(_ESCALATE_KEY)]
+    if not pending:
+        for row in comparison:
+            row.pop(_ESCALATE_KEY, None)
+        return comparison
+
+    _emit_event(emit, {"stage": "adjudicate", "rows": len(pending)})
+    try:
+        response = provider.call(
+            model=model,
+            messages=[{"role": "user", "content": _build_adjudication_prompt(
+                pending, prompt=prompt)}],
+            temperature=0.0,
+        )
+    except Exception:
+        response = None
+
+    verdicts = _parse_json_array(response)
+    # 1:1 or nothing — a partial or reordered array can't be attributed to rows
+    # safely, and guessing here would clear the wrong discrepancy.
+    if verdicts is not None and len(verdicts) == len(pending):
+        for row, verdict in zip(pending, verdicts):
+            if not isinstance(verdict, dict) or verdict.get("equivalent") is not True:
+                continue
+            try:
+                confidence = float(verdict.get("confidence", 0.0))
+            except (TypeError, ValueError):
+                continue
+            if confidence < ADJUDICATION_MIN_CONFIDENCE:
+                continue
+            reason = str(verdict.get("reason") or "").strip()
+            row["status"] = STATUS_MATCH
+            row["match_basis"] = BASIS_SEMANTIC
+            row["match_reason"] = reason or "the two values state the same fact"
+
+    for row in comparison:
+        row.pop(_ESCALATE_KEY, None)
+    return comparison
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 6) Plain-English observations for the discrepancies
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _fallback_observation(row: dict[str, Any]) -> str:
@@ -409,9 +566,9 @@ def _fallback_observation(row: dict[str, Any]) -> str:
     property_value = row.get("property_value")
     status = row.get("status")
 
-    if status == "missing":
-        legal_missing = _norm(legal_value) is None
-        property_missing = _norm(property_value) is None
+    if status == STATUS_MISSING:
+        legal_missing = canon_text(legal_value) is None
+        property_missing = canon_text(property_value) is None
         if legal_missing and property_missing:
             return (f"{label} is missing from both the legal opinion and the "
                     f"property document.")
@@ -449,29 +606,13 @@ def _build_observation_prompt(non_match_rows: list[dict[str, Any]], *,
 
 
 def _parse_observation_array(response: str | None) -> list[str] | None:
-    """Parse the observation response into a list of non-empty strings. Slices
-    the first '[' to the last ']' and json-loads it (``strict=False`` per the
-    shared tolerant-parser policy; ``parse_json_response`` itself is
-    object-only, and this response is a JSON ARRAY). Returns None on any
-    failure so the caller can fall back deterministically."""
-    if not response:
+    """Parse the observation response into a list of non-empty strings, or None
+    if there is nothing usable."""
+    arr = _parse_json_array(response)
+    if arr is None:
         return None
-    start = response.find("[")
-    end = response.rfind("]") + 1
-    if start == -1 or end <= start:
-        return None
-    try:
-        arr = json.loads(response[start:end], strict=False)
-    except json.JSONDecodeError:
-        return None
-
-    if not isinstance(arr, list):
-        return None
-
     out = [str(x).strip() for x in arr if str(x).strip()]
-    if not out:
-        return None
-    return out
+    return out or None
 
 
 def generate_observations(comparison: list[dict[str, Any]],
@@ -494,7 +635,7 @@ def generate_observations(comparison: list[dict[str, Any]],
     the returned observations are identical either way. Any streaming failure
     falls back to the plain ``call``.
     """
-    non_match_rows = [r for r in comparison if r.get("status") != "match"]
+    non_match_rows = [r for r in comparison if r.get("status") != STATUS_MATCH]
     if not non_match_rows:
         return []
 
@@ -535,7 +676,7 @@ def generate_observations(comparison: list[dict[str, Any]],
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6) Orchestration entry point (the module router calls this)
+# 7) Orchestration entry point (the module router calls this)
 # ──────────────────────────────────────────────────────────────────────────────
 
 def review_collateral(
@@ -552,33 +693,61 @@ def review_collateral(
     Extracts text from both files via the shared extractor (scanned-PDF
     vision-OCR fallback included), extracts the CAD field set from the legal
     opinion and the property document IN PARALLEL, runs the field-by-field
-    comparison, generates observations for the discrepancies, and returns the
-    legacy result.json contract:
+    comparison, adjudicates the rows it could not decide mechanically, generates
+    observations for what is left, and returns the result.json contract:
 
         {
           "extracted":   {"legal_opinion": <schema>, "property_document": <schema>},
-          "comparison":  [ {field, label, legal_value, property_value, status}, ... ],
+          "sources":     {"legal_opinion": {...}, "property_document": {...}},
+          "source_texts":{"legal_opinion": "<full text>", ...},   # see below
+          "comparison":  [ {field, label, legal_value, property_value, status,
+                            match_basis, match_reason, similarity}, ... ],
           "observations":[ "<one-sentence discrepancy>", ... ],
-          "summary":     {matches, mismatches, missing, fields}
+          "summary":     {matches, mismatches, missing, adjudicated, fields}
         }
 
-    ``models`` must provide "extraction" (field extraction + observations) and
-    "vision" (scanned-page OCR transcription). ``prompts`` may override the
-    shipped prompt templates via the optional keys "extraction" and
-    "observations" (a missing key -> the frozen prompt file).
+    Each leaf of ``extracted`` carries ``evidence`` — where that value sits in
+    the document text ({start, end, page, found_by, confidence}), or null when
+    the document does not contain it, which is itself worth showing. ``sources``
+    describes each document's text: how long it was, its pages, whether page
+    numbers are knowable at all (``paged``), and how many of its values could be
+    located.
+
+    ``source_texts`` is the BULK artifact and is meant to be moved, not stored:
+    the evidence offsets index these exact strings, so a caller that wants to
+    render an evidence span must keep the text verbatim (re-extracting later
+    would re-run vision OCR and produce different characters, leaving every
+    offset pointing at the wrong place). It is returned separately from
+    ``sources`` precisely so a caller can persist it out-of-band and drop it
+    from what it stores and audits — see ``collateral-service/main.py``, which
+    writes it beside the pair's uploads and pops it off the result.
+
+    ``match_basis`` says how a match was reached ("exact" / "normalized" /
+    "fuzzy" / "semantic", null on a non-match) and ``match_reason`` carries the
+    adjudicator's one-clause justification for a "semantic" one, so a match that
+    rests on judgement is visibly weaker evidence than a literal one.
+    ``summary.adjudicated`` counts exactly those judgement calls.
+
+    ``models`` must provide "extraction" (field extraction, adjudication, and
+    observations) and "vision" (scanned-page OCR transcription). ``prompts`` may
+    override the shipped prompt templates via the optional keys "extraction",
+    "adjudication" and "observations" (a missing key -> the frozen prompt file).
     """
     extraction_model = models["extraction"]
     vision_model = models["vision"]
     prompts = prompts or {}
     extraction_prompt = prompts.get("extraction")
+    adjudication_prompt = prompts.get("adjudication")
     observations_prompt = prompts.get("observations")
 
     _emit_event(emit, {"stage": "extract_text", "document": "legal_opinion"})
-    legal_text = extract_document(
-        Path(legal_opinion_path), provider, vision_model, emit=emit).text
+    legal_source = extract_document(
+        Path(legal_opinion_path), provider, vision_model, emit=emit)
     _emit_event(emit, {"stage": "extract_text", "document": "property_document"})
-    property_text = extract_document(
-        Path(property_doc_path), provider, vision_model, emit=emit).text
+    property_source = extract_document(
+        Path(property_doc_path), provider, vision_model, emit=emit)
+    legal_text = legal_source.text
+    property_text = property_source.text
 
     _emit_event(emit, {"stage": "extract_fields"})
     with ThreadPoolExecutor(max_workers=2) as ex:
@@ -591,22 +760,39 @@ def review_collateral(
         legal_fields = legal_future.result()
         property_fields = property_future.result()
 
+    # Cite each extracted value back to where it sits in the document text, so
+    # a reviewer can check what the model picked instead of taking its word.
+    sources = {
+        "legal_opinion": _source_report(legal_source, legal_fields),
+        "property_document": _source_report(property_source, property_fields),
+    }
+
     comparison = run_all_comparisons(legal_fields, property_fields)
     _emit_event(emit, {"stage": "compare", "fields": len(comparison)})
+
+    # Tier 3 runs before the observations so a difference that is only a
+    # difference in wording never becomes a written-up finding.
+    comparison = adjudicate_comparison(
+        comparison, provider, extraction_model,
+        prompt=adjudication_prompt, emit=emit)
 
     _emit_event(emit, {"stage": "observations"})
     observations = generate_observations(
         comparison, provider, extraction_model,
         prompt=observations_prompt, emit=emit)
 
-    matches = sum(1 for r in comparison if r["status"] == "match")
-    mismatches = sum(1 for r in comparison if r["status"] == "mismatch")
-    missing = sum(1 for r in comparison if r["status"] == "missing")
+    matches = sum(1 for r in comparison if r["status"] == STATUS_MATCH)
+    mismatches = sum(1 for r in comparison if r["status"] == STATUS_MISMATCH)
+    missing = sum(1 for r in comparison if r["status"] == STATUS_MISSING)
+    adjudicated = sum(1 for r in comparison if r["match_basis"] in JUDGED_BASES)
 
     summary = {
         "matches": matches,
         "mismatches": mismatches,
         "missing": missing,
+        # Matches that rest on judgement rather than on the two documents
+        # literally agreeing — the subset a reviewer may want to spot-check.
+        "adjudicated": adjudicated,
         "fields": len(comparison),
     }
     _emit_event(emit, {"stage": "done", "summary": summary})
@@ -615,6 +801,13 @@ def review_collateral(
         "extracted": {
             "legal_opinion": legal_fields,
             "property_document": property_fields,
+        },
+        "sources": sources,
+        # Bulk, and deliberately separate from `sources` so a caller can move it
+        # to disk and drop it before storing/auditing the result.
+        "source_texts": {
+            "legal_opinion": legal_text,
+            "property_document": property_text,
         },
         "comparison": comparison,
         "observations": observations,

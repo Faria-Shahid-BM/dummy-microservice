@@ -153,6 +153,16 @@ def _extra_slot_file(case_id: str, index: int, slot: str) -> Path | None:
     return next((p for p in sorted(d.glob(f"{slot}.*")) if p.is_file()), None)
 
 
+def pair_dir(case_id: str, index: int) -> Path:
+    """Where one pair's files live — the case directory for pair 0, its own
+    numbered directory for an extra pair. Public so a service can keep derived
+    artifacts (e.g. the extracted text a review's citations point into) beside
+    the uploads they came from. Anything stored there must NOT be named
+    ``{slot}.*``: that glob is how the uploaded file for a slot is found, and
+    replacing an upload deletes everything else matching it."""
+    return _case_dir(case_id) if index == 0 else _extra_dir(case_id, index)
+
+
 def _extra_pairs(case: Case) -> list[dict]:
     """The extra pairs' uploaded file names, [{slot: filename}, ...]."""
     raw = (case.uploads or {}).get(EXTRA_PAIRS_KEY)
@@ -279,7 +289,11 @@ def remove_case(db: Session, case: Case) -> None:
     db.delete(case)
 
 
-def _get_owned_case(db: Session, case_id: str, user_sub: str) -> Case:
+def get_owned_case(db: Session, case_id: str, user_sub: str) -> Case:
+    """This user's case, or 404. Public so a service can add its OWN
+    case-scoped routes (alongside the shared router this module builds) without
+    re-implementing the ownership rule — see collateral-service's extracted-text
+    endpoint."""
     # 404, not 403, on a case that exists but belongs to someone else —
     # don't reveal that the id is valid.
     case = db.get(Case, case_id)
@@ -457,7 +471,7 @@ def make_case_router(
 
     @router.get("/{case_id}")
     def get_case(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)) -> dict:
-        return _detail_payload(_get_owned_case(db, case_id, user_sub))
+        return _detail_payload(get_owned_case(db, case_id, user_sub))
 
     @router.delete("/{case_id}")
     def delete_case(
@@ -466,7 +480,7 @@ def make_case_router(
         token: str | None = Depends(get_raw_token),
         db: Session = Depends(get_db),
     ) -> dict:
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         if case.status == "analyzing":
             raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
         name = case.name
@@ -499,7 +513,7 @@ def make_case_router(
         """Add another set of this service's slots to review under this case."""
         if not allow_extra_pairs:
             raise HTTPException(status_code=404, detail="Extra pairs are not available for this service")
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         if case.status == "analyzing":
             raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
         _set_extra_pairs(case, _extra_pairs(case) + [{}])
@@ -511,7 +525,7 @@ def make_case_router(
         case_id: str, index: int,
         user_sub: str = Depends(_require_user), db: Session = Depends(get_db),
     ) -> dict:
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         if case.status == "analyzing":
             raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
         pairs = _extra_pairs(case)
@@ -550,7 +564,7 @@ def make_case_router(
         token: str | None = Depends(get_raw_token),
         db: Session = Depends(get_db),
     ) -> dict:
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         _check_slot(slot)
         if case.status == "analyzing":
             raise HTTPException(
@@ -601,7 +615,7 @@ def make_case_router(
         token: str | None = Depends(get_raw_token),
         db: Session = Depends(get_db),
     ) -> dict:
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         if slot not in slots:
             raise HTTPException(
                 status_code=404,
@@ -643,7 +657,7 @@ def make_case_router(
         """The raw bytes of whatever's in this slot — lets a reviewer look at a
         document before deciding what to compare it against, same file either
         way (uploaded by hand or synced from an external source)."""
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         _check_slot(slot)
         path = _slot_file(case_id, slot)
         if path is None:
@@ -810,7 +824,7 @@ def make_case_router(
         strings by contract, with nowhere to put a tag), belongs to that pair
         until the next `pair_start`.
         """
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         targets = _resolve_targets(case, pairs)
         # Snapshot before _prepare_analyze flips the status (see _outcomes_snapshot).
         baseline = _outcomes_snapshot(case)
@@ -861,7 +875,7 @@ def make_case_router(
 
     @router.get("/{case_id}/result")
     def get_result(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)) -> dict:
-        case = _get_owned_case(db, case_id, user_sub)
+        case = get_owned_case(db, case_id, user_sub)
         if case.status != "done" or case.result is None:
             raise HTTPException(status_code=404, detail="Result not available until analysis completes")
         return case.result

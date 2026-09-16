@@ -52,7 +52,7 @@
     ></app-case-pairs>
   </section>
 
-  <ng-template #pairResult let-result>
+  <ng-template #pairResult let-result let-pair="pair">
     <div class="stat-row">
       <div class="stat-card">
         <div class="n">{{ result.summary.matches }}</div>
@@ -65,6 +65,13 @@
       <div class="stat-card">
         <div class="n">{{ result.summary.missing }}</div>
         <div class="l">missing</div>
+      </div>
+      <!-- Matches the engine reasoned its way to rather than read off both
+           documents — the subset worth spot-checking. Hidden when there are
+           none (and on results stored before the engine reported it). -->
+      <div class="stat-card" *ngIf="result.summary.adjudicated">
+        <div class="n">{{ result.summary.adjudicated }}</div>
+        <div class="l">matched on meaning</div>
       </div>
       <div class="stat-card">
         <div class="n">{{ result.summary.fields }}</div>
@@ -85,13 +92,57 @@
         <tbody>
           <tr *ngFor="let row of result.comparison">
             <td>{{ row.label }}</td>
-            <td class="wrap-cell"><span class="cell-text">{{ row.legal_value || '—' }}</span></td>
-            <td class="wrap-cell"><span class="cell-text">{{ row.property_value || '—' }}</span></td>
-            <td [ngClass]="'status-' + row.status">{{ row.status }}</td>
+            <!-- The value cell carries its own "where did this come from?" — a
+                 pair of extra columns of buttons would crowd out the values
+                 themselves, which are what the reviewer is here to read. -->
+            <td class="wrap-cell">
+              <span class="cell-text">{{ row.legal_value || '—' }}</span>
+              <button
+                type="button"
+                class="value-open"
+                *ngIf="row.legal_value && inspectable(result)"
+                [class.warn]="!hasEvidence(result, 'legal_opinion', row)"
+                [title]="evidenceHint(result, 'legal_opinion', row)"
+                [attr.aria-label]="'Show ' + row.label + ' in the legal opinion'"
+                (click)="showEvidence(pair, 'legal', row)"
+              >⤢</button>
+            </td>
+            <td class="wrap-cell">
+              <span class="cell-text">{{ row.property_value || '—' }}</span>
+              <button
+                type="button"
+                class="value-open"
+                *ngIf="row.property_value && inspectable(result)"
+                [class.warn]="!hasEvidence(result, 'property_document', row)"
+                [title]="evidenceHint(result, 'property_document', row)"
+                [attr.aria-label]="'Show ' + row.label + ' in the property document'"
+                (click)="showEvidence(pair, 'property', row)"
+              >⤢</button>
+            </td>
+            <!-- Still just match/mismatch/missing, but a match that rested on
+                 judgement says so, with the engine's reason on hover. -->
+            <td [ngClass]="'status-' + row.status">
+              {{ row.status }}
+              <span class="match-basis" *ngIf="basisBadge(row)" [title]="basisTitle(row)">
+                {{ basisBadge(row) }}
+              </span>
+            </td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <!-- How many of this pair's extracted values could be traced back to their
+         document. A value the model reported but that isn't in the document is
+         worth knowing about before reading anything else. -->
+    <p class="hint" *ngIf="result.sources as sources">
+      Traced to source:
+      {{ sources.legal_opinion.values_located }}/{{ sources.legal_opinion.values_total }} in the legal
+      opinion, {{ sources.property_document.values_located }}/{{
+        sources.property_document.values_total
+      }}
+      in the property document.
+    </p>
 
     <h3 *ngIf="result.observations.length">Observations</h3>
     <ul class="observation-list">
@@ -99,3 +150,6 @@
     </ul>
   </ng-template>
 </ng-container>
+
+<!-- One panel for the page, re-aimed as each value is clicked. -->
+<app-evidence-panel [view]="evidence" (closed)="closeEvidence()"></app-evidence-panel>

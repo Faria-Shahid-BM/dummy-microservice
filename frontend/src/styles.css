@@ -1518,6 +1518,157 @@ input[type='file']::file-selector-button {
   font-weight: 600;
 }
 
+/* "Where did this value come from?" — sits inside the value cell rather than in
+   a column of its own, so the values stay the widest thing in the table. Faint
+   until the row is hovered or it takes focus, so nine rows of these don't read
+   as nine buttons. */
+.value-open {
+  margin-left: 0.35rem;
+  padding: 0 0.2rem;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.3;
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.audit-table tr:hover .value-open,
+.value-open:focus-visible {
+  opacity: 1;
+}
+
+.value-open:hover {
+  color: var(--color-primary);
+  opacity: 1;
+}
+
+/* The value could not be found in its document — worth noticing even unhovered. */
+.value-open.warn {
+  color: var(--color-warning);
+  opacity: 0.85;
+}
+
+/* Docked beside the table rather than over it: a reviewer opens this once per
+   field per document, and a dialog to dismiss each time would make checking
+   nine fields feel like nine interruptions. */
+.evidence-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(520px, 42vw);
+  padding: 1rem 1.1rem;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.evidence-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.evidence-head h3 {
+  margin: 0.1rem 0 0;
+}
+
+.evidence-titles .evidence-doc {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+/* What the model claims the value is, kept next to the document so the two can
+   be read against each other without scrolling back to the table. */
+.evidence-value {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.evidence-verdict {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.evidence-verdict.tone-ok {
+  color: var(--color-success);
+}
+
+.evidence-verdict.tone-warn {
+  color: var(--color-warning);
+}
+
+/* The document as the engine read it. Scrolls on its own so the highlight can
+   be centred without moving the page underneath. */
+.evidence-text {
+  flex: 1;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+
+.evidence-text mark {
+  background: rgba(214, 158, 46, 0.35);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Same "here it is" cue the redline view uses when jumping to a change. */
+.evidence-text mark.flash {
+  outline: 2px solid var(--color-primary);
+  transition: outline 0.2s;
+}
+
+@media (max-width: 900px) {
+  /* No room to dock beside anything — become a bottom sheet instead. */
+  .evidence-panel {
+    top: auto;
+    left: 0;
+    width: auto;
+    max-height: 60vh;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* Sits next to a "match" to say the engine interpreted its way there rather
+   than finding the two documents in literal agreement. Deliberately quiet: it
+   qualifies the verdict, it isn't a second verdict. */
+.match-basis {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: help;
+}
+
 .observation-list {
   margin: 0.5rem 0 0;
   padding-left: 1.1rem;
