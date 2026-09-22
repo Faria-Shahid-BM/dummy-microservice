@@ -13,10 +13,24 @@ export interface PairRunState {
   error: string;
   /** Live LLM output for this pair (collateral's observations step streams). */
   streamingText: string;
+  /**
+   * Finished this session, but the reviewer hasn't moved on yet. Holds the
+   * progress panel — with its final per-step token and timing figures — on
+   * screen instead of swapping straight to the results table, which otherwise
+   * happens the instant the last step lands and is impossible to read.
+   * Never set for a pair whose result was loaded from storage.
+   */
+  awaitingNext: boolean;
 }
 
 function freshRun(): PairRunState {
-  return { progress: freshProgress(), running: false, error: '', streamingText: '' };
+  return {
+    progress: freshProgress(),
+    running: false,
+    error: '',
+    streamingText: '',
+    awaitingNext: false
+  };
 }
 
 /**
@@ -49,6 +63,12 @@ export class PairRun {
   select(index: number): void {
     this.active = index;
     this.pinned = true;
+  }
+
+  /** Dismiss the held progress panel and reveal this pair's results. */
+  advance(index: number): void {
+    const run = this.runs[index];
+    if (run) run.awaitingNext = false;
   }
 
   state(index: number): PairRunState {
@@ -110,6 +130,7 @@ export class PairRun {
     if (stage === 'pair_result') {
       this.runs[index].progress.complete = true;
       this.runs[index].running = false;
+      this.runs[index].awaitingNext = true;
       if (onPairResult) onPairResult(index, payload['result']);
       return;
     }

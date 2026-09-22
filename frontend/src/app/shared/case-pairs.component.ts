@@ -34,6 +34,13 @@ export class CasePairsComponent<TResult> {
   @Input() resultTemplate?: TemplateRef<{ $implicit: TResult; pair: CasePair<TResult> }>;
   /** True while an analysis is in flight — freezes staging. */
   @Input() analyzing = false;
+  /**
+   * Keep the progress panel up when a pair finishes, behind a "Next" button,
+   * instead of swapping straight to its results. Only worth it for a pipeline
+   * whose panel reports something you'd want to read after the fact — the
+   * per-step token and timing figures — so it is off for everyone else.
+   */
+  @Input() holdProgress = false;
 
   /** The case reloaded after an upload/add/remove, so the parent can adopt it. */
   @Output() caseChanged = new EventEmitter<CaseDetail<TResult>>();
@@ -45,6 +52,11 @@ export class CasePairsComponent<TResult> {
 
   get noun(): string {
     return this.service.itemNoun;
+  }
+
+  /** This pair's progress panel is being held open, ahead of its results. */
+  held(index: number): boolean {
+    return this.holdProgress && this.run.state(index).awaitingNext;
   }
 
   /** Pairs beyond the case's own uploads — the ones this component stages. */

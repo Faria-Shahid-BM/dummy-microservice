@@ -39,6 +39,7 @@ arguments.
 from __future__ import annotations
 
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
@@ -62,6 +63,7 @@ from engines.field_match import (
     canon_text,
     compare_field,
 )
+from engines.token_usage import add_usage, new_usage
 from engines.util import EngineParseError, parse_json_response
 
 if TYPE_CHECKING:  # pragma: no cover — typing only; engines stay import-pure
@@ -149,6 +151,38 @@ def _emit_event(emit: EmitFn | None, payload: dict[str, Any]) -> None:
         emit("event", json.dumps(payload, separators=(",", ":")))
 
 
+def _emit_usage(emit: EmitFn | None, step: str, spent: dict[str, int],
+                running: dict[str, int], ms: int) -> None:
+    """Report what one pipeline step cost in tokens and wall-clock, plus the
+    review's running total.
+
+    Sent after the step finishes — the ``stage`` events fire before the work, so
+    they cannot carry figures that do not exist yet. The exception is vision,
+    which reports per page as it goes.
+    """
+    _emit_event(emit, {"stage": "usage", "step": step, "ms": ms,
+                       "usage": dict(spent), "cumulative": dict(running)})
+
+
+def _call_with_usage(provider: "LLMProvider", model: str,
+                     messages: list[dict[str, Any]], *,
+                     temperature: float = 0.0) -> tuple[str | None, dict[str, int]]:
+    """One non-streaming call, returning its text and what it cost.
+
+    ``(None, zeros)`` on any failure, preserving each caller's existing
+    degrade-gracefully behaviour. A provider without ``call_usage`` (a stub in a
+    caller or test) still works and simply reports zeros.
+    """
+    call_usage = getattr(provider, "call_usage", None)
+    try:
+        if callable(call_usage):
+            return call_usage(model, messages, temperature=temperature)
+        return provider.call(model=model, messages=messages,
+                             temperature=temperature), new_usage()
+    except Exception:
+        return None, new_usage()
+
+
 def _parse_json_array(response: str | None) -> list[Any] | None:
     """Parse a JSON ARRAY out of an LLM response. Slices the first '[' to the
     last ']' and json-loads it (``strict=False`` per the shared tolerant-parser
@@ -228,33 +262,30 @@ def _merge_document_fields(schema_section: dict[str, Any],
 
 
 def extract_fields(text: str, doc_name: str, provider: "LLMProvider",
-                   model: str, *, prompt: str | None = None) -> dict[str, Any]:
+                   model: str, *,
+                   prompt: str | None = None) -> tuple[dict[str, Any], dict[str, int]]:
     """Extract the CAD field set for ONE document.
 
-    Returns a populated copy of EXTRACTION_SCHEMA[doc_name]. Never crashes on a
-    failed call or bad JSON — on any error it returns the (possibly all-null)
-    schema so the pipeline degrades gracefully instead of aborting.
-    ``prompt`` overrides the shipped extraction prompt template (None -> the
-    frozen ``prompts/collateral_extraction.md``).
+    Returns a populated copy of EXTRACTION_SCHEMA[doc_name] and the tokens the
+    call cost. Never crashes on a failed call or bad JSON — on any error it
+    returns the (possibly all-null) schema so the pipeline degrades gracefully
+    instead of aborting. ``prompt`` overrides the shipped extraction prompt
+    template (None -> the frozen ``prompts/collateral_extraction.md``).
     """
     schema = deepcopy(EXTRACTION_SCHEMA[doc_name])
 
     prompt = build_extraction_prompt(text or "", doc_name, prompt=prompt)
-    try:
-        response = provider.call(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-        )
-    except Exception:
-        return schema
+    response, usage = _call_with_usage(
+        provider, model, [{"role": "user", "content": prompt}])
+    if response is None:
+        return schema, usage
 
     try:
         parsed = parse_json_response(response)
     except EngineParseError:
-        return schema
+        return schema, usage
     _merge_document_fields(schema, parsed)
-    return schema
+    return schema, usage
 
 
 def attach_evidence(fields: dict[str, Any], text: str) -> dict[str, int]:
@@ -494,8 +525,10 @@ def _build_adjudication_prompt(rows: list[dict[str, Any]], *,
 def adjudicate_comparison(comparison: list[dict[str, Any]],
                           provider: "LLMProvider", model: str, *,
                           prompt: str | None = None,
-                          emit: EmitFn | None = None) -> list[dict[str, Any]]:
-    """Resolve the rows Tiers 1 and 2 left ambiguous, IN PLACE, and return them.
+                          emit: EmitFn | None = None
+                          ) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Resolve the rows Tiers 1 and 2 left ambiguous, IN PLACE, and return them
+    with the tokens adjudication cost — zero when no row needed escalating.
 
     One LLM call for every ambiguous row (at most one per field), asking only
     whether the two values name the same fact. Three invariants keep this safe:
@@ -517,18 +550,13 @@ def adjudicate_comparison(comparison: list[dict[str, Any]],
     if not pending:
         for row in comparison:
             row.pop(_ESCALATE_KEY, None)
-        return comparison
+        return comparison, new_usage()
 
     _emit_event(emit, {"stage": "adjudicate", "rows": len(pending)})
-    try:
-        response = provider.call(
-            model=model,
-            messages=[{"role": "user", "content": _build_adjudication_prompt(
-                pending, prompt=prompt)}],
-            temperature=0.0,
-        )
-    except Exception:
-        response = None
+    response, usage = _call_with_usage(
+        provider, model,
+        [{"role": "user", "content": _build_adjudication_prompt(
+            pending, prompt=prompt)}])
 
     verdicts = _parse_json_array(response)
     # 1:1 or nothing — a partial or reordered array can't be attributed to rows
@@ -550,7 +578,7 @@ def adjudicate_comparison(comparison: list[dict[str, Any]],
 
     for row in comparison:
         row.pop(_ESCALATE_KEY, None)
-    return comparison
+    return comparison, usage
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -618,8 +646,10 @@ def _parse_observation_array(response: str | None) -> list[str] | None:
 def generate_observations(comparison: list[dict[str, Any]],
                           provider: "LLMProvider", model: str, *,
                           prompt: str | None = None,
-                          emit: EmitFn | None = None) -> list[str]:
-    """Produce plain-English, one-sentence findings for every non-match row.
+                          emit: EmitFn | None = None
+                          ) -> tuple[list[str], dict[str, int]]:
+    """Produce plain-English, one-sentence findings for every non-match row,
+    with the tokens the call cost.
 
     Takes only the non-match rows, makes ONE LLM call for all discrepancies, and
     robustly parses the JSON array. If parsing fails (or the count doesn't line
@@ -637,17 +667,19 @@ def generate_observations(comparison: list[dict[str, Any]],
     """
     non_match_rows = [r for r in comparison if r.get("status") != STATUS_MATCH]
     if not non_match_rows:
-        return []
+        return [], new_usage()
 
     prompt = _build_observation_prompt(non_match_rows, prompt=prompt)
     messages = [{"role": "user", "content": prompt}]
     response: str | None
+    usage = new_usage()
     stream_fn = getattr(provider, "stream", None)
 
     if emit is not None and callable(stream_fn):
         try:
             chunks: list[str] = []
-            for delta in stream_fn(model=model, messages=messages, temperature=0.0):
+            for delta in stream_fn(model=model, messages=messages, temperature=0.0,
+                                   usage_sink=usage):
                 chunks.append(delta)
                 emit("content", delta)
             response = "".join(chunks)
@@ -656,23 +688,18 @@ def generate_observations(comparison: list[dict[str, Any]],
 
     if not (emit is not None and callable(stream_fn)) or response is None:
         # Non-streaming path (no emit, no stream support, or streaming failed).
-        try:
-            response = provider.call(
-                model=model,
-                messages=messages,
-                temperature=0.0,
-            )
-        except Exception:
-            response = None
+        # Reassigning drops any usage a part-finished stream recorded, so a
+        # retried call is not counted twice.
+        response, usage = _call_with_usage(provider, model, messages)
 
     parsed = _parse_observation_array(response)
 
     # Use the parsed array only if it lines up 1:1 with the discrepancies;
     # otherwise fall back deterministically so every discrepancy is described.
     if parsed and len(parsed) == len(non_match_rows):
-        return parsed
+        return parsed, usage
 
-    return [_fallback_observation(row) for row in non_match_rows]
+    return [_fallback_observation(row) for row in non_match_rows], usage
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -740,15 +767,59 @@ def review_collateral(
     adjudication_prompt = prompts.get("adjudication")
     observations_prompt = prompts.get("observations")
 
+    # Per-step token spend, in pipeline order. "compare" stays at zero by
+    # design — Tiers 1 and 2 are pure rules — and is reported anyway so the
+    # reviewer can see which parts of the review actually cost anything.
+    usage_by_step: dict[str, dict[str, int]] = {}
+    # Wall-clock per step. Worth recording beside the tokens because the two
+    # come apart: a cheap step on a slow-serving model can dominate the review.
+    ms_by_step: dict[str, int] = {}
+    total_usage = new_usage()
+    started_at: dict[str, float] = {}
+
+    def _start(step: str) -> None:
+        started_at[step] = time.monotonic()
+
+    def _ms(step: str) -> int:
+        return int((time.monotonic() - started_at.get(step, time.monotonic())) * 1000)
+
+    def _record(step: str, spent: dict[str, int]) -> None:
+        elapsed = _ms(step)
+        usage_by_step[step] = spent
+        ms_by_step[step] = elapsed
+        add_usage(total_usage, spent)
+        _emit_usage(emit, step, spent, total_usage, elapsed)
+
+    # Vision is the slowest step and bills per page, so its cost is reported as
+    # each page lands rather than once both documents are done — otherwise a
+    # long scanned review shows nothing at all for minutes.
+    extract_text_usage = new_usage()
+    _start("extract_text")
+
+    def _page_usage(spent: dict[str, int]) -> None:
+        add_usage(extract_text_usage, spent)
+        add_usage(total_usage, spent)
+        _emit_usage(emit, "extract_text", extract_text_usage, total_usage,
+                    _ms("extract_text"))
+
     _emit_event(emit, {"stage": "extract_text", "document": "legal_opinion"})
     legal_source = extract_document(
-        Path(legal_opinion_path), provider, vision_model, emit=emit)
+        Path(legal_opinion_path), provider, vision_model, emit=emit,
+        on_usage=_page_usage)
     _emit_event(emit, {"stage": "extract_text", "document": "property_document"})
     property_source = extract_document(
-        Path(property_doc_path), provider, vision_model, emit=emit)
+        Path(property_doc_path), provider, vision_model, emit=emit,
+        on_usage=_page_usage)
     legal_text = legal_source.text
     property_text = property_source.text
+    # Already accumulated per page above, so this records the step without
+    # double-counting. Stays zero when both documents had a usable text layer.
+    usage_by_step["extract_text"] = extract_text_usage
+    ms_by_step["extract_text"] = _ms("extract_text")
+    _emit_usage(emit, "extract_text", extract_text_usage, total_usage,
+                ms_by_step["extract_text"])
 
+    _start("extract_fields")
     _emit_event(emit, {"stage": "extract_fields"})
     with ThreadPoolExecutor(max_workers=2) as ex:
         legal_future = ex.submit(
@@ -757,8 +828,9 @@ def review_collateral(
         property_future = ex.submit(
             extract_fields, property_text, "property_document", provider,
             extraction_model, prompt=extraction_prompt)
-        legal_fields = legal_future.result()
-        property_fields = property_future.result()
+        legal_fields, legal_usage = legal_future.result()
+        property_fields, property_usage = property_future.result()
+    _record("extract_fields", add_usage(dict(legal_usage), property_usage))
 
     # Cite each extracted value back to where it sits in the document text, so
     # a reviewer can check what the model picked instead of taking its word.
@@ -767,19 +839,25 @@ def review_collateral(
         "property_document": _source_report(property_source, property_fields),
     }
 
+    _start("compare")
     comparison = run_all_comparisons(legal_fields, property_fields)
     _emit_event(emit, {"stage": "compare", "fields": len(comparison)})
+    _record("compare", new_usage())
 
     # Tier 3 runs before the observations so a difference that is only a
     # difference in wording never becomes a written-up finding.
-    comparison = adjudicate_comparison(
+    _start("adjudicate")
+    comparison, adjudication_usage = adjudicate_comparison(
         comparison, provider, extraction_model,
         prompt=adjudication_prompt, emit=emit)
+    _record("adjudicate", adjudication_usage)
 
+    _start("observations")
     _emit_event(emit, {"stage": "observations"})
-    observations = generate_observations(
+    observations, observations_usage = generate_observations(
         comparison, provider, extraction_model,
         prompt=observations_prompt, emit=emit)
+    _record("observations", observations_usage)
 
     matches = sum(1 for r in comparison if r["status"] == STATUS_MATCH)
     mismatches = sum(1 for r in comparison if r["status"] == STATUS_MISMATCH)
@@ -795,7 +873,10 @@ def review_collateral(
         "adjudicated": adjudicated,
         "fields": len(comparison),
     }
-    _emit_event(emit, {"stage": "done", "summary": summary})
+    token_usage = {"by_step": usage_by_step, "total": total_usage,
+                   "ms_by_step": ms_by_step, "total_ms": sum(ms_by_step.values())}
+    _emit_event(emit, {"stage": "done", "summary": summary,
+                       "token_usage": token_usage})
 
     return {
         "extracted": {
@@ -812,4 +893,5 @@ def review_collateral(
         "comparison": comparison,
         "observations": observations,
         "summary": summary,
+        "token_usage": token_usage,
     }

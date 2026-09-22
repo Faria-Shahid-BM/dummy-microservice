@@ -4,14 +4,38 @@
 // migrated to a routed Cases UI (see collateral.service.ts) don't have to
 // duplicate this parsing logic.
 
+export interface TokenUsage {
+  prompt: number;
+  completion: number;
+  total: number;
+}
+
 export interface ReviewProgress {
   stageKey: string | null;
   detail: string | null;
   complete: boolean;
+  // What each finished step cost, keyed by step name, plus the running total.
+  // A step that makes no LLM call still reports a zero, so a missing key means
+  // "not reached yet" rather than "free".
+  usageByStep: Record<string, TokenUsage>;
+  usageTotal: TokenUsage;
+  /** Wall-clock per step, in milliseconds, keyed the same way. */
+  msByStep: Record<string, number>;
+}
+
+function zeroUsage(): TokenUsage {
+  return { prompt: 0, completion: 0, total: 0 };
 }
 
 export function freshProgress(): ReviewProgress {
-  return { stageKey: null, detail: null, complete: false };
+  return {
+    stageKey: null,
+    detail: null,
+    complete: false,
+    usageByStep: {},
+    usageTotal: zeroUsage(),
+    msByStep: {}
+  };
 }
 
 // Posts `body` (JSON object or FormData, for the file-upload endpoints) and
@@ -87,6 +111,20 @@ export function applyStageEvent(progress: ReviewProgress, rawData: string): void
 
   if (stage === 'done') {
     progress.complete = true;
+    return;
+  }
+  // Cost reports ride the same channel but are not pipeline steps — recording
+  // one must never advance the checklist to a stage called "usage".
+  if (stage === 'usage') {
+    const step = payload['step'];
+    const spent = payload['usage'] as TokenUsage | undefined;
+    if (typeof step === 'string' && spent) progress.usageByStep[step] = spent;
+    const ms = payload['ms'];
+    if (typeof step === 'string' && typeof ms === 'number') {
+      progress.msByStep[step] = ms;
+    }
+    const cumulative = payload['cumulative'] as TokenUsage | undefined;
+    if (cumulative) progress.usageTotal = cumulative;
     return;
   }
   progress.stageKey = stage;

@@ -661,6 +661,53 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* Time and token cost, pushed to the far end of the step row so the figures
+   line up in a column and can be scanned against each other. */
+.stage-cost {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.stage-time,
+.stage-tokens {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-faint);
+}
+
+/* Fixed width so the token figures stay in a column however long the time
+   beside them runs. */
+.stage-time {
+  min-width: 4.5rem;
+  text-align: right;
+}
+
+.stage-tokens {
+  min-width: 6.5rem;
+  text-align: right;
+}
+
+.stage-total {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.stage-total .stage-time,
+.stage-total .stage-tokens {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 /* ---------------------------------------------------------------- */
 /* Generic JSON result viewer (valuation/insurance panels)            */
 /* ---------------------------------------------------------------- */

@@ -58,6 +58,8 @@ import docx
 import fitz
 import pdfplumber
 
+from engines.token_usage import add_usage, new_usage
+
 if TYPE_CHECKING:  # runtime-pure: engines never import app.core.config
     from app.llm.base import LLMProvider
 
@@ -90,6 +92,9 @@ class TranscriptionResult:
     text: str
     pages_total: int
     pages_failed: list[int] = field(default_factory=list)
+    # Vision tokens spent transcribing this document, summed over its pages.
+    # Stays zero on the text-layer path, which makes no LLM call at all.
+    usage: dict[str, int] = field(default_factory=new_usage)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -190,8 +195,13 @@ def transcribe_pdf(
     emit: EmitFn | None = None,
     force_vision: bool = False,
     prompt: str | None = None,
+    on_usage: Callable[[dict[str, int]], None] | None = None,
 ) -> TranscriptionResult:
     """Transcribe a PDF page-by-page into ``=== PAGE N ===``-marked text.
+
+    ``on_usage``, when given, is called with each page's token cost as that page
+    lands — vision is the slowest step, so a caller reporting cost live wants it
+    per page rather than once at the end.
 
     Unless ``force_vision`` is set, a text-layer PDF (density >= threshold)
     keeps its embedded text per page (sparse-text fallback, no LLM calls);
@@ -253,7 +263,7 @@ def transcribe_pdf(
     # handle, since fitz documents are not thread-safe.
     system_prompt = prompt if prompt is not None else TRANSCRIPTION_PROMPT
 
-    def _transcribe_page(page_num: int) -> str:
+    def _transcribe_page(page_num: int) -> tuple[str, dict[str, int]]:
         _event(emit, lock, {"event": "page_start", "page": page_num, "total": total})
         with fitz.open(str(path)) as doc:
             pix = doc[page_num - 1].get_pixmap(
@@ -277,8 +287,13 @@ def transcribe_pdf(
                 ],
             },
         ]
-        return provider.call(vision_model, messages, temperature=0.0)
+        # Providers stubbed in callers/tests may only offer ``call``.
+        call_usage = getattr(provider, "call_usage", None)
+        if callable(call_usage):
+            return call_usage(vision_model, messages, temperature=0.0)
+        return provider.call(vision_model, messages, temperature=0.0), new_usage()
 
+    usage = new_usage()
     results: dict[int, str | None] = {}
     workers = max(1, min(total, max_workers))
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -289,9 +304,16 @@ def transcribe_pdf(
         for future in as_completed(futures):
             page_num = futures[future]
             try:
-                text: str | None = future.result()
+                text: str | None
+                text, page_usage = future.result()
             except Exception:
-                text = None
+                text, page_usage = None, None
+            # Counted even when the page is discarded below: a blank
+            # transcription still cost tokens. Safe without the lock — this
+            # loop runs on the calling thread, only the pages run in parallel.
+            add_usage(usage, page_usage)
+            if on_usage is not None and page_usage:
+                on_usage(page_usage)
             # Blank/whitespace-only transcription is a FAILURE (legacy
             # _commit_page invariant) — never counted as successful.
             if text and text.strip():
@@ -318,6 +340,7 @@ def transcribe_pdf(
         text="\n\n".join(parts),
         pages_total=total,
         pages_failed=sorted(pages_failed),
+        usage=usage,
     )
 
 
@@ -334,8 +357,12 @@ def extract_document(
     emit: EmitFn | None = None,
     force_vision: bool = False,
     prompt: str | None = None,
+    on_usage: Callable[[dict[str, int]], None] | None = None,
 ) -> TranscriptionResult:
     """Extract a document's full text, OCR-ing scanned PDFs via vision.
+
+    ``on_usage`` is forwarded to :func:`transcribe_pdf` and fires per page; it
+    never fires on the text-layer path, which makes no LLM call.
 
     Routing: ``.docx`` and text-layer PDFs → :func:`extract_text` (no LLM,
     ``pages_failed`` empty); scanned PDFs (or ``force_vision``) →
@@ -356,7 +383,7 @@ def extract_document(
             # transcribe_pdf skips a redundant density pass.
             return transcribe_pdf(
                 path, provider, vision_model, emit=emit, force_vision=True,
-                prompt=prompt,
+                prompt=prompt, on_usage=on_usage,
             )
         return TranscriptionResult(
             text=extract_text(path), pages_total=pages_total, pages_failed=[]
