@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.engines import document_diff, extraction
+from engines import document_diff, extraction
 from app.modules.reviews_base import EmitFn, make_review_router
 
 _SLOT_SUFFIXES = {".docx", ".pdf"}
@@ -41,7 +41,10 @@ def _read_text_document(slot: str, path: Path) -> str:
     return text
 
 
-def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn) -> dict:
+def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn,
+             token: str | None) -> dict:
+    # token is unused: this comparison is deterministic and calls no model,
+    # so there is nothing for config-service to decide.
     _emit_event(emit, {"stage": "extract_text", "document": "original"})
     original_text = _read_text_document("original", paths["original"])
     _emit_event(emit, {"stage": "extract_text", "document": "returned"})

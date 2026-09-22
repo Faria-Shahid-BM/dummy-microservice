@@ -31,6 +31,10 @@ export interface EvidenceView {
   text: string | null;
   loading: boolean;
   error: string;
+  /** The text this citation points into was never stored — a review from
+   * before citations were recorded. Re-running the pair produces it, so the
+   * panel offers that instead of showing a dead-end error. */
+  stale: boolean;
 }
 
 // Anchor id for the highlighted run — a real [id] on an Angular-rendered
@@ -60,6 +64,8 @@ const HIT_ID = 'evidence-hit';
 export class EvidencePanelComponent implements OnChanges {
   @Input() view: EvidenceView | null = null;
   @Output() closed = new EventEmitter<void>();
+  /** Asked for from the stale-citation notice; the parent owns analysis. */
+  @Output() rerun = new EventEmitter<void>();
 
   /** The text split around the highlight; `hit` empty means nothing to mark. */
   before = '';

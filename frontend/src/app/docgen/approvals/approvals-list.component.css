@@ -1,0 +1,12 @@
+.approval-card {
+  margin-bottom: 0.75rem;
+}
+
+.subject-type-tag {
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

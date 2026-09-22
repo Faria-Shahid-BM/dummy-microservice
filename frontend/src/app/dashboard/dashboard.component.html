@@ -1,12 +1,19 @@
-<div *ngIf="!catalog.selected" class="card">
-  <h2>Welcome</h2>
-  <p class="empty">Pick a service from the sidebar to get started.</p>
-</div>
+<ng-container *ngIf="!catalog.selected">
+  <app-admin-home *ngIf="session.isAdmin; else userHome"></app-admin-home>
+  <ng-template #userHome>
+    <app-user-home></app-user-home>
+  </ng-template>
+</ng-container>
 
 <!-- policyqa-kind: policyqa-service -->
 <ng-container *ngIf="catalog.selected?.kind === 'policyqa'">
   <div class="topbar">
-    <h2>{{ catalog.selected!.label }}</h2>
+    <div class="topbar-heading">
+      <h2>{{ catalog.selected!.label }}</h2>
+    </div>
+    <div class="button-row">
+      <button type="button" (click)="openPolicyUpload()">Upload policy</button>
+    </div>
   </div>
 
   <section class="card">
@@ -16,14 +23,7 @@
       <span *ngIf="!st.has_own_index && st.bundled_available">Chatting against the bundled default policy — upload your own to override it.</span>
       <span *ngIf="!st.has_own_index && !st.bundled_available">No policy indexed yet — upload one to start.</span>
     </p>
-    <div class="file-field">
-      <span>Policy document (.pdf, .docx, .txt or .md)</span>
-      <input type="file" accept=".pdf,.docx,.txt,.md" (change)="onPolicyIngestFile($event)" />
-    </div>
     <div class="button-row">
-      <button [disabled]="policyBusy || !policyIngestFile" (click)="ingestPolicy()">
-        {{ policyBusy ? 'Working…' : 'Upload & index' }}
-      </button>
       <button
         type="button"
         class="secondary"
@@ -33,7 +33,7 @@
         Remove my index
       </button>
     </div>
-    <p class="error" *ngIf="policyError">{{ policyError }}</p>
+    <p class="error" *ngIf="policyError && !showPolicyUpload">{{ policyError }}</p>
   </section>
 
   <section class="card">
@@ -77,4 +77,32 @@
     </div>
     <p class="error" *ngIf="policyChatError">{{ policyChatError }}</p>
   </section>
+
+  <div class="modal-overlay" *ngIf="showPolicyUpload" (click)="closePolicyUpload()">
+    <div class="modal-dialog modal-dialog--wide" (click)="$event.stopPropagation()">
+      <h3>Upload a policy</h3>
+      <p class="hint">Indexing replaces whichever policy you are chatting against now.</p>
+
+      <div class="file-field">
+        <span>Policy document (.pdf, .docx, .txt or .md)</span>
+        <input
+          type="file"
+          accept=".pdf,.docx,.txt,.md"
+          (change)="onPolicyIngestFile($event)"
+          [disabled]="policyBusy"
+        />
+      </div>
+
+      <p class="error" *ngIf="policyError">{{ policyError }}</p>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary" (click)="closePolicyUpload()" [disabled]="policyBusy">
+          Cancel
+        </button>
+        <button [disabled]="policyBusy || !policyIngestFile" (click)="ingestPolicy()">
+          {{ policyBusy ? 'Working…' : 'Upload &amp; index' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </ng-container>

@@ -1,0 +1,46 @@
+/* Wider/taller variant for previewing a whole document. */
+.doc-preview-dialog {
+  width: min(820px, 92vw);
+  max-height: 90vh;
+}
+
+.doc-preview-frame {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+}
+
+/* mammoth's docx->HTML output: plain semantic tags, no inline styles — this
+   gives it just enough shape to read as a document rather than a text dump. */
+.doc-preview-content {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt, var(--color-surface));
+}
+
+.doc-preview-content h1,
+.doc-preview-content h2,
+.doc-preview-content h3 {
+  margin: 1rem 0 0.5rem;
+}
+
+.doc-preview-content p {
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+}
+
+.doc-preview-content table {
+  border-collapse: collapse;
+  margin: 0 0 0.75rem;
+  width: 100%;
+}
+
+.doc-preview-content table td,
+.doc-preview-content table th {
+  border: 1px solid var(--color-border-soft);
+  padding: 0.35rem 0.5rem;
+}

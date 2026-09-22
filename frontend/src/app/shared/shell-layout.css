@@ -1,0 +1,190 @@
+/* Sidebar + main content layout, shared by AppShellComponent and
+   AdminShellComponent — the two page shells that mount a nav sidebar next to
+   a routed <main>. Not a component of its own, so it's included via each
+   shell's styleUrls rather than duplicated in both. */
+
+/* An Angular host element is display:inline by default, which would collapse
+   the flex row .app-body expects each shell's host to be. `:host` resolves
+   per including component, so this one rule covers both shells' own tags. */
+:host {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--color-sidebar);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1.5rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.15s ease, padding 0.15s ease;
+}
+
+.sidebar-toggle {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sidebar-toggle:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  box-shadow: none;
+  transform: none;
+}
+
+.sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Left padding matches .topbar-bar's (1.5rem) and align-items switches to
+   flex-start (instead of the expanded sidebar's default stretch/center) so
+   these mini icons sit in exactly the same column as the hamburger button
+   above them, rather than being centered in a narrower rail. */
+.app-shell.sidebar-collapsed .sidebar {
+  width: 70px;
+  padding: 1.5rem 0.6rem 1.5rem 1.5rem;
+  align-items: flex-start;
+}
+
+.sidebar-item-mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: rgba(245, 232, 234, 0.82);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: none;
+  margin-bottom: 0.4rem;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.sidebar-item-mini:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
+}
+
+.sidebar-item-mini.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.sidebar-item-mini--top {
+  margin-top: 0.5rem;
+}
+
+.sidebar h1 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.3rem;
+  color: rgba(245, 232, 234, 0.95);
+}
+
+/* The sidebar is dark, so its text overrides the light-background defaults
+   .subtitle and .empty carry everywhere else in the app. */
+.sidebar .subtitle {
+  font-size: 0.75rem;
+  margin-bottom: 1.75rem;
+  color: rgba(245, 232, 234, 0.5);
+}
+
+.sidebar .empty {
+  color: rgba(245, 232, 234, 0.5);
+}
+
+.sidebar-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: rgba(245, 232, 234, 0.82);
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: none;
+  margin-bottom: 0.2rem;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.sidebar-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
+}
+
+/* A white overlay rather than the primary gradient: wine-on-wine would barely
+   read against this sidebar. */
+.sidebar-item.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar-item--top {
+  margin-top: 0.5rem;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8rem;
+  color: rgba(245, 232, 234, 0.5);
+}
+
+.sidebar-footer button {
+  width: 100%;
+  margin-top: 0.7rem;
+}
+
+.main-content {
+  flex: 1;
+  padding: 2.25rem 2.5rem 4rem;
+  /* Fill the window rather than sitting in a narrow 860px column: these pages
+     are mostly wide result tables, and cramming them into half the screen both
+     looked broken and forced everything to grow downwards. */
+  width: 100%;
+  max-width: 1600px;
+  /* A flex item defaults to min-width:auto, i.e. it refuses to shrink below its
+     content's intrinsic width — so one wide table would stretch this past
+     max-width and push content out past the card and the viewport. */
+  min-width: 0;
+}

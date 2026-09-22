@@ -1,0 +1,266 @@
+<!-- One tab per pair, used by BOTH parts so the two bars are identical and stay
+     in sync: `run.active` is the single "which pair am I looking at" state, so
+     picking a pair up in the uploads card also brings its result up below. -->
+<ng-template #tabBar>
+  <div class="tab-bar" role="tablist">
+    <button
+      type="button"
+      class="tab"
+      role="tab"
+      *ngFor="let pair of pairs"
+      [class.active]="run.active === pair.index"
+      [attr.aria-selected]="run.active === pair.index"
+      (click)="run.select(pair.index)"
+    >
+      {{ label(pair) }}
+      <span class="tab-dot running" *ngIf="inProgress(pair)" title="in progress"></span>
+      <span
+        class="tab-dot error"
+        *ngIf="!inProgress(pair) && (run.state(pair.index).error || pair.error)"
+        title="failed"
+      ></span>
+      <span
+        class="tab-dot done"
+        *ngIf="!inProgress(pair) && !run.state(pair.index).error && !pair.error && pair.result"
+        title="done"
+      ></span>
+    </button>
+  </div>
+</ng-template>
+
+<!-- part="uploads": one tab per pair, each holding that pair's own upload
+     fields. A reviewed pair's pickers are disabled: only unreviewed pairs get
+     analyzed, so a document swapped in behind a finished result would never be
+     looked at. "Replace" drops that pair's result and re-opens the pickers,
+     which puts it back in the queue. -->
+<ng-container *ngIf="part === 'uploads'">
+  <!-- Tabs and the tab-level actions share one line. Both act on the tab strip
+       itself — Add opens a new tab, Remove closes the open one — so they belong
+       beside it rather than stranded under the upload fields, and a row of
+       their own left a wide void beside them. -->
+  <div class="tab-bar-row" *ngIf="tabbed">
+    <ng-container [ngTemplateOutlet]="tabBar"></ng-container>
+    <!-- One cluster so the actions wrap together, and so a service's own
+         case-level action sits beside these rather than on a line of its own.
+         Broadest first: the case, then a new tab, then the open tab. -->
+    <div class="tab-actions">
+      <ng-container *ngIf="tabActions" [ngTemplateOutlet]="tabActions"></ng-container>
+      <button
+        type="button"
+        class="clear"
+        *ngIf="service.allowExtraPairs"
+        [disabled]="busy || analyzing"
+        (click)="addPair()"
+      >
+        + Add another {{ noun }}
+      </button>
+      <!-- Pair 0 is the case's own uploads — there is nothing to remove. -->
+      <button
+        type="button"
+        class="clear"
+        *ngIf="activePair && activePair!.index > 0"
+        [disabled]="busy || analyzing"
+        (click)="removePair(activePair!)"
+      >
+        Remove
+      </button>
+    </div>
+  </div>
+
+  <ng-container *ngFor="let pair of pairs">
+    <!-- Untabbed, pair 0 is the case's own upload block: no frame, nothing to
+         remove. Tabbed, the panel is the frame and the tab is the label. -->
+    <div
+      *ngIf="!tabbed || run.active === pair.index"
+      [class.tab-panel]="tabbed"
+      [class.pair-block]="!tabbed && pair.index > 0"
+      role="tabpanel"
+    >
+      <div class="pair-head" *ngIf="!tabbed && pair.index > 0">
+        <span class="pair-title">{{ noun }} {{ pair.index + 1 }}</span>
+        <button type="button" class="clear" [disabled]="busy || analyzing" (click)="removePair(pair)">
+          Remove
+        </button>
+      </div>
+
+      <!-- The slots are one comparison, so they read as columns of one row
+           rather than a vertical queue. auto-fit means the services with a
+           single slot (valuation, insurance) get one full-width column from
+           the same markup, with no per-service branching. -->
+      <div class="slot-grid">
+        <div class="slot" *ngFor="let slot of service.slots">
+          <span class="slot-label">{{ slot.label }}</span>
+
+          <!-- Filled: the document itself, named and openable. A well rather
+               than a card — it sits inside one already, and only cards and
+               buttons carry elevation here. -->
+          <ng-container *ngIf="slotState(pair, slot.key) === 'filled'">
+            <div class="doc">
+              <span class="doc-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 2h7l5 5v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
+                </svg>
+              </span>
+              <span class="doc-name" [title]="pair.uploads[slot.key]">{{ pair.uploads[slot.key] }}</span>
+            </div>
+            <div class="slot-actions">
+              <app-doc-preview
+                [service]="service"
+                [caseId]="case.id"
+                [pairIndex]="pair.index"
+                [slot]="slot.key"
+                [fileName]="pair.uploads[slot.key]"
+              ></app-doc-preview>
+              <!-- Swapping a document is deliberate, so the picker stays out of
+                   the way until it's asked for. On a reviewed pair this also
+                   unlocks it, which drops its result and re-queues it. -->
+              <button
+                type="button"
+                class="clear"
+                *ngIf="!service.managedSlots.includes(slot.key)"
+                [disabled]="busy || analyzing"
+                (click)="startReplace(pair, slot.key)"
+              >
+                Replace
+              </button>
+            </div>
+          </ng-container>
+
+          <!-- Managed (e.g. `original`): populated from Document Generator, so
+               there is no picker at all — not even a disabled one, which would
+               still read as "you could upload here." -->
+          <ng-container *ngIf="slotState(pair, slot.key) === 'waiting'">
+            <p class="slot-blank">Not generated yet</p>
+          </ng-container>
+
+          <ng-container *ngIf="slotState(pair, slot.key) === 'picking'">
+            <div class="slot-picker">
+              <input
+                type="file"
+                [accept]="slot.accept"
+                [disabled]="busy || analyzing || !editable(pair, slot.key)"
+                (change)="onFile(pair, slot.key, $event)"
+              />
+            </div>
+            <!-- Only when a document is already there: this backs out of the
+                 swap, so there is something to go back to. -->
+            <div class="slot-actions" *ngIf="pair.uploads[slot.key]">
+              <button type="button" class="clear" [disabled]="busy" (click)="cancelReplace(pair, slot.key)">
+                Keep current document
+              </button>
+            </div>
+          </ng-container>
+
+          <p class="slot-note" *ngIf="service.managedSlots.includes(slot.key)">
+            Generated automatically — regenerate it in Document Generator to update this.
+          </p>
+        </div>
+      </div>
+
+      <!-- No "Replace a document" link here any more: each slot carries its own,
+           beside the document it swaps. A slot with no Replace is managed, and
+           unlocking the pair would not open it anyway. -->
+      <p class="hint" *ngIf="!editable(pair)">Reviewed — its result is in the tab below.</p>
+
+      <!-- This tab's own run, so a pair can be reviewed on its own rather than
+           only via the case-wide button in the tab strip. Untabbed there is
+           just one pair and that button already is this one, so it would be a
+           duplicate. A reviewed pair's re-run lives with its result, next to
+           the thing being re-run. -->
+      <div class="pair-run" *ngIf="tabbed && !reviewed(pair)">
+        <button
+          type="button"
+          [disabled]="!ready(pair) || busy || analyzing || inProgress(pair)"
+          [title]="ready(pair) ? '' : 'Upload ' + missingDocuments(pair) + ' first'"
+          (click)="analyzePair.emit(pair.index)"
+        >
+          {{ inProgress(pair) ? 'Reviewing…' : 'Review this ' + noun }}
+        </button>
+      </div>
+    </div>
+  </ng-container>
+  <p class="error" *ngIf="error">{{ error }}</p>
+</ng-container>
+
+<!-- part="results": one tab per pair, each holding that pair's own result -->
+<ng-container *ngIf="part === 'results'">
+  <!-- A case that can't hold extra pairs only ever has pair 0 — no tabs to
+       switch between, so the "pair" framing (and the tab bar itself) would
+       just be noise. `run.active` defaults to 0, so the lone panel below
+       still renders without needing a tab click. -->
+  <ng-container *ngIf="tabbed" [ngTemplateOutlet]="tabBar"></ng-container>
+
+  <ng-container *ngFor="let pair of pairs">
+    <div class="tab-panel" role="tabpanel" *ngIf="run.active === pair.index">
+      <!-- What this tab is about on the left, what you can do to it on the
+           right. Re-running belongs up here with the pair it acts on, not
+           trailing the result: below a long report it's both a long scroll
+           away and easy to read as an action on whatever it lands under. -->
+      <div class="result-head">
+        <!-- which documents this tab is about, so a result is never ambiguous -->
+        <p class="hint">
+          <ng-container *ngFor="let slot of service.slots; let last = last"
+            >{{ pair.uploads[slot.key] || 'not uploaded' }}<span *ngIf="!last"> · </span></ng-container
+          >
+        </p>
+        <!-- Reviewing this pair again is a deliberate act: the case's own
+             button only runs pairs that haven't been reviewed yet, so nothing
+             already paid for is re-run by accident. -->
+        <button
+          type="button"
+          class="clear"
+          *ngIf="reviewed(pair) && !run.state(pair.index).running"
+          [disabled]="analyzing || busy"
+          (click)="analyzePair.emit(pair.index)"
+        >
+          Review this {{ noun }} again
+        </button>
+      </div>
+
+      <ng-container *ngIf="run.state(pair.index).running">
+        <app-stage-progress
+          [steps]="stages"
+          [currentKey]="run.state(pair.index).progress.stageKey"
+          [detail]="run.state(pair.index).progress.detail"
+          [complete]="run.state(pair.index).progress.complete"
+        ></app-stage-progress>
+        <ng-container *ngIf="run.state(pair.index).streamingText">
+          <h3>Live output</h3>
+          <div class="redline">
+            {{ run.state(pair.index).streamingText }}<span class="streaming-cursor"></span>
+          </div>
+        </ng-container>
+      </ng-container>
+
+      <p class="error" *ngIf="run.state(pair.index).error">{{ run.state(pair.index).error }}</p>
+      <p class="error" *ngIf="!run.state(pair.index).error && pair.error">{{ pair.error }}</p>
+
+      <!-- Running on the server with no stream here (the page was left and
+           reopened mid-run): no stage detail to show, but say so rather than
+           "Not reviewed yet" — the result lands in this tab on its own. -->
+      <p
+        class="empty"
+        *ngIf="!run.state(pair.index).running && inProgress(pair) && !run.state(pair.index).error"
+      >
+        Review in progress — you can leave this page; the result will appear here when it finishes.
+      </p>
+      <p class="empty" *ngIf="!inProgress(pair) && !pair.result && !pair.error && !run.state(pair.index).error">
+        <ng-container *ngIf="ready(pair); else incomplete">Not reviewed yet.</ng-container>
+        <!-- Says what's missing rather than leaving the reviewer to work out
+             why this one never runs. Phrased as the action, not as a property
+             of the pair: for a single-slot reviewer "this policy is missing
+             the insurance policy" is the same word twice. -->
+        <ng-template #incomplete>
+          Not reviewed — upload {{ missingDocuments(pair) }} first.
+        </ng-template>
+      </p>
+
+      <ng-container *ngIf="pair.result && resultTemplate">
+        <ng-container
+          *ngTemplateOutlet="resultTemplate; context: { $implicit: pair.result, pair: pair }"
+        ></ng-container>
+      </ng-container>
+
+    </div>
+  </ng-container>
+</ng-container>

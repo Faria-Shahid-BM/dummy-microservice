@@ -1,16 +1,17 @@
-<section class="card">
-  <div class="log-header">
+<div class="topbar">
+  <div class="topbar-heading">
     <h2>Users &amp; permissions</h2>
-    <div class="button-row">
-      <button class="clear" (click)="load()" [disabled]="loading">
-        {{ loading ? 'Loading…' : 'Refresh' }}
-      </button>
-      <a routerLink="/admin/users/new">
-        <button type="button">Add a user</button>
-      </a>
-    </div>
+    <p class="subtitle">Who can reach which service.</p>
   </div>
+  <div class="button-row">
+    <button class="clear" (click)="load()" [disabled]="loading">Refresh</button>
+    <a routerLink="/admin/users/new">
+      <button type="button">Add a user</button>
+    </a>
+  </div>
+</div>
 
+<section class="card">
   <p class="hint">
     Permissions are carried in the sign-in token, so a change reaches someone the next time they
     sign in. <code>docgen_check</code> makes a user the checker who approves docgen work — it
@@ -18,10 +19,16 @@
   </p>
 
   <p class="error" *ngIf="error">{{ error }}</p>
-  <p class="empty" *ngIf="!error && !users.length && !loading">No users yet.</p>
 
-  <div class="table-scroll">
-    <table class="audit-table" *ngIf="users.length">
+  <p class="loading-line" *ngIf="loading">Loading users…</p>
+
+  <div class="empty-state" *ngIf="!loading && !error && !users.length">
+    <p>No users yet.</p>
+    <p class="hint">Add one with “Add a user”.</p>
+  </div>
+
+  <div class="table-scroll" *ngIf="!loading && users.length">
+    <table class="audit-table">
       <thead>
         <tr>
           <th>Username</th>

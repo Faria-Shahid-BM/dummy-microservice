@@ -22,6 +22,14 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
+        // Every signed-in user has settings of their own; config-service only
+        // returns the reviewers their scopes already entitle them to, so there
+        // is nothing narrower to guard on here than being signed in.
+        path: 'configuration',
+        loadComponent: () =>
+          import('./configuration/configuration.component').then((m) => m.ConfigurationComponent)
+      },
+      {
         path: 'dashboard',
         loadComponent: () => import('./dashboard/dashboard.component').then((m) => m.DashboardComponent)
       },
@@ -72,7 +80,7 @@ export const routes: Routes = [
           {
             path: 'cases',
             providers: [{ provide: CASE_SERVICE, useExisting: CollateralService }],
-            loadComponent: () => import('./shared/case-list.component').then((m) => m.CaseListComponent)
+            loadComponent: () => import('./shared/case-list/case-list.component').then((m) => m.CaseListComponent)
           },
           {
             path: 'cases/:caseId',
@@ -89,7 +97,7 @@ export const routes: Routes = [
           {
             path: 'cases',
             providers: [{ provide: CASE_SERVICE, useExisting: ValuationService }],
-            loadComponent: () => import('./shared/case-list.component').then((m) => m.CaseListComponent)
+            loadComponent: () => import('./shared/case-list/case-list.component').then((m) => m.CaseListComponent)
           },
           {
             path: 'cases/:caseId',
@@ -106,7 +114,7 @@ export const routes: Routes = [
           {
             path: 'cases',
             providers: [{ provide: CASE_SERVICE, useExisting: InsuranceService }],
-            loadComponent: () => import('./shared/case-list.component').then((m) => m.CaseListComponent)
+            loadComponent: () => import('./shared/case-list/case-list.component').then((m) => m.CaseListComponent)
           },
           {
             path: 'cases/:caseId',
@@ -123,7 +131,7 @@ export const routes: Routes = [
           {
             path: 'cases',
             providers: [{ provide: CASE_SERVICE, useExisting: DocdiffService }],
-            loadComponent: () => import('./shared/case-list.component').then((m) => m.CaseListComponent)
+            loadComponent: () => import('./shared/case-list/case-list.component').then((m) => m.CaseListComponent)
           },
           {
             path: 'cases/:caseId',

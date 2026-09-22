@@ -1,18 +1,15 @@
 <div class="topbar">
-  <h2>Cases</h2>
+  <div class="topbar-heading">
+    <h2>Cases</h2>
+    <p class="subtitle">Every document-generation case in this profile.</p>
+  </div>
+  <div class="button-row">
+    <button type="button" class="clear" (click)="toggleAddCase()" [disabled]="readOnly">+ Add case</button>
+    <button class="clear" (click)="load()" [disabled]="loading">Refresh</button>
+  </div>
 </div>
 
 <section class="card">
-  <div class="log-header">
-    <h2>All cases</h2>
-    <div class="button-row">
-      <button type="button" class="clear" (click)="toggleAddCase()" [disabled]="readOnly">+ Add case</button>
-      <button class="clear" (click)="load()" [disabled]="loading">
-        {{ loading ? 'Loading…' : 'Refresh' }}
-      </button>
-    </div>
-  </div>
-
   <div class="modal-overlay" *ngIf="showAddCase" (click)="showAddCase = false">
     <div class="modal-dialog" (click)="$event.stopPropagation()">
       <h3>Add case</h3>
@@ -39,7 +36,12 @@
   <p class="error" *ngIf="error">{{ error }}</p>
   <p class="hint" *ngIf="readOnly">The Default profile is read-only — case creation is disabled.</p>
 
-  <app-data-table [rows]="cases" [empty]="loading ? '' : 'No cases yet.'">
+  <app-data-table
+    [rows]="cases"
+    [loading]="loading"
+    loadingText="Loading cases…"
+    empty="No cases yet."
+  >
     <ng-template appColumn header="Name" let-c>{{ c.name }}</ng-template>
     <ng-template appColumn header="Status" let-c>{{ c.status }}</ng-template>
     <ng-template appColumn header="Input" let-c>{{ c.input_file_name || '—' }}</ng-template>

@@ -99,6 +99,12 @@ class ProfileConfigOverride(Base):
 
 
 class AuditEntry(Base):
+    """Deprecated: docgen's own local audit trail, superseded by the
+    outbox-backed AUDIT_OUTBOX below, which reports into the central
+    audit-service instead (see app/audit.py, POC_TO_PRODUCTION.md #14).
+    Nothing writes here any more — kept only so pre-migration history stays
+    queryable; safe to drop once that history no longer matters."""
+
     __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -111,6 +117,14 @@ class AuditEntry(Base):
     subject_id: Mapped[str | None] = mapped_column(String(64))
     detail: Mapped[dict | None] = mapped_column(JSON)
     ip: Mapped[str | None] = mapped_column(String(64))
+
+
+# Transactional outbox for the audit trail (see outbox.py) — registered on
+# this same Base.metadata so it's created by both create_all() (dev/first
+# boot) and the Alembic migration below (production), like any other table.
+from outbox import outbox_table  # noqa: E402
+
+AUDIT_OUTBOX = outbox_table(Base.metadata)
 
 
 class Notification(Base):

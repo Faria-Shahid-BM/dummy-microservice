@@ -8,13 +8,12 @@ is read-only — mutation guards reject it so work and config changes happen
 in user-created profiles.
 """
 
-import os
-from pathlib import Path
-
 import jwt
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from security import JWT_ISSUER, JWT_PUBLIC_KEY
 
 from app.core.db import db_session
 from app.models import Profile, User
@@ -22,27 +21,9 @@ from app.models import Profile, User
 # --- Kong JWT (A1: this service trusts the gateway's token) ---
 # RS256: auth-service signs with its private key; this service only ever
 # needs the public key to verify, matching every other service's
-# security.py — no shared secret to leak.
-JWT_ISSUER = os.environ.get("JWT_ISSUER", "poc-issuer")
+# security.py — no shared secret to leak. Key loading itself now comes
+# straight from security.py rather than a second copy of the same logic.
 JWT_ALGORITHM = "RS256"
-JWT_PUBLIC_KEY_PATH = os.environ.get("JWT_PUBLIC_KEY_PATH", "/app/keys/jwt-public.pem")
-
-
-def _load_public_key() -> str:
-    try:
-        pem = Path(JWT_PUBLIC_KEY_PATH).read_text(encoding="utf-8")
-    except OSError as exc:
-        raise RuntimeError(
-            f"cannot read the JWT public key at {JWT_PUBLIC_KEY_PATH}: {exc}. "
-            "Generate a keypair with `python scripts/generate_jwt_keys.py` and mount "
-            "keys/jwt-public.pem into this service before starting."
-        ) from exc
-    if "PUBLIC KEY" not in pem:
-        raise RuntimeError(f"{JWT_PUBLIC_KEY_PATH} is not a PEM public key")
-    return pem
-
-
-JWT_PUBLIC_KEY = _load_public_key()
 # A token needs one of these to use docgen. "docgen_check" counts on its own:
 # it designates the checker who approves docgen work, so a token carrying only
 # it (issued before auth-service started implying "docgen") must still get in —
@@ -52,6 +33,20 @@ DOCGEN_SCOPES = {"docgen", "docgen_check", "admin"}
 DEFAULT_PROFILE_READONLY = (
     "The Default profile is read-only — create a profile to work in"
 )
+
+
+def raw_token(authorization: str | None = Header(default=None)) -> str | None:
+    """The caller's bearer token, to forward to a service that re-verifies it.
+
+    config-service answers "which models has this person chosen" and checks
+    the token itself, so the token has to travel with the question. Returns
+    None rather than raising: a missing header is already rejected by
+    current_user on the same request, and a model lookup must never be the
+    thing that fails a request.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    return authorization.split(" ", 1)[1].strip()
 
 
 def current_user(

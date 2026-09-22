@@ -1,45 +1,24 @@
 <div class="topbar">
-  <h2>Template library</h2>
+  <div class="topbar-heading">
+    <h2>Template library</h2>
+    <p class="subtitle">Versioned .docx templates. A new upload is submitted for approval as version 1.</p>
+  </div>
+  <div class="button-row">
+    <button type="button" (click)="openUpload()" [disabled]="readOnly">Upload template</button>
+    <button class="clear" (click)="load()" [disabled]="loading">Refresh</button>
+  </div>
 </div>
 
 <section class="card">
-  <h2>Upload a template</h2>
-  <div class="file-field">
-    <span>Template file (.docx only)</span>
-    <input type="file" accept=".docx" (change)="onFile($event)" [disabled]="readOnly" />
-  </div>
-  <div class="field">
-    <span>Name</span>
-    <input type="text" [(ngModel)]="newName" name="newName" [disabled]="readOnly" />
-  </div>
-  <div class="field">
-    <span>Language</span>
-    <select [(ngModel)]="newLanguage" name="newLanguage" [disabled]="readOnly">
-      <option value="en">English</option>
-      <option value="ar">Arabic</option>
-      <option value="bilingual">Bilingual</option>
-    </select>
-  </div>
-  <div class="field">
-    <span>Note</span>
-    <input type="text" [(ngModel)]="newNote" name="newNote" [disabled]="readOnly" />
-  </div>
-  <button [disabled]="creating || !newFile || readOnly" (click)="create()">
-    {{ creating ? 'Uploading…' : 'Upload template' }}
-  </button>
-  <p class="error" *ngIf="error">{{ error }}</p>
-  <p class="hint">Uploading auto-submits version 1 for approval.</p>
-</section>
+  <p class="error" *ngIf="error && !showUpload">{{ error }}</p>
+  <p class="hint" *ngIf="readOnly">The Default profile is read-only — uploading is disabled.</p>
 
-<section class="card">
-  <div class="log-header">
-    <h2>Templates</h2>
-    <button class="clear" (click)="load()" [disabled]="loading">
-      {{ loading ? 'Loading…' : 'Refresh' }}
-    </button>
-  </div>
-
-  <app-data-table [rows]="templates" [empty]="loading ? '' : 'No templates yet.'">
+  <app-data-table
+    [rows]="templates"
+    [loading]="loading"
+    loadingText="Loading templates…"
+    empty="No templates yet."
+  >
     <ng-template appColumn header="Name" let-t>{{ t.name }}</ng-template>
     <ng-template appColumn header="Language" let-t>{{ t.language }}</ng-template>
     <ng-template appColumn header="Status" let-t>{{ t.status }}</ng-template>
@@ -50,3 +29,40 @@
     </ng-template>
   </app-data-table>
 </section>
+
+<div class="modal-overlay" *ngIf="showUpload" (click)="closeUpload()">
+  <div class="modal-dialog modal-dialog--wide" (click)="$event.stopPropagation()">
+    <h3>Upload a template</h3>
+
+    <div class="file-field">
+      <span>Template file (.docx only)</span>
+      <input type="file" accept=".docx" (change)="onFile($event)" [disabled]="creating" />
+    </div>
+    <div class="field">
+      <span>Name</span>
+      <input type="text" [(ngModel)]="newName" name="newName" [disabled]="creating" />
+    </div>
+    <div class="field">
+      <span>Language</span>
+      <select [(ngModel)]="newLanguage" name="newLanguage" [disabled]="creating">
+        <option value="en">English</option>
+        <option value="ar">Arabic</option>
+        <option value="bilingual">Bilingual</option>
+      </select>
+    </div>
+    <div class="field">
+      <span>Note</span>
+      <input type="text" [(ngModel)]="newNote" name="newNote" [disabled]="creating" />
+    </div>
+
+    <p class="error" *ngIf="error">{{ error }}</p>
+    <p class="hint">Uploading auto-submits version 1 for approval.</p>
+
+    <div class="modal-actions">
+      <button type="button" class="secondary" (click)="closeUpload()" [disabled]="creating">Cancel</button>
+      <button [disabled]="creating || !newFile || readOnly" (click)="create()">
+        {{ creating ? 'Uploading…' : 'Upload template' }}
+      </button>
+    </div>
+  </div>
+</div>

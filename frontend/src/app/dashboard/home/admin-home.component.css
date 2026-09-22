@@ -1,0 +1,145 @@
+.subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* .secondary is written for <button> — it only supplies colour/border, and
+   relies on the bare `button` element rule for padding/radius/font. An <a>
+   styled the same way (a real link, not a button-shaped click handler, so
+   ctrl/middle-click and the status-bar preview keep working) needs those
+   picked back up explicitly. */
+.button-row a.secondary {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+.admin-stat-row {
+  margin-bottom: 1.5rem;
+}
+
+.chart-hint {
+  margin-top: -0.2rem;
+  margin-bottom: 1rem;
+}
+
+/* --- 14-day activity chart ------------------------------------------------ */
+
+.day-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  height: 140px;
+}
+
+.day-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.day-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  /* So a zero-count day still shows a hairline baseline instead of nothing. */
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+/* Sequential magnitude — one hue, light to full is unnecessary at this scale
+   (14 comparable bars), so the fill stays a flat brand tone; height alone
+   carries the magnitude. */
+.day-bar {
+  width: 100%;
+  min-height: 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-primary);
+  transition: height 0.2s;
+}
+
+.day-label {
+  margin-top: 0.4rem;
+  font-size: 0.62rem;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  /* 14 labels in the space of ~8 comfortable ones — rotate rather than drop
+     every other one, so every bar keeps its own label on hover/inspection. */
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+@media (max-width: 720px) {
+  .day-chart {
+    height: 110px;
+  }
+}
+
+/* --- "by service" bar rows ------------------------------------------------ */
+
+.bar-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 11rem 1fr 2.5rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bar-row-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swatch {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-border-soft);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  min-width: 3px;
+  border-radius: 999px;
+  transition: width 0.2s;
+}
+
+.bar-row-value {
+  text-align: right;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+@media (max-width: 560px) {
+  .bar-row {
+    grid-template-columns: 7rem 1fr 2rem;
+  }
+}

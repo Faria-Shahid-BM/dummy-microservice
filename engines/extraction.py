@@ -57,6 +57,9 @@ from typing import TYPE_CHECKING, Callable
 import docx
 import fitz
 import pdfplumber
+from docx.oxml.ns import qn
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 
 if TYPE_CHECKING:  # runtime-pure: engines never import app.core.config
     from app.llm.base import LLMProvider
@@ -124,17 +127,138 @@ def _from_pdf(path: Path) -> str:
     return "\n\n".join(parts)
 
 
+def _iter_block_items(document: docx.Document):
+    """Paragraphs and tables in true document order.
+
+    ``document.paragraphs`` and ``document.tables`` are separate flat
+    collections — reading them one after the other (the previous approach)
+    silently reorders any document where a table sits between paragraphs.
+    """
+    for child in document.element.body.iterchildren():
+        if child.tag == qn("w:p"):
+            yield Paragraph(child, document)
+        elif child.tag == qn("w:tbl"):
+            yield Table(child, document)
+
+
+def _heading_level(style_name: str | None) -> int | None:
+    if not style_name:
+        return None
+    if style_name == "Title":
+        return 1
+    if style_name.startswith("Heading "):
+        suffix = style_name[len("Heading ") :]
+        if suffix.isdigit():
+            return int(suffix)
+    return None
+
+
+def _resolve_numPr(paragraph: Paragraph):
+    """The effective ``w:numPr`` for a paragraph, direct or inherited.
+
+    A list item's numbering can be set directly on the paragraph (Word's
+    bullet/number toolbar buttons) or on its style — the built-in "List
+    Bullet"/"List Number" styles carry ``w:numPr`` in the *style's* own
+    ``w:pPr``, not the paragraph's, so both places (and the style's
+    ``basedOn`` chain) have to be checked.
+    """
+    pPr = paragraph._p.pPr
+    if pPr is not None and pPr.numPr is not None:
+        return pPr.numPr
+    style = paragraph.style
+    while style is not None:
+        style_pPr = style.element.pPr
+        if style_pPr is not None and style_pPr.numPr is not None:
+            return style_pPr.numPr
+        style = style.base_style
+    return None
+
+
+def _list_indent(paragraph: Paragraph) -> int | None:
+    """Numbering indent level if ``paragraph`` is a list item, else None.
+
+    Bullet/number characters themselves live in the numbering definitions
+    (``numbering.xml``), not in ``paragraph.text`` — resolving the actual
+    marker (bullet glyph vs. "1."/"a)") would mean walking that separate
+    part, so every list item is rendered as a plain "-" regardless of its
+    real marker.
+    """
+    numPr = _resolve_numPr(paragraph)
+    if numPr is None:
+        return None
+    ilvl = numPr.ilvl
+    return ilvl.val if ilvl is not None else 0
+
+
+def _append_blank(parts: list[str]) -> None:
+    if parts and parts[-1] != "":
+        parts.append("")
+
+
+# Above this cell length a pipe-joined "| a | b |" row stops being a readable
+# table row and just squeezes long text onto one unreadable line — common in
+# bilingual (e.g. Arabic/English) contract templates that lay out each clause
+# as a table row with a full paragraph per language column.
+_LONG_CELL_CHARS = 80
+
+
+def _format_table_rows(table: Table) -> list[str]:
+    lines: list[str] = []
+    prev_long = False
+    for row in table.rows:
+        cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+        if not cells:
+            continue
+        is_long = any(len(cell) > _LONG_CELL_CHARS or "\n" in cell for cell in cells)
+        # Only break rows apart when one side is a long/multi-line block —
+        # a short reference table (e.g. Name | Role rows) stays visually
+        # grouped instead of getting a blank line between every row.
+        if lines and (is_long or prev_long):
+            lines.append("")
+        if is_long:
+            for i, cell in enumerate(cells):
+                if i:
+                    lines.append("")
+                lines.append(cell)
+        else:
+            lines.append("| " + " | ".join(cells) + " |")
+        prev_long = is_long
+    return lines
+
+
 def _from_docx(path: Path) -> str:
     document = docx.Document(str(path))
     parts: list[str] = []
-    for para in document.paragraphs:
-        if para.text.strip():
-            parts.append(para.text)
-    for table in document.tables:
-        for row in table.rows:
-            row_text = " | ".join(cell.text.strip() for cell in row.cells)
-            if row_text.strip(" |"):
-                parts.append(row_text)
+    blank_pending = False
+
+    for block in _iter_block_items(document):
+        if isinstance(block, Paragraph):
+            text = block.text.strip()
+            if not text:
+                blank_pending = True
+                continue
+            if blank_pending:
+                _append_blank(parts)
+                blank_pending = False
+            level = _heading_level(block.style.name if block.style else None)
+            if level is not None:
+                parts.append(f"{'#' * level} {text}")
+                continue
+            indent = _list_indent(block)
+            if indent is not None:
+                parts.append(f"{'  ' * indent}- {text}")
+                continue
+            parts.append(text)
+        else:
+            rows = _format_table_rows(block)
+            if not rows:
+                continue
+            _append_blank(parts)
+            parts.extend(rows)
+            blank_pending = True
+
+    while parts and parts[-1] == "":
+        parts.pop()
     return "\n".join(parts)
 
 

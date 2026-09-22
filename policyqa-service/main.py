@@ -1,15 +1,20 @@
+import asyncio
 import os, re, tempfile
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 import audit_client
+import outbox
 from engines import policy_qa, extraction
+import config_client
 from provider import Provider
 from security import get_raw_token, require_scope
 from streaming import sse_stream
 
-app = FastAPI()
 _provider = Provider()
 
 # Persistent per-user index storage (mounted as a Docker volume).
@@ -18,8 +23,45 @@ INDEXES_DIR = DATA_DIR / "indexes"
 ALLOWED_SUFFIXES = {".pdf", ".docx", ".txt", ".md"}
 _EXTRACTED = {".pdf", ".docx"}   # these go through text/OCR extraction first
 
+# This service has no database of its own — its state is entirely files on
+# disk (indexes/, above). It gets a small dedicated SQLite DB purely to hold
+# the audit outbox (see outbox.py), so an audit event still survives
+# audit-service being briefly unreachable. Unlike case_store.py's services,
+# there's no surrounding DB transaction for the outbox write to be atomic
+# WITH — the index build/delete itself isn't transactional either — so this
+# gets "delivery can't be silently lost" but not "atomic with the mutation".
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+_outbox_engine = create_engine(
+    f"sqlite:///{DATA_DIR / 'outbox.db'}", connect_args={"check_same_thread": False}
+)
+_OutboxSessionLocal = sessionmaker(bind=_outbox_engine, autoflush=False, expire_on_commit=False)
+
+
+class _OutboxBase(DeclarativeBase):
+    pass
+
+
+_OUTBOX = outbox.outbox_table(_OutboxBase.metadata)
+_OutboxBase.metadata.create_all(_outbox_engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    asyncio.create_task(outbox.run_relay(_OutboxSessionLocal, _OUTBOX))
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
 def audit(token, action, resource=None, metadata=None):
-    audit_client.audit("policyqa-service", action, token, resource=resource, metadata=metadata)
+    db = _OutboxSessionLocal()
+    try:
+        outbox.enqueue(db, _OUTBOX, service="policyqa-service", action=action, token=token,
+                        resource=resource, detail=metadata)
+        db.commit()
+    finally:
+        db.close()
 
 def _user_index_dir(username: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", username) or "user"   # safe folder name
@@ -34,6 +76,20 @@ def status(user=Depends(require_scope("policy_qa"))):
         "bundled_available": policy_qa.has_index(policy_qa.BUNDLED_DIR),
     }
 
+# Fallback for when config-service can't answer — the values this service used
+# to read directly. See config_client.models_for.
+def _default_models() -> dict:
+    return {
+        "chat": os.environ["MODEL_CHAT"],
+        "embedding": os.environ["MODEL_EMBEDDING"],
+        "vision": os.environ["MODEL_VISION"],
+    }
+
+
+def _models(token: str | None) -> dict:
+    return config_client.models_for("policy_qa", token, _default_models())
+
+
 # ── chat: use the user's own index if present, else the bundled one ─
 class ChatBody(BaseModel):
     query: str
@@ -43,12 +99,13 @@ class ChatBody(BaseModel):
 def chat(body: ChatBody, user=Depends(require_scope("policy_qa")), token: str | None = Depends(get_raw_token)):
     username = user.get("sub", "unknown")
     idx = _user_index_dir(username)
+    models = _models(token)
     result = policy_qa.answer(
         body.query, body.history,
         index_dir=idx if policy_qa.has_index(idx) else None,   # own index, else bundled
         provider=_provider,
-        chat_model=os.environ["MODEL_CHAT"],
-        embed_model=os.environ["MODEL_EMBEDDING"],
+        chat_model=models["chat"],
+        embed_model=models["embedding"],
     )
     audit(token, "chat", metadata={
         "input": {"query": body.query, "history_turns": len(body.history)},
@@ -68,13 +125,15 @@ async def chat_stream(
     username = user.get("sub", "unknown")
     idx = _user_index_dir(username)
 
+    models = _models(token)
+
     def run(emit):
         result = policy_qa.answer(
             body.query, body.history,
             index_dir=idx if policy_qa.has_index(idx) else None,
             provider=_provider,
-            chat_model=os.environ["MODEL_CHAT"],
-            embed_model=os.environ["MODEL_EMBEDDING"],
+            chat_model=models["chat"],
+            embed_model=models["embedding"],
             emit=emit,
         )
         audit(token, "chat_stream", metadata={
@@ -97,20 +156,21 @@ async def ingest(
     idx = _user_index_dir(username)
     idx.mkdir(parents=True, exist_ok=True)
 
+    models = _models(token)          # one lookup for both steps below
     raw = await file.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=idx) as tmp:
         tmp.write(raw)
         tmp_path = Path(tmp.name)
     try:
         if suffix in _EXTRACTED:                       # pdf/docx → text (OCR if scanned)
-            text = extraction.extract_document(tmp_path, _provider, os.environ["MODEL_VISION"]).text
+            text = extraction.extract_document(tmp_path, _provider, models["vision"]).text
         else:                                          # txt/md → read as-is
             text = tmp_path.read_text(encoding="utf-8", errors="replace")
         if not text.strip():
             raise HTTPException(422, "No text could be extracted from the document.")
         source = idx / "source.txt"
         source.write_text(text, encoding="utf-8")
-        info = policy_qa.build_index(source, idx, _provider, os.environ["MODEL_EMBEDDING"])
+        info = policy_qa.build_index(source, idx, _provider, models["embedding"])
     finally:
         tmp_path.unlink(missing_ok=True)               # never leave the raw upload behind
     attachment_id = audit_client.upload_attachment(file.filename or tmp_path.name, raw)

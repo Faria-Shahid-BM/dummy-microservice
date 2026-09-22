@@ -14,7 +14,8 @@ import {
 import { JobStatusComponent } from '../job-status/job-status.component';
 import { JsonViewComponent } from '../../json-view/json-view.component';
 import { MarkdownFieldComponent } from '../markdown-field/markdown-field.component';
-import { DataTableComponent, RowDetailDirective, TableColumnDirective } from '../../shared/data-table.component';
+import { ClampTextComponent } from '../../shared/clamp-text/clamp-text.component';
+import { DataTableComponent, RowDetailDirective, TableColumnDirective } from '../../shared/data-table/data-table.component';
 
 @Component({
   selector: 'app-case-detail',
@@ -28,9 +29,11 @@ import { DataTableComponent, RowDetailDirective, TableColumnDirective } from '..
     MarkdownFieldComponent,
     DataTableComponent,
     TableColumnDirective,
-    RowDetailDirective
+    RowDetailDirective,
+    ClampTextComponent
   ],
-  templateUrl: './case-detail.component.html'
+  templateUrl: './case-detail.component.html',
+  styleUrl: './case-detail.component.css'
 })
 export class CaseDetailComponent implements OnInit {
   caseId = '';
@@ -109,10 +112,24 @@ export class CaseDetailComponent implements OnInit {
         if (c.has_case_text && !this.caseTextLoaded) this.loadCaseText();
         if (c.has_analysis && !this.analysisLoaded) this.loadAnalysis();
         if (c.has_selected && !this.selectedLoaded) this.loadSelected();
-        if (c.generated_count > 0) this.loadDocuments();
+        // Jobs run server-side whether or not this page is open, so coming
+        // back mid-run has to pick them up again: without this the buttons
+        // read idle (and let you start a second run, a 409) while the status
+        // badge that was following it is gone. Finished output needs nothing
+        // here — the has_* flags above already reload it.
+        const running = (kind: string) => c.active_jobs?.find((j) => j.kind === kind)?.id ?? null;
+        this.extractJobId ??= running('case.extract');
+        this.analyzeJobId ??= running('case.analyze');
+        this.selectJobId ??= running('case.select');
+        const filling = !!running('case.fill');
+        if (c.generated_count > 0 || filling) this.loadDocuments();
         if (!this.tabInitialized) {
           this.tabInitialized = true;
-          if (c.generated_count > 0) this.activeTab = 'documents';
+          if (this.extractJobId) this.activeTab = 'extract';
+          else if (this.analyzeJobId) this.activeTab = 'analyze';
+          else if (this.selectJobId) this.activeTab = 'select';
+          else if (filling) this.activeTab = 'generate';
+          else if (c.generated_count > 0) this.activeTab = 'documents';
           else if (c.has_selected) this.activeTab = 'generate';
           else if (c.has_case_text) this.activeTab = 'select';
           else if (c.has_input) this.activeTab = 'extract';

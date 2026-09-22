@@ -12,7 +12,8 @@ import { SidebarToggleService } from './sidebar-toggle.service';
   selector: 'app-shell',
   standalone: true,
   imports: [CommonModule, RouterLink, RouterOutlet],
-  templateUrl: './app-shell.component.html'
+  templateUrl: './app-shell.component.html',
+  styleUrls: ['../shared/shell-layout.css']
 })
 export class AppShellComponent {
   constructor(

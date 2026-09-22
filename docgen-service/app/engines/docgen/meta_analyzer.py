@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 import docx
 
-from app.engines.util import strip_fences
+from engines.util import strip_fences
 
 if TYPE_CHECKING:
     from app.llm.base import LLMProvider

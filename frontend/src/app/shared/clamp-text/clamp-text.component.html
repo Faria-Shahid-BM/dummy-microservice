@@ -1,0 +1,9 @@
+<span class="cell-text" [class.expanded]="expanded" #body>{{ text }}</span>
+<button
+  type="button"
+  class="link clamp-toggle"
+  *ngIf="overflowing || expanded"
+  (click)="expanded = !expanded"
+>
+  {{ expanded ? 'Show less' : 'Show more' }}
+</button>

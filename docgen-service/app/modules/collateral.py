@@ -11,19 +11,20 @@ from pathlib import Path
 
 from app.control.profile_config import effective_model, prompt_override
 from app.core.db import session_scope
-from app.engines.collateral import review_collateral
+from engines.collateral import review_collateral
 from app.llm.registry import get_provider
 from app.modules.reviews_base import EmitFn, make_review_router
 
 _SLOT_SUFFIXES = {".pdf", ".docx"}
 
 
-def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn) -> dict:
+def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn,
+             token: str | None) -> dict:
     # Per-profile config resolved at run time (this runs inside the job).
     with session_scope() as jdb:
         models = {
-            "extraction": effective_model(jdb, profile_id, "extraction"),
-            "vision": effective_model(jdb, profile_id, "vision"),
+            "extraction": effective_model(jdb, profile_id, "extraction", token),
+            "vision": effective_model(jdb, profile_id, "vision", token),
         }
         prompts = {
             key: value

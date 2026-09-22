@@ -16,17 +16,6 @@
   <section class="card">
     <h2>Review an insurance policy</h2>
 
-    <!-- The same slots again, as many times as needed: every pair on this
-         case is reviewed in its own pass and keeps its own result below. -->
-    <app-case-pairs
-      part="uploads"
-      [service]="insurance"
-      [case]="case"
-      [run]="run"
-      [analyzing]="analyzing"
-      (caseChanged)="case = $event"
-    ></app-case-pairs>
-
     <!-- The bank policy the review below is graded against: picking a file
          uploads it straight away, so this and every later case switch to it.
          With none uploaded the engine's bundled policy.txt is used. -->
@@ -37,14 +26,23 @@
       accept=".pdf,.docx,.txt,.md"
       (change)="uploadBankPolicy($event); bankPolicyInput.value = ''"
     />
-    <div class="button-row">
+    <!-- Above the tab strip, next to the button that raises it. -->
+    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+
+    <!-- Rides in the tab bar's action cluster rather than taking a line of its
+         own: grouped with "+ Add another policy" the two secondary actions read
+         as one row, instead of two stray right-aligned buttons stacked above
+         each other. -->
+    <ng-template #caseActions>
+      <!-- The case-wide run, first in the cluster: broadest action first, the
+           same order case-pairs uses for Add (new tab) then Remove (open tab). -->
       <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
         {{ analyzeLabel }}
       </button>
       <button
         type="button"
         class="clear"
-        [disabled]="bankPolicyBusy || analyzing"
+        [disabled]="bankPolicyBusy || analyzing || serverBusy"
         (click)="bankPolicyInput.click()"
         title="Grade these reviews against your own bank policy (.pdf, .docx, .txt or .md)"
       >
@@ -56,13 +54,25 @@
               : 'Upload bank policy'
         }}
       </button>
-    </div>
+    </ng-template>
 
-    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+    <!-- The same slots again, as many times as needed: every pair on this
+         case is reviewed in its own pass and keeps its own result below. -->
+    <app-case-pairs
+      part="uploads"
+      [service]="insurance"
+      [case]="case"
+      [run]="run"
+      [analyzing]="analyzing || serverBusy"
+      [tabActions]="caseActions"
+      (caseChanged)="case = $event"
+      (analyzePair)="analyze($event)"
+    ></app-case-pairs>
+
     <p class="hint">
       <ng-container *ngIf="bankPolicy?.has_own_policy; else bundledPolicy">
         Graded against your bank policy <code>{{ bankPolicy!.file_name }}</code>.
-        <button type="button" class="link" [disabled]="bankPolicyBusy || analyzing" (click)="deleteBankPolicy()">
+        <button type="button" class="link" [disabled]="bankPolicyBusy || analyzing || serverBusy" (click)="deleteBankPolicy()">
           Use the bundled policy instead
         </button>
       </ng-container>
@@ -85,12 +95,12 @@
       [run]="run"
       [stages]="insuranceStages"
       [resultTemplate]="pairResult"
-      [analyzing]="analyzing"
-      (reanalyzePair)="analyze($event)"
+      [analyzing]="analyzing || serverBusy"
+      (analyzePair)="analyze($event)"
     ></app-case-pairs>
   </section>
 
   <ng-template #pairResult let-result>
-    <app-json-view [value]="result"></app-json-view>
+    <app-section-report [spec]="reportSpec" [result]="result"></app-section-report>
   </ng-template>
 </ng-container>

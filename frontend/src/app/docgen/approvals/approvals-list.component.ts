@@ -9,7 +9,8 @@ import { Approval, DocgenService } from '../docgen.service';
   selector: 'app-approvals-list',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './approvals-list.component.html'
+  templateUrl: './approvals-list.component.html',
+  styleUrl: './approvals-list.component.css'
 })
 export class ApprovalsListComponent implements OnInit {
   approvals: Approval[] = [];

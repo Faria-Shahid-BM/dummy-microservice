@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
@@ -10,10 +10,31 @@ import {
   ExtractedField
 } from '../collateral.service';
 import { CaseDetail, CasePair } from '../../shared/case.service';
-import { CasePairsComponent } from '../../shared/case-pairs.component';
+import { CasePairsComponent } from '../../shared/case-pairs/case-pairs.component';
 import { EvidencePanelComponent, EvidenceView } from '../../shared/evidence-panel.component';
 import { PairRun } from '../../shared/pair-run';
+import { CaseWatch } from '../../shared/case-watch';
 import { StageDef, StageProgressComponent } from '../../stage-progress/stage-progress.component';
+
+/**
+ * The server's own reason for a failure, whatever shape the body arrived in.
+ *
+ * A request made with `responseType: 'text'` hands back the raw body as a
+ * string rather than parsed JSON, so reading `err.error.detail` off it is
+ * always undefined — which is how "review this pair again" came out as
+ * "could not load the document text".
+ */
+function errorDetail(err: HttpErrorResponse, fallback: string): string {
+  const body: unknown = err.error;
+  if (typeof body === 'string') {
+    try {
+      return (JSON.parse(body) as { detail?: string })?.detail ?? body ?? fallback;
+    } catch {
+      return body || fallback;
+    }
+  }
+  return (body as { detail?: string })?.detail ?? fallback;
+}
 
 // Stage keys/order come straight from engines/collateral.py's _emit_event()
 // calls — a stage's "event" arriving means every earlier stage here is done.
@@ -61,7 +82,7 @@ const DOC_LABEL: Record<string, string> = {
   ],
   templateUrl: './case-detail.component.html'
 })
-export class CaseDetailComponent implements OnInit {
+export class CaseDetailComponent implements OnInit, OnDestroy {
   readonly collateralStages = COLLATERAL_STAGES;
 
   /** The value currently being traced back to its document, if any. */
@@ -69,6 +90,9 @@ export class CaseDetailComponent implements OnInit {
   // Clicking a second value while the first is still loading must not let the
   // slower response land in the panel; only the newest click owns it.
   private evidenceRequest = 0;
+  /** Which pair the open citation belongs to, so the panel's "review again"
+   * re-runs that pair rather than the case. */
+  private evidencePairIndex = 0;
 
   caseId = '';
   case: CaseDetail<CollateralResult> | null = null;
@@ -80,12 +104,23 @@ export class CaseDetailComponent implements OnInit {
   analyzeError = '';
   /** Which pair is running, how far along, and which tab is on screen. */
   readonly run = new PairRun();
+  /** Follows a review still running on the server when this page isn't the one streaming it. */
+  private readonly watch = new CaseWatch();
 
   constructor(private route: ActivatedRoute, public collateral: CollateralService) {}
 
   ngOnInit(): void {
     this.caseId = this.route.snapshot.paramMap.get('caseId') ?? '';
     this.loadCase();
+  }
+
+  ngOnDestroy(): void {
+    this.watch.stop();
+  }
+
+  /** A review is running that this page didn't start (we left and came back). */
+  get serverBusy(): boolean {
+    return this.case?.status === 'analyzing' && !this.analyzing;
   }
 
   loadCase(): void {
@@ -96,6 +131,11 @@ export class CaseDetailComponent implements OnInit {
       next: (c) => {
         this.case = c;
         this.loading = false;
+        this.watch.sync(c.status, this.analyzing, () => this.loadCase());
+        // A run this page didn't start has no stream here, so the stage
+        // checklist comes from the server's own snapshot instead of frames.
+        if (this.serverBusy) this.watch.followProgress(this.collateral, this.caseId, this.run, c.pairs?.length ?? 1);
+        else if (!this.analyzing) this.run.stopAdopted();
       },
       error: (err: HttpErrorResponse) => {
         this.error = err.error?.detail ?? 'failed to load case';
@@ -154,6 +194,7 @@ export class CaseDetailComponent implements OnInit {
     const leaf = this.leaf(result, doc, row.field);
     const source = result.sources?.[doc];
     const request = ++this.evidenceRequest;
+    this.evidencePairIndex = pair.index;
 
     this.evidence = {
       docLabel: DOC_LABEL[slot],
@@ -166,7 +207,8 @@ export class CaseDetailComponent implements OnInit {
       page: source?.paged ? leaf?.evidence?.page ?? null : null,
       text: null,
       loading: true,
-      error: ''
+      error: '',
+      stale: false
     };
 
     this.collateral.sourceText(this.caseId, pair.index, slot).subscribe({
@@ -179,10 +221,22 @@ export class CaseDetailComponent implements OnInit {
         this.evidence = {
           ...this.evidence,
           loading: false,
-          error: err.error?.detail ?? 'could not load the document text'
+          // 404 = the text was never written for this pair (a review from
+          // before citations were recorded). The panel offers the re-run that
+          // fixes it instead of reporting a failure the reviewer can't act on.
+          stale: err.status === 404,
+          error: err.status === 404 ? '' : errorDetail(err, 'could not load the document text')
         };
       }
     });
+  }
+
+  /** From the panel's stale-citation notice: re-run just that pair, which
+   * rewrites both the result and the text its offsets point into. */
+  rerunForEvidence(): void {
+    const index = this.evidencePairIndex;
+    this.closeEvidence();
+    this.analyze(index);
   }
 
   closeEvidence(): void {
@@ -212,7 +266,7 @@ export class CaseDetailComponent implements OnInit {
 
   /** Says what pressing it will actually do, so "Compare" never means a re-run. */
   get analyzeLabel(): string {
-    if (this.analyzing) return 'Comparing…';
+    if (this.analyzing || this.serverBusy) return 'Comparing…';
     const pending = this.pendingPairs;
     if (!pending) return 'Review everything again';
     if (this.case && this.case.pairs.length > 1) {
@@ -243,6 +297,17 @@ export class CaseDetailComponent implements OnInit {
     this.collateral.clearSourceTexts();
     // One tab per pair on the case; the server analyzes them in the same order.
     this.run.start(this.case.pairs.length);
+    // A re-run replaces whichever pairs are in scope — clear their old
+    // result/error from the UI now rather than leaving it on screen (looking
+    // current) until the new one streams in. Mirrors the server's own
+    // "pending" selection: a pair with no result yet (including one that only
+    // has a stored error from a failed attempt) is already about to run.
+    for (const pair of this.case.pairs) {
+      if (scope === 'all' || scope === pair.index || (scope === 'pending' && pair.result == null)) {
+        pair.result = null;
+        pair.error = null;
+      }
+    }
 
     this.collateral
       .analyzeCase(this.caseId, (eventType, data) => {

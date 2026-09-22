@@ -7,6 +7,8 @@ cryptography
 pdfplumber
 PyMuPDF
 python-docx
+mammoth
+beautifulsoup4
 openpyxl
 python-dateutil
 sqlalchemy>=2.0

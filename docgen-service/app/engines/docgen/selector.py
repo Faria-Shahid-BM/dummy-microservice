@@ -28,7 +28,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.engines.util import parse_json_response
+from engines.util import parse_json_response
 
 if TYPE_CHECKING:
     from app.llm.base import LLMProvider

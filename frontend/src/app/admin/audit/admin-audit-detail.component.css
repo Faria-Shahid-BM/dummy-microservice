@@ -1,0 +1,63 @@
+/* Generic field/value renderer for an audit entry's detail: turns arbitrary
+   JSON into nested field tables instead of a raw dump. */
+.kv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.kv-table + .kv-table,
+.kv-list + .kv-table {
+  margin-top: 0.6rem;
+}
+
+.kv-table th {
+  text-align: left;
+  vertical-align: top;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-soft);
+  white-space: nowrap;
+}
+
+.kv-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-soft);
+  color: var(--color-text);
+}
+
+/* Two-column key/value tables (object rendering): label column stays
+   narrow, value column takes the rest. */
+.kv-table:not(.kv-array-table) th {
+  width: 1%;
+}
+
+.kv-table tr:last-child th,
+.kv-table tr:last-child td {
+  border-bottom: none;
+}
+
+.kv-array-table th {
+  white-space: normal;
+}
+
+.kv-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.kv-list li {
+  margin-bottom: 0.3rem;
+}
+
+.kv-primitive {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.kv-empty {
+  color: var(--color-text-faint);
+}

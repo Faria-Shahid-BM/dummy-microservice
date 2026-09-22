@@ -180,21 +180,27 @@
           <p class="hint" *ngIf="selectedView.case_summary">{{ selectedView.case_summary }}</p>
 
           <app-data-table [rows]="selectedView.selected_documents" empty="No documents selected yet.">
-            <ng-template appColumn header="Template" width="25%" let-d>{{ d.template_name }}</ng-template>
+            <ng-template appColumn header="Template" width="25%" cellClass="wrap-cell" let-d>
+              <app-clamp-text [text]="d.template_name"></app-clamp-text>
+            </ng-template>
             <ng-template appColumn header="Count" width="8%" let-d>{{ d.count }}</ng-template>
             <ng-template appColumn header="Evidence" width="47%" cellClass="wrap-cell" let-d>
-              <span class="cell-text">{{ d.evidence }}</span>
+              <app-clamp-text [text]="d.evidence"></app-clamp-text>
             </ng-template>
-            <ng-template appColumn header="Entities" width="20%" let-d>
-              {{ d.entities?.length ? d.entities.join(', ') : '—' }}
+            <ng-template appColumn header="Entities" width="20%" cellClass="wrap-cell" let-d>
+              <app-clamp-text
+                [text]="d.entities?.length ? d.entities.join(', ') : '—'"
+              ></app-clamp-text>
             </ng-template>
           </app-data-table>
 
           <ng-container *ngIf="selectedView.ambiguous_documents?.length">
             <h3>Ambiguous</h3>
             <app-data-table [rows]="selectedView.ambiguous_documents!">
-              <ng-template appColumn header="Template" width="30%" let-d>{{ d.template_name }}</ng-template>
-              <ng-template appColumn header="Reason" width="70%" cellClass="wrap-cell" let-d>{{ d.reason }}</ng-template>
+              <ng-template appColumn header="Template" width="30%" cellClass="wrap-cell" let-d>{{ d.template_name }}</ng-template>
+              <ng-template appColumn header="Reason" width="70%" cellClass="wrap-cell" let-d>
+                <app-clamp-text [text]="d.reason"></app-clamp-text>
+              </ng-template>
             </app-data-table>
           </ng-container>
         </ng-container>

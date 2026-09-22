@@ -1,25 +1,35 @@
 # document-diff-service/main.py
+import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Callable
 
 import httpx
-from engines import extraction, document_diff
+from engines import document_diff_html
 from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from case_store import Case, init_db, make_case_router, remove_case, write_slot_file
+from case_store import Case, init_db, make_case_router, remove_case, start_outbox_relay, write_slot_file
 
-app = FastAPI()
 init_db()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_outbox_relay()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Direct container DNS, bypassing Kong — same pattern as AUDIT_BASE in
 # audit_client.py. docgen-service's own auth re-verifies whatever token we
 # forward, so there's nothing extra to trust here.
-DOCGEN_BASE = "http://docgen-service:8000"
+DOCGEN_BASE = os.environ.get("DOCGEN_SERVICE_URL", "http://docgen-service:8000")
 
-UPLOAD_SLOTS = {"original": {".docx", ".pdf"}, "returned": {".docx", ".pdf"}}
+UPLOAD_SLOTS = {"original": {".docx"}, "returned": {".docx"}}
 MIN_SLOTS_READY = ["original", "returned"]
 
 
@@ -27,6 +37,12 @@ class ChangeAuditItem(BaseModel):
     type: str
     before: str
     after: str
+
+
+class MediaSummary(BaseModel):
+    original: int
+    returned: int
+    compared: bool
 
 
 class CompareAuditOutput(BaseModel):
@@ -40,6 +56,7 @@ class CompareAuditOutput(BaseModel):
     identical: bool
     similarity: float
     summary: dict
+    media: MediaSummary
     changes: list[ChangeAuditItem]
 
 
@@ -47,18 +64,45 @@ def _to_audit_output(result: dict) -> dict:
     return CompareAuditOutput.model_validate(result).model_dump()
 
 
-def _read(slot: str, path: Path) -> str:
-    if path.suffix.lower() == ".pdf" and extraction.is_scanned_pdf(path):
-        raise ValueError(f"'{slot}' is a scanned PDF; this service needs text documents")
-    text = extraction.extract_text(path)
-    if not text.strip():
+def _read_docx(slot: str, path: Path) -> document_diff_html.ConvertedDocx:
+    # UPLOAD_SLOTS rejects anything but .docx, but a case uploaded before that
+    # restriction can still hold a .pdf on disk — fail with a readable reason
+    # rather than handing a PDF to the .docx converter.
+    if path.suffix.lower() != ".docx":
+        raise ValueError(
+            f"'{slot}' is a {path.suffix or 'file with no extension'}; "
+            "this service compares .docx documents. Re-upload it as .docx."
+        )
+    converted = document_diff_html.docx_to_html(path)
+    if not document_diff_html.html_to_text(converted.html):
+        # A scan with no text layer lands here, now that images are dropped.
         raise ValueError(f"No text extracted from '{slot}'")
-    return text
+    return converted
 
 
-def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None], user_sub: str) -> dict:
-    # user_sub is unused: this comparison depends only on the two uploads.
-    return document_diff.compare_documents(_read("original", paths["original"]), _read("returned", paths["returned"]))
+def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None],
+             user_sub: str, token: str | None) -> dict:
+    # user_sub and token are unused: this comparison is deterministic and calls
+    # no model, so there is nothing for config-service to decide.
+    # Both sides are .docx, so the comparison is always the structural redline
+    # — it keeps the headings, tables and lists a contract is laid out with.
+    original = _read_docx("original", paths["original"])
+    returned = _read_docx("returned", paths["returned"])
+    result = document_diff_html.compare_documents_html(original.html, returned.html)
+
+    # docx_to_html() drops images before the diff ever sees them, because the
+    # returned copy is signed and the generated original never is — comparing
+    # them would flag a change on every signed document. That's the right call
+    # for a text diff, but it must not read as "the signature was checked", so
+    # what was set aside is reported rather than left silent. Which slot the
+    # counts belong to is this service's knowledge, not the engine's, so they
+    # are attached here.
+    result["media"] = {
+        "original": original.image_count,
+        "returned": returned.image_count,
+        "compared": False,
+    }
+    return result
 
 
 def _sync_from_docgen(user_sub: str, token: str | None, db: Session) -> None:

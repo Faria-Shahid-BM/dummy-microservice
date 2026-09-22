@@ -15,22 +15,8 @@ export interface StageDef {
   selector: 'app-stage-progress',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <div class="stage-progress">
-      <div
-        class="stage-step"
-        *ngFor="let step of steps; let i = index"
-        [class.done]="isDone(i)"
-        [class.active]="isActive(i)"
-      >
-        <span class="stage-dot">
-          <ng-container *ngIf="isDone(i)">&#10003;</ng-container>
-        </span>
-        <span class="stage-label">{{ step.label }}</span>
-        <span class="stage-detail" *ngIf="isActive(i) && detail">{{ detail }}</span>
-      </div>
-    </div>
-  `
+  templateUrl: './stage-progress.component.html',
+  styleUrl: './stage-progress.component.css'
 })
 export class StageProgressComponent {
   @Input() steps: StageDef[] = [];

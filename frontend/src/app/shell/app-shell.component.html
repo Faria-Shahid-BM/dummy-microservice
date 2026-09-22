@@ -4,7 +4,10 @@
       <p class="subtitle">Services available to you</p>
 
       <ng-container *ngFor="let s of catalog.entitledServices">
-        <a *ngIf="s.route" [routerLink]="s.route" routerLinkActive="active" class="sidebar-item" (click)="catalog.select(s)">{{ s.label }}</a>
+        <!-- A routed item needs no catalog.select(): routerLinkActive already
+             highlights it, and ServiceCatalogService only cares about
+             "selected" for the still-inline Policy Q&A panel below. -->
+        <a *ngIf="s.route" [routerLink]="s.route" routerLinkActive="active" class="sidebar-item">{{ s.label }}</a>
         <button *ngIf="!s.route" class="sidebar-item" [class.active]="catalog.selected?.key === s.key" (click)="selectKind(s)">
           {{ s.label }}
         </button>
@@ -14,7 +17,12 @@
         No services granted yet — ask an admin.
       </p>
 
-      <a routerLink="/admin" *ngIf="session.isAdmin" class="sidebar-item sidebar-item--top">
+      <!-- Not a reviewer, so it sits with the other non-service links rather
+           than in the entitled-services list above. -->
+      <a routerLink="/configuration" routerLinkActive="active" class="sidebar-item sidebar-item--top">
+        Configuration
+      </a>
+      <a routerLink="/admin" *ngIf="session.isAdmin" class="sidebar-item">
         Admin dashboard
       </a>
     </ng-container>
@@ -27,7 +35,6 @@
           routerLinkActive="active"
           class="sidebar-item-mini"
           [attr.title]="s.label"
-          (click)="catalog.select(s)"
           >{{ s.short }}</a
         >
         <button
@@ -42,9 +49,16 @@
       </ng-container>
 
       <a
+        routerLink="/configuration"
+        routerLinkActive="active"
+        class="sidebar-item-mini sidebar-item-mini--top"
+        title="Configuration"
+        >CF</a
+      >
+      <a
         routerLink="/admin"
         *ngIf="session.isAdmin"
-        class="sidebar-item-mini sidebar-item-mini--top"
+        class="sidebar-item-mini"
         title="Admin dashboard"
         >AD</a
       >

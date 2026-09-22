@@ -16,6 +16,18 @@
   <section class="card">
     <h2>Cross-check legal opinion vs property document</h2>
 
+    <!-- A run of the whole case, so it belongs in the tab strip beside Add and
+         Remove rather than under a pair's panel, where it read as that pair's
+         button — the one thing it never is. -->
+    <ng-template #caseActions>
+      <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
+        {{ analyzeLabel }}
+      </button>
+    </ng-template>
+
+    <!-- Above the tab strip, next to the button that raises it. -->
+    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
+
     <!-- The same slots again, as many times as needed: every pair on this
          case is reviewed in its own pass and keeps its own result below. -->
     <app-case-pairs
@@ -23,14 +35,12 @@
       [service]="collateral"
       [case]="case"
       [run]="run"
-      [analyzing]="analyzing"
+      [analyzing]="analyzing || serverBusy"
+      [tabActions]="caseActions"
       (caseChanged)="case = $event"
+      (analyzePair)="analyze($event)"
     ></app-case-pairs>
 
-    <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
-      {{ analyzeLabel }}
-    </button>
-    <p class="error" *ngIf="analyzeError">{{ analyzeError }}</p>
     <p class="hint">Calls a real LLM — this can take a little while.</p>
   </section>
 
@@ -47,8 +57,8 @@
       [run]="run"
       [stages]="collateralStages"
       [resultTemplate]="pairResult"
-      [analyzing]="analyzing"
-      (reanalyzePair)="analyze($event)"
+      [analyzing]="analyzing || serverBusy"
+      (analyzePair)="analyze($event)"
     ></app-case-pairs>
   </section>
 
@@ -152,4 +162,4 @@
 </ng-container>
 
 <!-- One panel for the page, re-aimed as each value is clicked. -->
-<app-evidence-panel [view]="evidence" (closed)="closeEvidence()"></app-evidence-panel>
+<app-evidence-panel [view]="evidence" (closed)="closeEvidence()" (rerun)="rerunForEvidence()"></app-evidence-panel>

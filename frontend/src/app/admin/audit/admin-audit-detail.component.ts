@@ -9,7 +9,8 @@ import { attachmentUrl, AuditAttachment, AuditEntry } from './audit.model';
   selector: 'app-admin-audit-detail',
   standalone: true,
   imports: [CommonModule, RouterLink],
-  templateUrl: './admin-audit-detail.component.html'
+  templateUrl: './admin-audit-detail.component.html',
+  styleUrl: './admin-audit-detail.component.css'
 })
 export class AdminAuditDetailComponent implements OnInit {
   entry: AuditEntry | null = null;

@@ -32,7 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit, storage
-from app.auth.deps import current_user, require_profile_maker, require_profile_member
+from app.auth.deps import current_user, raw_token, require_profile_maker, require_profile_member
 from app.core.db import db_session, session_scope
 from app.jobs.runner import JobConflict, runner
 from app.models import REVIEW_MODULES, Review, User
@@ -40,10 +40,12 @@ from app.models import REVIEW_MODULES, Review, User
 # emit(type, text) with type in {"reasoning", "content", "event"} (job runner).
 EmitFn = Callable[[str, str], None]
 
-# analyze(profile_id, review_id, paths, emit) -> result dict; runs inside a
-# job worker thread. ``paths`` maps every uploaded slot to its file on disk
-# (all ``min_slots_ready`` slots guaranteed present).
-AnalyzeFn = Callable[[str, str, dict[str, Path], EmitFn], dict]
+# analyze(profile_id, review_id, paths, emit, token) -> result dict; runs
+# inside a job worker thread. ``paths`` maps every uploaded slot to its file on
+# disk (all ``min_slots_ready`` slots guaranteed present). ``token`` is the
+# caller's raw bearer token, forwarded to config-service so the run uses that
+# person's own model choices (see config_client.py); None when there is none.
+AnalyzeFn = Callable[[str, str, dict[str, Path], EmitFn, str | None], dict]
 
 # Statuses from which POST /analyze is allowed (re-analysis included).
 ANALYZABLE_STATUSES = ("ready", "done", "failed")
@@ -182,6 +184,7 @@ def make_review_router(
         request: Request,
         role: str = Depends(require_profile_maker),
         user: User = Depends(current_user),
+        token: str | None = Depends(raw_token),
         db: Session = Depends(db_session),
     ) -> dict:
         r = _get_review(db, profile_id, module, review_id)
@@ -299,7 +302,7 @@ def make_review_router(
                     raise RuntimeError("Review was deleted before analysis started")
                 row.status = "analyzing"
             try:
-                result = analyze(profile_id, review_id, paths, emit)
+                result = analyze(profile_id, review_id, paths, emit, token)
             except Exception as exc:
                 with session_scope() as jdb:
                     row = jdb.get(Review, review_id)

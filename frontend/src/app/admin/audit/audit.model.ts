@@ -26,6 +26,11 @@ export interface AuditEntry {
   service: string;
   action: string;
   resource: string | null;
+  // Promoted from docgen-service's own local audit trail when it was folded
+  // into this one — every producer can carry them now, not just docgen.
+  subject_type?: string | null;
+  subject_id?: string | null;
+  profile_id?: string | null;
   attachments: AuditAttachment[];
   sections: AuditSection[];
 }

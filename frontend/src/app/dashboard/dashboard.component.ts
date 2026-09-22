@@ -3,9 +3,11 @@ import { Component } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { KONG_BASE } from '../session.service';
+import { KONG_BASE, SessionService } from '../session.service';
 import { ServiceCatalogService, ServiceMeta } from './service-catalog.service';
 import { consumeSse, parseSseError } from '../sse.util';
+import { UserHomeComponent } from './home/user-home.component';
+import { AdminHomeComponent } from './home/admin-home.component';
 
 interface PolicyQaStatus {
   has_own_index: boolean;
@@ -27,19 +29,21 @@ interface PolicyQaMessage {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  templateUrl: './dashboard.component.html'
+  imports: [CommonModule, FormsModule, UserHomeComponent, AdminHomeComponent],
+  templateUrl: './dashboard.component.html',
+  styleUrl: './dashboard.component.css'
 })
 export class DashboardComponent {
   policyStatus: PolicyQaStatus | null = null;
   policyMessages: PolicyQaMessage[] = [];
   policyQuery = '';
+  showPolicyUpload = false;
   policyIngestFile: File | null = null;
   policyBusy = false;
   policyError = '';
   policyChatError = '';
 
-  constructor(private http: HttpClient, public catalog: ServiceCatalogService) {
+  constructor(private http: HttpClient, public catalog: ServiceCatalogService, public session: SessionService) {
     // Selection lives in ServiceCatalogService (see app-shell.component.ts)
     // since the sidebar that sets it is mounted outside this component.
     this.catalog.selected$.pipe(takeUntilDestroyed()).subscribe((meta) => this.onSelectionChanged(meta));
@@ -65,6 +69,17 @@ export class DashboardComponent {
     });
   }
 
+  openPolicyUpload(): void {
+    this.policyError = '';
+    this.policyIngestFile = null;
+    this.showPolicyUpload = true;
+  }
+
+  closePolicyUpload(): void {
+    if (this.policyBusy) return;
+    this.showPolicyUpload = false;
+  }
+
   onPolicyIngestFile(event: Event): void {
     this.policyIngestFile = (event.target as HTMLInputElement).files?.[0] ?? null;
   }
@@ -79,6 +94,7 @@ export class DashboardComponent {
       next: () => {
         this.policyIngestFile = null;
         this.policyBusy = false;
+        this.showPolicyUpload = false;
         this.loadPolicyStatus();
       },
       error: (err: HttpErrorResponse) => {

@@ -1,0 +1,33 @@
+/* Not scoped to .wrap-cell: app-clamp-text sets --clamp-lines inline and must
+   clamp wherever it is used. A custom property, not an inline `line-clamp` —
+   an inline declaration would outrank the .expanded rule below and the toggle
+   would do nothing. */
+.cell-text {
+  display: -webkit-box;
+  -webkit-line-clamp: var(--clamp-lines, 4);
+  line-clamp: var(--clamp-lines, 4);
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Expanded: the whole value, no clamp. */
+.cell-text.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+/* An Angular host element is display:inline by default, which would wrap the
+   clamped span and its block-level toggle in a block-in-inline split. */
+:host {
+  display: block;
+}
+
+/* "Show more" sits on its own line under the text it belongs to, indented by
+   nothing so it lines up with the first character of the value. */
+.clamp-toggle {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+}

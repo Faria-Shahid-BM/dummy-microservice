@@ -1,0 +1,11 @@
+.badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+  background: var(--color-warning-bg);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}

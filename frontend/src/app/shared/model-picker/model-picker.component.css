@@ -1,0 +1,182 @@
+/* The field and its list share one positioning context so the list can hang
+   off the field rather than push the rest of the card down. */
+.picker {
+  position: relative;
+  /* A model id runs ~40 characters. Wider than it needs to be just puts the
+     Save button a long way from the text it applies to. */
+  flex: 1 1 22rem;
+  max-width: 34rem;
+  min-width: 0;
+}
+
+/* The chevron sits inside the field's border, so the two read as one control
+   rather than an input with a button stuck beside it. */
+.picker-field {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.picker-field:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.picker.is-open .picker-field {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.picker-input {
+  flex: 1;
+  min-width: 0;
+  /* The frame is the .picker-field's job; this only supplies the text box. */
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  color: var(--color-text);
+  /* An id is read character by character when something looks wrong, so it
+     gets the monospace — for the comparison, not as decoration. */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.picker-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.picker-input:disabled {
+  background: none;
+  color: var(--color-text-faint);
+}
+
+.picker-toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.2rem;
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--color-border-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: none;
+  box-shadow: none;
+  color: var(--color-text-muted);
+}
+
+.picker-toggle:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  box-shadow: none;
+  transform: none;
+  color: var(--color-primary-darker);
+}
+
+.picker-toggle svg {
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+  transition: transform 0.15s ease;
+}
+
+.picker.is-open .picker-toggle svg {
+  transform: rotate(180deg);
+}
+
+/* Overlays what's below instead of reflowing the card, which is what makes a
+   menu feel like a menu. Cards aren't scroll containers here (see styles.css)
+   so it isn't clipped. */
+.picker-list {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 19rem;
+  overflow-y: auto;
+  margin-top: -1px;
+  padding: 0.25rem;
+  border: 1px solid var(--color-primary);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.picker-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+}
+
+/* One highlight for hover and for the keyboard, so arrowing down and moving
+   the mouse can't disagree about which row is current. */
+.picker-option.is-active {
+  background: var(--color-primary-light);
+  box-shadow: none;
+  transform: none;
+}
+
+.picker-option-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.picker-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.picker-tag {
+  flex: none;
+  margin-left: auto;
+  padding: 0 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.picker-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  font-size: 0.72rem;
+  color: var(--color-text-faint);
+}
+
+.picker-empty,
+.picker-more {
+  margin: 0;
+  padding: 0.5rem 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--color-text-faint);
+}
+
+.picker-more {
+  border-top: 1px solid var(--color-border-soft);
+}

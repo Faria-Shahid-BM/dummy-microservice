@@ -1,0 +1,105 @@
+<div class="topbar">
+  <h2 class="crumbs"><span>Configuration</span></h2>
+</div>
+
+<p class="error" *ngIf="error">{{ error }}</p>
+<p class="hint" *ngIf="loading">Loading your settings…</p>
+
+<ng-container *ngIf="!loading && !error">
+  <!-- Says whose settings these are up front: the same reviewer can run on a
+       different model for someone else, which is surprising unless stated. -->
+  <p class="notice">
+    <span class="notice-icon" aria-hidden="true">i</span>
+    <span>
+      <strong>These are your settings.</strong>
+      They change what your own reviews run on and no one else's. Anything you
+      haven't set follows the deployment default, so it keeps up when that changes.
+    </span>
+  </p>
+
+  <p class="empty" *ngIf="!groups.length">
+    No configurable services yet — ask an admin for access to a reviewer.
+  </p>
+
+  <section class="card" *ngFor="let group of groups; trackBy: trackByScope">
+    <div class="group-head">
+      <div>
+        <h2>{{ group.label }}</h2>
+        <p class="hint">{{ group.description }}</p>
+      </div>
+      <span class="group-badge" *ngIf="group.override_count">
+        {{ group.override_count }} changed
+      </span>
+    </div>
+
+    <div class="setting" *ngFor="let setting of group.settings; trackBy: trackByKey">
+      <div class="setting-label">
+        <span class="setting-name">{{ setting.label }}</span>
+        <p class="setting-desc" *ngIf="setting.description">{{ setting.description }}</p>
+      </div>
+
+      <div class="setting-control">
+        <div class="setting-row">
+          <!-- Free text with the catalogue behind it; see ModelPickerComponent
+               for why it suggests rather than constrains. -->
+          <app-model-picker
+            [pickerId]="group.scope + '-' + setting.key"
+            [models]="catalogue"
+            [ariaLabel]="group.label + ' — ' + setting.label"
+            [placeholder]="setting.default || 'e.g. google/gemini-2.5-flash'"
+            [disabled]="row(group, setting).saving"
+            [value]="row(group, setting).draft"
+            (valueChange)="onDraft(group, setting, $event)"
+          ></app-model-picker>
+          <button
+            type="button"
+            [disabled]="!isDirty(group, setting) || row(group, setting).saving"
+            (click)="save(group, setting)"
+          >
+            {{ row(group, setting).saving ? 'Saving…' : 'Save' }}
+          </button>
+          <!-- Only offered once there's an override to undo; on a row that
+               already follows the default it would do nothing. -->
+          <button
+            type="button"
+            class="clear"
+            *ngIf="setting.is_overridden"
+            [disabled]="row(group, setting).saving"
+            (click)="reset(group, setting)"
+          >
+            Reset to default
+          </button>
+        </div>
+
+        <!-- Advice, not a verdict: an unmatched id still saves. The wording
+             says "not in the catalogue" rather than "doesn't exist", which is
+             all the catalogue can actually support. -->
+        <p class="setting-advice" *ngIf="advice(setting, row(group, setting).draft) as note">
+          <span class="advice-mark" aria-hidden="true">!</span>{{ note }}
+        </p>
+
+        <p class="setting-state" *ngIf="!row(group, setting).error">
+          <ng-container *ngIf="setting.is_overridden; else followingDefault">
+            Your choice. The default is <code>{{ setting.default || 'not set' }}</code>.
+          </ng-container>
+          <ng-template #followingDefault>
+            Following the deployment default,
+            <code>{{ setting.default || 'not set' }}</code>.
+          </ng-template>
+          <span class="setting-match" *ngIf="describe(row(group, setting).draft) as m">
+            · {{ m }}
+          </span>
+          <span class="setting-saved" *ngIf="row(group, setting).saved"> · saved</span>
+        </p>
+        <p class="error setting-state" *ngIf="row(group, setting).error">
+          {{ row(group, setting).error }}
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <p class="hint" *ngIf="groups.length">
+    A change applies to your next review — anything already running keeps the models it
+    started with, and every finished review records the models that produced it.
+  </p>
+</ng-container>

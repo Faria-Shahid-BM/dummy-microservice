@@ -1,22 +1,38 @@
 # collateral-service/main.py
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Callable
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
+import config_client
 from engines.collateral import review_collateral
 from provider import Provider
-from case_store import get_db, get_owned_case, init_db, make_case_router, pair_dir
+from case_store import (
+    get_db,
+    get_owned_case,
+    init_db,
+    make_case_router,
+    pair_dir,
+    start_outbox_relay,
+)
 from security import require_scope
 
-def _models() -> dict:
+# What this service falls back to when config-service can't answer — the
+# values it used to read directly. config-service serves the same defaults
+# from its own environment, so the two agree for a user who has overridden
+# nothing; these exist so an outage degrades instead of failing the review.
+def _default_models() -> dict:
     return {
         "extraction": os.environ["MODEL_EXTRACTION"],
         "vision":     os.environ["MODEL_VISION"],
     }
 
-app = FastAPI()
+
+def _models(token: str | None) -> dict:
+    return config_client.models_for("collateral", token, _default_models())
+
 _provider = Provider()
 init_db()
 
@@ -33,13 +49,25 @@ def _source_path(directory: Path, slot: str) -> Path:
     return directory / _SOURCE_SUBDIR / f"{slot}.txt"
 
 
-def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None], user_sub: str) -> dict:
-    # user_sub is unused: this review depends only on the two uploads.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_outbox_relay()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None],
+             user_sub: str, token: str | None) -> dict:
+    # user_sub is unused: beyond the caller's own model choices (resolved from
+    # `token` below), this review depends only on the two uploads.
+    models = _models(token)
     result = review_collateral(
         paths["legal"],
         paths["property"],
         _provider,
-        models=_models(),
+        models=models,
         # prompts=None → engine uses its bundled .md files
         emit=emit,
     )
@@ -58,6 +86,10 @@ def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None], user_sub:
         destination = _source_path(paths[slot].parent, slot)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(text, encoding="utf-8")
+    # Per-user model choices mean two runs of the same documents can legitimately
+    # differ, so the result has to say what produced it rather than leaving the
+    # reader to infer it from whatever the setting says later.
+    result["models"] = models
     return result
 
 

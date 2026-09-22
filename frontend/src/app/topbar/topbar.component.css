@@ -1,0 +1,168 @@
+.topbar-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.topbar-brand {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+/* Explicit link states: an <a>'s own UA style (incl. :visited) otherwise
+   outranks the bare class rule above on specificity. */
+.topbar-brand:link,
+.topbar-brand:visited,
+.topbar-brand:hover {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.topbar-brand:hover {
+  color: var(--color-primary);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.topbar-item {
+  position: relative;
+}
+
+.icon-button {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  box-shadow: none;
+  transform: none;
+}
+
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-error);
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.profile-circle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 260px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card), 0 8px 24px rgba(38, 48, 33, 0.12);
+  padding: 0.75rem;
+  z-index: 30;
+}
+
+.topbar-dropdown--right {
+  left: auto;
+  right: 0;
+}
+
+.profile-username {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.profile-scopes {
+  margin: 0.2rem 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+.topbar-dropdown .secondary,
+.topbar-dropdown > button {
+  width: 100%;
+}
+
+.notification-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  font-size: 0.8rem;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item.unread .notification-title {
+  font-weight: 700;
+  color: var(--color-primary-darker);
+}
+
+.notification-title {
+  color: var(--color-text);
+  /* Titles are subject names (template/document file names) — wrap them inside
+     the fixed-width dropdown instead of widening it. */
+  overflow-wrap: anywhere;
+}
+
+.notification-body {
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}

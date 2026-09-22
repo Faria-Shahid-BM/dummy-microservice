@@ -23,8 +23,9 @@
       [service]="docdiff"
       [case]="case"
       [run]="run"
-      [analyzing]="analyzing"
+      [analyzing]="analyzing || serverBusy"
       (caseChanged)="case = $event"
+      (analyzePair)="analyze($event)"
     ></app-case-pairs>
 
     <button [disabled]="!canAnalyze || analyzing" (click)="analyze(pendingPairs ? 'pending' : 'all')">
@@ -44,8 +45,8 @@
       [case]="case"
       [run]="run"
       [resultTemplate]="pairResult"
-      [analyzing]="analyzing"
-      (reanalyzePair)="analyze($event)"
+      [analyzing]="analyzing || serverBusy"
+      (analyzePair)="analyze($event)"
     ></app-case-pairs>
   </section>
 
@@ -78,9 +79,20 @@
       appear in the returned document.
     </p>
 
+    <!-- Images are dropped before the comparison (see docx_to_html) because
+         the returned copy is signed and the generated original never is. Say
+         so, so "identical" is never read as "the signature was checked". -->
+    <p *ngIf="imagesSetAside(diffResult) as images" class="notice">
+      <span class="notice-icon" aria-hidden="true">i</span>
+      <span>
+        <strong>Images were not compared.</strong>
+        {{ images }} — this review covers document text only, so a signature or stamp is not verified here.
+      </span>
+    </p>
+
     <p *ngIf="diffResult.identical" class="empty">Documents are identical.</p>
 
-    <div class="redline" *ngIf="!diffResult.identical && diffResult.render === 'html'" [innerHTML]="diffResult.html"></div>
+    <div class="redline redline-html" *ngIf="!diffResult.identical && diffResult.render === 'html'" [innerHTML]="diffResult.html"></div>
 
     <div class="redline" *ngIf="!diffResult.identical && diffResult.render === 'text'">
       <span

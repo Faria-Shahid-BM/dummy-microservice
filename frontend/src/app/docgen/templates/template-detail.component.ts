@@ -10,7 +10,8 @@ import { JobStatusComponent } from '../job-status/job-status.component';
   selector: 'app-template-detail',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, JobStatusComponent],
-  templateUrl: './template-detail.component.html'
+  templateUrl: './template-detail.component.html',
+  styleUrl: './template-detail.component.css'
 })
 export class TemplateDetailComponent implements OnInit {
   templateId = '';

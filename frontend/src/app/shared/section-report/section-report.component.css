@@ -1,0 +1,230 @@
+/* --- section tabs ------------------------------------------------------ */
+
+.section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.25rem;
+  margin-bottom: 1.1rem;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.section-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.section-tab:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  box-shadow: none;
+  transform: none;
+  color: var(--color-primary-darker);
+}
+
+.section-tab.active {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* How many rows/entries the tab holds — a reviewer scanning for "are there
+   issues?" gets the answer without opening every tab. */
+.tab-count {
+  flex-shrink: 0;
+  min-width: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--color-border-soft);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.section-tab.active .tab-count {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+}
+
+/* --- section body ------------------------------------------------------ */
+
+.section-body {
+  min-width: 0;
+}
+
+.assessment {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.verdict-label {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* The one chip that is the headline, not an annotation on a row. */
+.tone.lg {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+/* .stat-row's own top margin already spaces it off the verdict line. */
+.verdict + .stat-row {
+  margin-bottom: 0;
+}
+
+/* Label left, value right, one hairline per row. The label column is capped
+   rather than sized to the longest label: "Max limit per conveyance" would
+   otherwise set the width for every row in the section. */
+.field-grid {
+  display: grid;
+  grid-template-columns: minmax(8rem, 15rem) 1fr;
+  margin: 0;
+}
+
+.field-grid dt,
+.field-grid dd {
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--color-border-soft);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.field-grid dt {
+  padding-right: 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.field-grid dd {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+/* The first row's rule would double up with whatever sits above the grid. */
+.field-grid > dt:first-of-type,
+.field-grid > dt:first-of-type + dd {
+  border-top: none;
+}
+
+.value-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.value-list li {
+  margin-bottom: 0.2rem;
+}
+
+/* Stacked, a label directly above its value needs no rule between the two —
+   the rule belongs above the pair. */
+@media (max-width: 640px) {
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-grid dt {
+    padding: 0.55rem 0 0;
+  }
+
+  .field-grid dd {
+    padding-top: 0.1rem;
+    border-top: none;
+  }
+}
+
+/* --- list entries ------------------------------------------------------ */
+
+.item {
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 0.9rem;
+  background: var(--color-bg);
+}
+
+.item:last-child {
+  margin-bottom: 0;
+}
+
+.item-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.item-id {
+  flex-shrink: 0;
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* --- status / severity chip -------------------------------------------- */
+
+.tone {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Tinted from the tokens rather than hardcoded, so a chip still matches its
+   text colour when the palette is reskinned (this branch's whole point). */
+.tone.ok {
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--color-success);
+}
+
+.tone.bad {
+  background: color-mix(in srgb, var(--color-error) 11%, transparent);
+  color: var(--color-error);
+}
+
+.tone.warn {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.tone.muted {
+  background: var(--color-border-soft);
+  color: var(--color-text-muted);
+}

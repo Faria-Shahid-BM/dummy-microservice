@@ -1,0 +1,25 @@
+/* Applied when a caller declares per-column widths. The declared widths
+   become authoritative, so the table is exactly as wide as its container: no
+   column can be squeezed by a neighbour's long value, and there is nothing
+   left to scroll horizontally. */
+.audit-table.fixed-layout {
+  table-layout: fixed;
+}
+
+/* The .wrap-cell clamp exists only to stop an auto-layout column from crowding
+   its neighbours. Here the declared width already does that, and the clamp
+   would just fight it — a 47%-wide Evidence column must not stop at 30ch. */
+.audit-table.fixed-layout td.wrap-cell {
+  max-width: none;
+  min-width: 0;
+}
+
+/* Fixed layout stops a long value from widening its column, not from spilling
+   out of its own cell and over the next one. Wrapping cells are already safe;
+   this bounds anything that stayed on one line (a nowrap value, an unbroken
+   token) to the cell it belongs to. */
+.audit-table.fixed-layout td,
+.audit-table.fixed-layout th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

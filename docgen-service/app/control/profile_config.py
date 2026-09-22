@@ -21,6 +21,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+import config_client
+
 from app import audit
 from app.auth.deps import (
     current_user,
@@ -34,11 +36,21 @@ from app.models import ProfileConfigOverride, User, utcnow
 
 router = APIRouter(prefix="/api", tags=["config"])
 
-_ENGINES = Path(__file__).resolve().parents[1] / "engines"
+_ENGINES = Path(__file__).resolve().parents[2] / "engines"
+_DOCGEN_ENGINES = Path(__file__).resolve().parents[1] / "engines" / "docgen"
 
 
 def _file(rel: str) -> Callable[[], str]:
+    """Reads a prompt from the shared engines/ package — the same frozen
+    file the engines themselves fall back to when a profile has no
+    override — so the UI's displayed default can't drift from what
+    actually runs."""
     path = _ENGINES / rel
+    return lambda: path.read_text(encoding="utf-8")
+
+
+def _docgen_file(rel: str) -> Callable[[], str]:
+    path = _DOCGEN_ENGINES / rel
     return lambda: path.read_text(encoding="utf-8")
 
 
@@ -63,26 +75,26 @@ CONFIG_KEYS: dict[str, ConfigKey] = {
         # -- document generation ----------------------------------------------
         ConfigKey(
             "docgen.meta_analyzer.prompt", "Template descriptor prompt", "prompt",
-            _file("docgen/prompts/meta_analyzer.md"),
+            _docgen_file("prompts/meta_analyzer.md"),
             "Produces the markdown descriptor for an uploaded template. The "
             "## Overview / ## Selection headings are load-bearing: the "
             "selection stage condenses descriptors by those headings.",
         ),
         ConfigKey(
             "docgen.credit_analysis.prompt", "Credit analysis prompt", "prompt",
-            _file("docgen/prompts/credit_analysis.md"),
+            _docgen_file("prompts/credit_analysis.md"),
             "Optional pre-documentation review of the extracted case.",
         ),
         ConfigKey(
             "docgen.selector.prompt", "Document selection prompt", "prompt",
-            _file("docgen/prompts/selector.md"),
+            _docgen_file("prompts/selector.md"),
             "Chooses which templates a case requires. WARNING: the JSON "
             "output contract described inside is parsed by the system — "
             "changing it can break selection.",
         ),
         ConfigKey(
             "docgen.fill_agent.prompt", "Document fill prompt", "prompt",
-            _file("docgen/prompts/fill_agent.md"),
+            _docgen_file("prompts/fill_agent.md"),
             "Produces the fill operations applied to the template. WARNING: "
             "the operations JSON contract is parsed by the system.",
         ),
@@ -115,12 +127,12 @@ CONFIG_KEYS: dict[str, ConfigKey] = {
         # -- insurance ------------------------------------------------------------
         ConfigKey(
             "insurance.extraction.prompt", "Policy extraction prompt", "prompt",
-            _file("insurance_extraction.md"),
+            _file("prompts/insurance_extraction.md"),
             "Structures the insurance policy into the extraction schema.",
         ),
         ConfigKey(
             "insurance.analysis.prompt", "Compliance analysis prompt", "prompt",
-            _file("insurance_analysis.md"),
+            _file("prompts/insurance_analysis.md"),
             "Assesses the structured policy against the bank's rules.",
         ),
         # -- policy QA -----------------------------------------------------------
@@ -271,8 +283,28 @@ def effective_int(db: Session, profile_id: str, key: str) -> int:
     return int(float(effective(db, profile_id, key)))
 
 
-def effective_model(db: Session, profile_id: str, role: str) -> str:
-    return effective(db, profile_id, f"model.{role}")
+def effective_model(
+    db: Session, profile_id: str, role: str, token: str | None = None
+) -> str:
+    """Which model to call for `role`, most specific setting first.
+
+        profile override  ->  this user's own choice  ->  shipped default
+
+    A profile override stays on top on purpose: pinning a model for a profile
+    is a deliberate decision about how that profile's work is done, and a
+    member's personal preference shouldn't quietly undo it. The Configuration
+    page says as much on the Document Generator rows, so a choice that won't
+    apply here is never a silent one.
+
+    `token` is the caller's, forwarded so config-service can answer for the
+    right person; without it only the profile override and the default apply.
+    """
+    key = f"model.{role}"
+    row = _override(db, profile_id, key)
+    if row is not None:
+        return row.value
+    spec = CONFIG_KEYS[key]
+    return config_client.models_for("docgen", token, {role: spec.default()})[role]
 
 
 def prompt_override(db: Session, profile_id: str, key: str) -> str | None:

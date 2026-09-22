@@ -47,6 +47,18 @@ services:
         - action: rebuild
           path: ./docgen-service/requirements.txt
         - action: sync+restart
+          path: ./security.py
+          target: /app/backend/security.py
+        - action: sync+restart
+          path: ./audit_client.py
+          target: /app/backend/audit_client.py
+        - action: sync+restart
+          path: ./outbox.py
+          target: /app/backend/outbox.py
+        - action: sync+restart
+          path: ./engines
+          target: /app/backend/engines
+        - action: sync+restart
           path: ./docgen-service
           target: /app/backend
           ignore:
@@ -94,6 +106,12 @@ services:
           path: ./audit_client.py
           target: /app/audit_client.py
         - action: sync+restart
+          path: ./config_client.py
+          target: /app/config_client.py
+        - action: sync+restart
+          path: ./outbox.py
+          target: /app/outbox.py
+        - action: sync+restart
           path: ./collateral-service/main.py
           target: /app/main.py
 
@@ -129,6 +147,12 @@ services:
         - action: sync+restart
           path: ./audit_client.py
           target: /app/audit_client.py
+        - action: sync+restart
+          path: ./config_client.py
+          target: /app/config_client.py
+        - action: sync+restart
+          path: ./outbox.py
+          target: /app/outbox.py
         - action: sync+restart
           path: ./doc_rev-service/main.py
           target: /app/main.py
@@ -175,6 +199,12 @@ services:
           path: ./audit_client.py
           target: /app/audit_client.py
         - action: sync+restart
+          path: ./config_client.py
+          target: /app/config_client.py
+        - action: sync+restart
+          path: ./outbox.py
+          target: /app/outbox.py
+        - action: sync+restart
           path: ./valuation-service/main.py
           target: /app/main.py
 
@@ -220,6 +250,12 @@ services:
           path: ./audit_client.py
           target: /app/audit_client.py
         - action: sync+restart
+          path: ./config_client.py
+          target: /app/config_client.py
+        - action: sync+restart
+          path: ./outbox.py
+          target: /app/outbox.py
+        - action: sync+restart
           path: ./insurance-service/main.py
           target: /app/main.py
 
@@ -259,7 +295,64 @@ services:
           path: ./audit_client.py
           target: /app/audit_client.py
         - action: sync+restart
+          path: ./config_client.py
+          target: /app/config_client.py
+        - action: sync+restart
+          path: ./outbox.py
+          target: /app/outbox.py
+        - action: sync+restart
           path: ./policyqa-service/main.py
+          target: /app/main.py
+
+  # The one place every service's settings live (see config-service/main.py).
+  # Shared infrastructure like auth and audit, not a reviewer.
+  #
+  # The MODEL_* defaults below are duplicated on the reviewers themselves, and
+  # that is deliberate: config_client falls back to the service's own value
+  # when this one is unreachable, so a settings outage degrades to "everyone
+  # gets the default" instead of stopping reviews. Change a default in BOTH
+  # places, or the fallback silently disagrees with the configured default.
+  config-service:
+    build:
+      context: .
+      dockerfile: config-service/Dockerfile
+    environment:
+      JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
+      JWT_ISSUER: poc-issuer
+      DATA_DIR: /app/data
+      # Where the model catalogue is read from, for suggestions and the
+      # advisory spelling check. Same gateway the reviewers call.
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      COLLATERAL_MODEL_EXTRACTION: google/gemini-2.5-Flash
+      COLLATERAL_MODEL_VISION: google/gemini-2.5-Flash
+      VALUATION_MODEL_EXTRACTION: google/gemini-2.5-Flash
+      VALUATION_MODEL_VISION: google/gemini-2.5-Flash
+      INSURANCE_MODEL_EXTRACTION: google/gemini-2.5-Flash
+      INSURANCE_MODEL_VISION: google/gemini-2.5-Flash
+      POLICYQA_MODEL_CHAT: google/gemini-2.5-Flash
+      POLICYQA_MODEL_EMBEDDING: openai/text-embedding-3-large
+      POLICYQA_MODEL_VISION: google/gemini-2.5-Flash
+      DOCGEN_MODEL_EXTRACTION: google/gemini-2.5-Flash
+      DOCGEN_MODEL_VISION: google/gemini-2.5-Flash
+      DOCGEN_MODEL_SELECTION: google/gemini-2.5-Flash
+      DOCGEN_MODEL_FILL: google/gemini-2.5-Flash
+      DOCGEN_MODEL_ANALYSIS: google/gemini-2.5-Flash
+    volumes:
+      - config-data:/app/data
+      - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
+    depends_on:
+      kong:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./security.py
+          target: /app/security.py
+        - action: sync+restart
+          path: ./outbox.py
+          target: /app/outbox.py
+        - action: sync+restart
+          path: ./config-service/main.py
           target: /app/main.py
 
   auth-service:
@@ -292,6 +385,7 @@ services:
       # bearer token itself — public key must match auth-service + kong.yml.
       JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
+      DATA_DIR: /app/logs
     volumes:
       - ./audit-logs:/app/logs
       - ./keys/jwt-public.pem:/app/keys/jwt-public.pem:ro
@@ -328,6 +422,7 @@ services:
 
 volumes:
   auth-data:
+  config-data:
   policyqa-data:
   docgen-data:
   collateral-data:

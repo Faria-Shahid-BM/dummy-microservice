@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { DataTableComponent, TableColumnDirective } from '../../shared/data-table.component';
+import { DataTableComponent, TableColumnDirective } from '../../shared/data-table/data-table.component';
 import { DocgenService, DocgenTemplate } from '../docgen.service';
 
 @Component({
@@ -17,6 +17,7 @@ export class TemplateListComponent implements OnInit {
   loading = false;
   error = '';
 
+  showUpload = false;
   newFile: File | null = null;
   newName = '';
   newLanguage: 'en' | 'ar' | 'bilingual' = 'en';
@@ -53,6 +54,20 @@ export class TemplateListComponent implements OnInit {
     });
   }
 
+  openUpload(): void {
+    this.error = '';
+    this.newFile = null;
+    this.newName = '';
+    this.newLanguage = 'en';
+    this.newNote = '';
+    this.showUpload = true;
+  }
+
+  closeUpload(): void {
+    if (this.creating) return;
+    this.showUpload = false;
+  }
+
   onFile(event: Event): void {
     this.newFile = (event.target as HTMLInputElement).files?.[0] ?? null;
   }
@@ -66,6 +81,7 @@ export class TemplateListComponent implements OnInit {
       .subscribe({
         next: () => {
           this.creating = false;
+          this.showUpload = false;
           this.newFile = null;
           this.newName = '';
           this.newNote = '';
