@@ -36,7 +36,8 @@ services:
       LLM_MODEL_VISION: google/gemini-2.5-Flash
       LLM_MODEL_SELECTION: google/gemini-2.5-Flash
       LLM_MODEL_FILL: google/gemini-2.5-Flash
-      LLM_MODEL_ANALYSIS: google/gemini-2.5-Flash
+      # LLM_MODEL_ANALYSIS: google/gemini-2.5-Flash
+      LLM_MODEL_ANALYSIS: qwen/qwen3-14b
       JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
     volumes:
@@ -59,9 +60,11 @@ services:
     environment:
       LLM_BASE_URL: https://openrouter.ai/api/v1
       LLM_API_KEY: ${LLM_API_KEY}
-      MODEL_EXTRACTION: google/gemini-2.5-Flash
+      MODEL_EXTRACTION: qwen/qwen3-14b
+      # MODEL_EXTRACTION: google/gemini-2.5-Flash
       # MODEL_VISION: anthropic/claude-sonnet-4.6
-      MODEL_VISION: google/gemini-2.5-Flash
+      # MODEL_VISION: google/gemini-2.5-Flash
+      MODEL_VISION: qwen/qwen3-vl-8b-instruct
       # JWT scope enforcement (security.py) — public key must match auth-service + kong.yml
       JWT_PUBLIC_KEY_PATH: /app/keys/jwt-public.pem
       JWT_ISSUER: poc-issuer
