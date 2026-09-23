@@ -35,6 +35,8 @@ proof of concept, written down so they can be prioritised rather than inherited.
 | 11 | No upload size or page-count guard on document compare | Low | No | ~1 hour |
 | 12 | No organization/tenant concept — admin grants services per-user only | Medium | No, but requested for production | ~2-3 days |
 | 13 | No migration tooling — schema is a raw `CREATE TABLE IF NOT EXISTS` on every boot | Medium | Should fix before #8/#12 | ~0.5 day (Alembic) |
+| 14 | ~~docgen-service's audit trail is local-only~~ — **resolved 2026-08-18** | — | — | done |
+| 15 | Shared `provider.py` (5 services) has no retry/backoff; docgen's independently-built LLM layer already does | Medium | No | ~0.5-1 day |
 
 ---
 
@@ -258,6 +260,112 @@ rather than ad-hoc schema edits.
 
 ---
 
+## 14. docgen-service's audit trail is local-only — RESOLVED 2026-08-18
+
+**What it was.** Every other backend service reported events through `audit_client.py`'s `audit()` — a
+direct HTTP call to the central `audit-service`. docgen-service instead wrote straight into its own
+local `AuditEntry` table and never called audit-service at all, so its activity (approvals, case
+pipeline stages, template changes) was invisible to anyone reviewing "the audit log" centrally.
+
+**What changed.** Rather than just pointing docgen at the old direct-call `audit()`, the delivery
+mechanism itself was replaced everywhere (not just for docgen) with a transactional outbox
+([`outbox.py`](outbox.py)): every producer (docgen-service plus collateral/insurance/valuation/doc_rev
+via [`case_store.py`](case_store.py), and policyqa-service) now writes an outbox row in the same local
+transaction as the business change it describes, and a background relay in each service delivers it to
+audit-service, retrying until it succeeds instead of the old fire-and-forget call that silently dropped
+an event on any hiccup. audit-service gained `subject_type`/`subject_id`/`profile_id` columns (promoted
+from docgen's richer schema) and `event_id`-based dedupe for safe at-least-once retry, plus a relaxed
+token-expiry check specifically for delayed relay delivery (`security.py`'s
+`require_any_token_allow_expired`) since a 2-hour-TTL token can legitimately go stale while
+audit-service is briefly unreachable.
+
+docgen's old local `AuditEntry` table/model is kept in place (deprecated, nothing writes to it any
+more) rather than dropped immediately — lower-risk than a destructive migration in the same pass; safe
+to drop later once its pre-migration history no longer matters. Its own `GET /api/audit` now proxies to
+the central store instead of querying that table — though note it was never actually routed through
+Kong in the first place (no `docgen-audit` entry in `kong.yml`), so this had no live frontend consumer
+to break.
+
+**Caveat worth knowing.** policyqa-service had no database at all before this — it gained a small
+dedicated SQLite DB purely to hold its outbox. Its "atomicity" only covers the outbox write itself,
+since its real mutations are plain filesystem writes with no surrounding DB transaction to join.
+
+---
+
+## 15. Shared LLM provider has no retry/backoff
+
+**What it is.** [`provider.py`](provider.py) — used by collateral-service, valuation-service,
+insurance-service, policyqa-service, and doc_rev-service — is a single `Provider` class with `call()`/
+`stream()`/`embed()` and no retry logic. docgen-service, built independently, has its own materially
+more capable LLM layer (`docgen-service/app/llm/{base.py,openai_compat.py,registry.py}` plus
+Azure/Bedrock backends) with retry/backoff, a concurrency cap, and multi-provider support.
+
+**Why it matters.** Found during the same consolidation pass as #14. The five services sharing
+`provider.py` have no protection against a transient LLM API failure (rate limit, timeout, 5xx) —
+one failed call just fails the request. docgen's version already solves this; it just isn't shared.
+
+**Recommended fix.** Not an import swap like the engines/ consolidation was — `provider.py`'s interface
+is simpler than docgen's, so this means deliberately porting retry/backoff into `provider.py` (or
+promoting docgen's LLM layer to a shared module) rather than picking whichever file happened to exist
+first. Worth doing before #5's external-LLM dependency goes in front of a real client.
+
+---
+
+## 16. Document Reviewer ignores headers and footers entirely
+
+**Where.** `engines/document_diff_html.py` — `docx_to_html()` converts via mammoth, which does not
+read `word/header*.xml` or `word/footer*.xml` at all.
+
+**Why it matters.** Verified 2026-09-22: changing a header reference number
+(`Ref: GUAR/2024/0001` → `Ref: GUAR/2024/9999`) *and* a footer marking
+(`CONFIDENTIAL` → `DRAFT ONLY`) between two otherwise identical documents produces
+`identical=True`, `changes=0`. Reference numbers, document control markings and letterhead
+changes in a returned contract are invisible to the review.
+
+**Recommended fix.** Read headers/footers separately with `python-docx`
+(`section.header` / `section.footer`) and prepend them to the mammoth HTML as a labelled
+block so they diff alongside the body. Cheap, but it changes the shape of the redline
+document, so it needs a UI decision about where header/footer changes appear.
+
+---
+
+## 17. Document Reviewer silently accepts tracked changes
+
+**Where.** Same conversion step. Mammoth resolves `w:ins`/`w:del` to the **post-acceptance** text.
+
+**Why it matters.** Verified 2026-09-22: a returned document carrying *unaccepted* tracked
+changes is compared as though every change had already been accepted, and the deleted text
+never reaches the engine. A reviewer opening that file in Word with markup shown sees something
+different from what the comparison reported. Lower severity than #16 because the resulting text
+is still compared — but the fact that an edit is pending rather than final is lost.
+
+**Recommended fix.** Detect `w:ins`/`w:del` elements in the returned document and surface a
+non-blocking warning ("this document contains N unaccepted tracked changes"), rather than trying
+to diff both revision states. Detection is a cheap XML scan; rendering both states is not worth it.
+
+---
+
+## 18. Model defaults are declared in two places
+
+**Where.** `docker-compose.yml` — config-service carries `COLLATERAL_MODEL_*`,
+`VALUATION_MODEL_*`, … as the configured defaults, and each reviewer still carries its own
+`MODEL_EXTRACTION`/`MODEL_VISION` as the fallback `config_client.py` uses when config-service
+is unreachable.
+
+**Why it matters.** The duplication is deliberate — it is what makes a config-service outage
+degrade to "everyone gets the default" instead of stopping reviews — but nothing enforces that
+the two agree. Change one and not the other and the fallback silently runs a different model
+from the configured default, which is the hardest kind of difference to notice because it only
+appears during an outage.
+
+**Recommended fix.** A startup check in each reviewer that fetches its own scope's defaults from
+config-service and logs a warning when they differ from its local fallback. Cheap, and it turns a
+silent divergence into a line in the log. A stronger version (fail to start on mismatch) is
+probably too strict — it would couple every reviewer's boot to config-service being up, which is
+exactly the coupling the fallback exists to avoid.
+
+---
+
 ## Suggested sequencing
 
 **Before any client handover:** #3 (1 hour), #6 (15 min), #10 (5 min) — trivial and remove obvious
@@ -271,4 +379,6 @@ before attempting #8 or #12.
 **Production feature work:** #8 (Postgres) → #12 (org-level entitlements), in that order, both behind
 #13.
 
-**Pilot-acceptable, plan for later:** #11.
+**Pilot-acceptable, plan for later:** #11, #17, #18.
+
+**Document Reviewer correctness:** #16 before the reviewer is relied on for contract verification — a changed header reference number currently passes as identical.

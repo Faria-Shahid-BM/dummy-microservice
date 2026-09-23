@@ -1,0 +1,40 @@
+.job-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.job-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+}
+
+.job-dot.job-queued {
+  background: var(--color-text-faint);
+}
+
+/* stage-pulse is defined once in styles.css and shared with stage-progress
+   and case-pairs' tab-dot, which also animate a status dot with it. */
+.job-dot.job-running {
+  background: var(--color-primary);
+  animation: stage-pulse 1.2s ease-in-out infinite;
+}
+
+.job-dot.job-succeeded {
+  background: var(--color-success);
+}
+
+.job-dot.job-failed,
+.job-dot.job-cancelled {
+  background: var(--color-error);
+}
+
+.job-label {
+  color: var(--color-text);
+  font-weight: 500;
+}

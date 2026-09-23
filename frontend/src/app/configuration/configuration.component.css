@@ -1,0 +1,135 @@
+/* The reviewer's name and what it does, with the count of what's been changed
+   from the default pushed to the far edge. */
+.group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.group-head h2 {
+  margin: 0 0 0.2rem;
+}
+
+.group-head .hint {
+  margin: 0;
+}
+
+.group-badge {
+  flex: none;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--color-primary-border);
+  border-radius: 4px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Label on the left, control on the right on a wide screen; stacked once the
+   two would fight for width. A fixed-width label column keeps the inputs of
+   one card aligned, which is what makes a list of settings scannable. */
+.setting {
+  display: grid;
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+  gap: 0.35rem 1.5rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.setting:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.setting:last-of-type {
+  padding-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .setting {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+.setting-name {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.setting-desc {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-text-faint);
+}
+
+.setting-control {
+  min-width: 0;
+}
+
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* The buttons sit beside a field that is taller than they are; align them to
+   the field's own height rather than letting them float to its top. */
+.setting-row button {
+  margin-top: 0.15rem;
+}
+
+.setting-state {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+}
+
+.setting-state code {
+  font-size: 0.75rem;
+}
+
+.setting-saved {
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+/* A caution about the id that was typed, not a failure — the row still saves,
+   so it reads quieter than .error and carries no red. */
+.setting-advice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-warning);
+}
+
+.advice-mark {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.08rem;
+  border-radius: 4px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 0.85rem;
+  text-align: center;
+}
+
+/* The catalogue's own name for what was typed — confirmation that the id
+   resolves to the model the reviewer meant. */
+.setting-match {
+  color: var(--color-text-muted);
+}

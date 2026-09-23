@@ -1,0 +1,56 @@
+<div class="topbar">
+  <div class="topbar-heading">
+    <h2>Welcome back{{ session.session?.username ? ', ' + session.session!.username : '' }}</h2>
+    <p class="subtitle">Your reviewers and this month's usage.</p>
+  </div>
+</div>
+
+<p class="empty card" *ngIf="!loading && !reviewers.length">
+  No reviewers are enabled on your account yet — an admin can grant access from Users.
+</p>
+
+<ng-container *ngIf="loading">
+  <div class="card"><p class="hint">Loading your usage…</p></div>
+</ng-container>
+
+<ng-container *ngIf="!loading && reviewers.length">
+  <!-- One card per entitled reviewer: how much of the month is left. The
+       allowance is a soft, display-only figure (see the component) — the
+       chip is a nudge, not an enforced cap, so it never blocks the button
+       beside it. -->
+  <div class="usage-grid">
+    <a class="usage-card" *ngFor="let r of reviewers" [routerLink]="r.route">
+      <div class="usage-card-head">
+        <span class="usage-short">{{ r.short }}</span>
+        <span class="usage-label">{{ r.label }}</span>
+      </div>
+      <div class="usage-numbers">
+        <div class="usage-n">
+          <span class="n">{{ r.thisMonth }}</span>
+          <span class="l">this month</span>
+        </div>
+        <span class="tone" [ngClass]="tone(r)">{{ r.remaining }} left</span>
+      </div>
+      <div class="usage-track" [title]="r.thisMonth + ' of ' + r.allowance + ' used this month'">
+        <div class="usage-fill" [ngClass]="tone(r)" [style.width.%]="r.usedFrac * 100"></div>
+      </div>
+      <p class="usage-total">{{ r.total }} total review{{ r.total === 1 ? '' : 's' }}</p>
+    </a>
+  </div>
+
+  <section class="card">
+    <h2>This month, by reviewer</h2>
+    <div class="bar-rows" *ngIf="hasAnyUsage; else noUsage">
+      <div class="bar-row" *ngFor="let r of reviewers">
+        <span class="bar-row-label">{{ r.label }}</span>
+        <div class="bar-track" [title]="r.thisMonth + ' review' + (r.thisMonth === 1 ? '' : 's') + ' this month'">
+          <div class="bar-fill" [style.width.%]="r.usedFrac * 100"></div>
+        </div>
+        <span class="bar-row-value">{{ r.thisMonth }}</span>
+      </div>
+    </div>
+    <ng-template #noUsage>
+      <p class="empty">Nothing reviewed yet this month — pick a reviewer from the sidebar to get started.</p>
+    </ng-template>
+  </section>
+</ng-container>

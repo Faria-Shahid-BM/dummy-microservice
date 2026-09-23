@@ -9,7 +9,8 @@ import { AuditEntry } from './audit.model';
   selector: 'app-admin-audit',
   standalone: true,
   imports: [CommonModule, RouterLink],
-  templateUrl: './admin-audit.component.html'
+  templateUrl: './admin-audit.component.html',
+  styleUrl: './admin-audit.component.css'
 })
 export class AdminAuditComponent implements OnInit {
   // audit-service returns the full log as a plain array with no pagination

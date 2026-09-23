@@ -1,0 +1,66 @@
+.markdown-preview {
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  line-height: 1.55;
+  margin-bottom: 0.9rem;
+  /* Extracted case text can run to many pages — scroll inside this box
+     instead of stretching the page. */
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.markdown-preview > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-preview > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4 {
+  color: var(--color-text);
+  margin: 1rem 0 0.5rem;
+}
+
+.markdown-preview p,
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 0 0 0.75rem;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  padding-left: 1.4rem;
+}
+
+.markdown-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 0.9rem;
+  font-size: 0.9rem;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid var(--color-border-soft);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: var(--color-primary-light);
+  color: var(--color-text);
+}
+
+.markdown-preview code {
+  background: var(--color-primary-light);
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+}

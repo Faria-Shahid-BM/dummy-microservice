@@ -16,7 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.engines.util import strip_fences
+from engines.util import strip_fences
 
 if TYPE_CHECKING:
     from app.llm.base import LLMProvider

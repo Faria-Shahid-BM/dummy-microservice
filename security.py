@@ -93,6 +93,26 @@ def require_any_token(authorization: str | None = Header(default=None)) -> dict[
     return _decode(_bearer_token(authorization))
 
 
+def require_any_token_allow_expired(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    """Like ``require_any_token``, but doesn't reject an expired token.
+
+    For audit-service's ingestion endpoint specifically: outbox.py's relay
+    (see outbox.py) delivers events some time after they were enqueued —
+    seconds normally, but potentially longer than a token's TTL if
+    audit-service was briefly unreachable. The signature and issuer are still
+    verified (so identity can't be forged), just not the expiry — a stale
+    token proves the event's identity just as validly as a fresh one; it
+    only stops being useful for making a NEW request, which this isn't."""
+    token = _bearer_token(authorization)
+    try:
+        return jwt.decode(
+            token, JWT_PUBLIC_KEY, algorithms=["RS256"], issuer=JWT_ISSUER,
+            options={"verify_exp": False},
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
+
+
 def get_raw_token(authorization: str | None = Header(default=None)) -> str | None:
     """The caller's raw bearer token, unparsed, for forwarding to a service
     (audit-service) that needs to independently re-verify the original

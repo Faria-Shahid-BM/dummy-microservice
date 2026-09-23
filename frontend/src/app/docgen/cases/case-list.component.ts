@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { DataTableComponent, TableColumnDirective } from '../../shared/data-table.component';
+import { DataTableComponent, TableColumnDirective } from '../../shared/data-table/data-table.component';
 import { DocgenCase, DocgenService } from '../docgen.service';
 
 @Component({

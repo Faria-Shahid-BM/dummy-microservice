@@ -36,6 +36,7 @@ result per pair; see start_analyze below for the event contract.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -45,6 +46,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import audit_client
+import outbox
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -91,6 +93,12 @@ class Case(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+# Transactional outbox for the audit trail (see outbox.py): registered on
+# this module's own Base.metadata, so init_db()'s create_all() below creates
+# it the same as `cases`, in each service's own database — no shared DB.
+_OUTBOX = outbox.outbox_table(Base.metadata)
+
+
 # Columns added after this table's first release — create_all() only creates
 # missing tables, never new columns on one that already exists, so an
 # existing SQLite/Postgres `cases` table needs each of these added by hand
@@ -120,6 +128,14 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def start_outbox_relay() -> None:
+    """Kick off the background delivery loop for this service's audit
+    outbox (see outbox.py). Call once at startup from an async context
+    (e.g. a FastAPI ``@app.on_event("startup")`` handler) — needs a running
+    event loop, which isn't available yet at plain module import time."""
+    asyncio.create_task(outbox.run_relay(SessionLocal, _OUTBOX))
 
 
 def _case_dir(case_id: str) -> Path:
@@ -253,14 +269,59 @@ def write_slot_file(
         case.status = "ready"
 
 
-def _audit(service: str, token: str | None, action: str, resource: str | None = None,
+def _audit(db: Session, service: str, token: str | None, action: str, resource: str | None = None,
            metadata: dict | None = None) -> None:
-    audit_client.audit(service, action, token, resource=resource, metadata=metadata)
+    """Enqueue an audit event in ``db``'s own transaction — call this
+    BEFORE db.commit(), never after, so the business write and "this must
+    be audited" are atomic (see outbox.py). A background relay (started in
+    each service's main.py) delivers it to audit-service; that hop is
+    best-effort/retried, but it can never silently vanish because the
+    committed action succeeded — this insert already happened with it."""
+    outbox.enqueue(db, _OUTBOX, service=service, action=action, token=token,
+                    resource=resource, detail=metadata)
 
 
 def _emit_event(emit: EmitFn | None, payload: dict) -> None:
     if emit:
         emit("event", json.dumps(payload, separators=(",", ":")))
+
+
+# Where each running analysis has got to, keyed by case id — the last stage
+# frame it emitted. The SSE stream belongs to the request that started the run,
+# so a page that reloads mid-run has no frames to follow and used to show a
+# bare "review in progress" with no sense of movement. This is what it reads
+# instead, via GET /{case_id}/progress.
+#
+# Deliberately in memory and not on the Case row: it changes several times a
+# second, it is worthless once the run ends, and persisting it would mean a
+# schema change (and a migration this project has no tooling for). Each service
+# runs a single uvicorn worker, so one process owns every run it started; a
+# restart loses the entry, and also kills the run it described.
+_RUN_PROGRESS: dict[str, dict] = {}
+
+
+def _tracking_emit(case_id: str, emit: EmitFn) -> EmitFn:
+    """Mirror each stage frame into `_RUN_PROGRESS` on its way out.
+
+    Wraps the stream's own emit rather than hooking each call site, so a stage
+    a service's engine adds later is recorded without anyone remembering to.
+    Only the routing keys are kept — a `pair_result` frame carries the whole
+    result, which belongs on the case, not in a progress ping.
+    """
+
+    def tracked(ev_type: str, text: str) -> None:
+        if ev_type == "event":
+            try:
+                payload = json.loads(text)
+            except ValueError:
+                payload = None
+            if isinstance(payload, dict) and isinstance(payload.get("stage"), str):
+                _RUN_PROGRESS[case_id] = {
+                    k: v for k, v in payload.items() if k != "result" and not isinstance(v, (dict, list))
+                }
+        emit(ev_type, text)
+
+    return tracked
 
 
 def _scoped_emit(emit: EmitFn, scope: dict[str, Any]) -> EmitFn:
@@ -370,13 +431,17 @@ class CaseCreateBody(BaseModel):
 # contract as streaming.py's sse_stream(), since analyze() is handed
 # straight through to it.
 EmitFn = Callable[[str, str], None]
-# analyze(paths, emit, user_sub) -> result dict. `paths` maps every upload slot
-# to its file on disk (all `min_slots_ready` slots guaranteed present).
+# analyze(paths, emit, user_sub, token) -> result dict. `paths` maps every
+# upload slot to its file on disk (all `min_slots_ready` slots guaranteed
+# present).
 # `user_sub` is the case owner (cases are per-user, see Case.created_by) — for
 # services whose analysis depends on that account's own configuration rather
 # than only on the uploads, e.g. insurance grading against the bank policy that
-# account uploaded. Most services ignore it.
-AnalyzeFn = Callable[[dict[str, Path], EmitFn, str], dict]
+# account uploaded.
+# `token` is that caller's raw bearer token, to forward to another service that
+# re-verifies it — config-service, for the models this run should use (see
+# config_client.py). None when the run has no caller token to pass on.
+AnalyzeFn = Callable[[dict[str, Path], EmitFn, str, str | None], dict]
 
 # Statuses from which POST /analyze is allowed (re-analysis included).
 ANALYZABLE_STATUSES = ("ready", "done", "failed")
@@ -463,10 +528,10 @@ def make_case_router(
             raise HTTPException(status_code=422, detail="A case name is required")
         case = Case(name=name, status="new", uploads={}, created_by=user_sub)
         db.add(case)
-        db.commit()
         # No metadata: `name` is already the Resource field above; nothing
         # else about a bare case-create is worth an audit reader's time.
-        _audit(service_scope, token, "case.create", resource=name)
+        _audit(db, service_scope, token, "case.create", resource=name)
+        db.commit()
         return _detail_payload(case)
 
     @router.get("/{case_id}")
@@ -485,8 +550,8 @@ def make_case_router(
             raise HTTPException(status_code=409, detail="Analysis is running; wait for it to finish")
         name = case.name
         remove_case(db, case)
+        _audit(db, service_scope, token, "case.delete", resource=name)
         db.commit()
-        _audit(service_scope, token, "case.delete", resource=name)
         return {"ok": True}
 
     def _check_slot(slot: str) -> None:
@@ -597,13 +662,13 @@ def make_case_router(
         _invalidate_pair(case, index)
         if index == 0 and all(s in _main_uploads(case) for s in min_slots_ready):
             case.status = "ready"
-        db.commit()
 
         attachment_id = audit_client.upload_attachment(filename, content)
         attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
         label = f"{case.name}:{slot}" if index == 0 else f"{case.name}:pair{index + 1}:{slot}"
-        _audit(service_scope, token, "case.upload", resource=label,
+        _audit(db, service_scope, token, "case.upload", resource=label,
                metadata={"input": {"attachments": attachments}})
+        db.commit()
         return _detail_payload(case)
 
     @router.post("/{case_id}/uploads/{slot}")
@@ -637,14 +702,14 @@ def make_case_router(
         content = await file.read()
         filename = file.filename or f"{slot}{suffix}"
         write_slot_file(case, slot, suffix, content, filename, min_slots_ready)
-        db.commit()
 
         attachment_id = audit_client.upload_attachment(filename, content)
         attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
         # `slot` is already part of the Resource field above; the file itself
         # is the only thing worth showing again here.
-        _audit(service_scope, token, "case.upload", resource=f"{case.name}:{slot}",
+        _audit(db, service_scope, token, "case.upload", resource=f"{case.name}:{slot}",
                metadata={"input": {"attachments": attachments}})
+        db.commit()
         return _detail_payload(case)
 
     @router.get("/{case_id}/uploads/{slot}")
@@ -664,6 +729,40 @@ def make_case_router(
             raise HTTPException(status_code=404, detail=f"No file uploaded to slot '{slot}'")
         filename = (_main_uploads(case)).get(slot) or path.name
         return FileResponse(path, filename=filename)
+
+    @router.get("/{case_id}/pairs/{index}/uploads/{slot}")
+    def download_pair_slot(
+        case_id: str,
+        index: int,
+        slot: str,
+        user_sub: str = Depends(_require_user),
+        db: Session = Depends(get_db),
+    ) -> FileResponse:
+        """The raw bytes of one pair's slot.
+
+        The route above only ever reaches pair 0, because that's where the
+        case's own slots live. Previewing a document on pair 2+ read pair 0's
+        file instead — the wrong document when that slot held one, and an
+        unrenderable response when it didn't. This is the read side of
+        upload_pair_slot, and aliases /pairs/0/ the same way it does so that
+        "pair index" means one thing across the API.
+        """
+        case = get_owned_case(db, case_id, user_sub)
+        _check_slot(slot)
+        pairs = _extra_pairs(case)
+        if index < 0 or index > len(pairs):
+            raise HTTPException(status_code=404, detail=f"No pair {index + 1} on this case")
+        if index == 0:
+            path = _slot_file(case_id, slot)
+            filename = _main_uploads(case).get(slot)
+        else:
+            path = _extra_slot_file(case_id, index, slot)
+            filename = pairs[index - 1].get(slot)
+        if path is None:
+            raise HTTPException(
+                status_code=404, detail=f"No file uploaded to slot '{slot}' on pair {index + 1}"
+            )
+        return FileResponse(path, filename=filename or path.name)
 
     def _paths_for(case_id: str) -> dict[str, Path]:
         found = {}
@@ -742,6 +841,13 @@ def make_case_router(
                 )
             pairs[i] = paths
 
+        # A re-run's previous result must not outlive the start of the run. The
+        # page that started it already blanks the pair locally, but that is only
+        # this tab: reload mid-run and the server hands the old output straight
+        # back, which renders as a finished review — complete with a green
+        # "done" tab dot — while the new one is still going.
+        for i in targets:
+            _invalidate_pair(case, i)
         case.status = "analyzing"
         db.commit()
 
@@ -760,14 +866,20 @@ def make_case_router(
         return pairs, inputs
 
     def _merge_outcomes(
-        case_id: str, baseline: list[dict], updates: dict[int, dict], status: str | None
+        case_id: str, baseline: list[dict], updates: dict[int, dict], status: str | None,
+        *, audit: dict | None = None,
     ) -> list[dict]:
         """Write the analyzed pairs' outcomes onto the case, leaving every other
         pair's stored outcome alone — re-running one pair must not blank the
         results of the pairs that weren't re-run.
 
         A single-pair case keeps the bare engine result it always had, so nothing
-        downstream sees a new shape unless extra pairs are actually in play."""
+        downstream sees a new shape unless extra pairs are actually in play.
+
+        `audit`, when given, is enqueued on this SAME persist_db transaction
+        (kwargs for `_audit`, minus `db`) — this runs on sse_stream()'s worker
+        thread, so this is the only session in scope to make the outcome
+        write and its audit event atomic with each other."""
         persist_db = SessionLocal()
         try:
             row = persist_db.get(Case, case_id)
@@ -787,6 +899,8 @@ def make_case_router(
                 row.status = status
                 if status == "done":
                     row.reviewed_at = datetime.now(timezone.utc)
+            if audit is not None:
+                _audit(persist_db, **audit)
             persist_db.commit()
             return outcomes
         finally:
@@ -829,9 +943,17 @@ def make_case_router(
         # Snapshot before _prepare_analyze flips the status (see _outcomes_snapshot).
         baseline = _outcomes_snapshot(case)
         pair_paths, pair_inputs = _prepare_analyze(case, user_sub, db, targets)
+        # _prepare_analyze just cleared the targets on the case, but this
+        # snapshot predates that — and _merge_outcomes writes the baseline for
+        # every pair that hasn't finished yet, which would put the old results
+        # straight back on the first pair to land.
+        for i in targets:
+            if i < len(baseline):
+                baseline[i] = {}
         name = case.name
 
         def run(emit: EmitFn) -> dict:
+            emit = _tracking_emit(case_id, emit)
             # Runs on sse_stream()'s worker thread — never reuse the request's
             # `db` session here (it belongs to the request's own async context);
             # _merge_outcomes opens its own, same reasoning as docgen-service's
@@ -842,28 +964,35 @@ def make_case_router(
                 label = name if i == 0 else f"{name} (pair {i + 1})"
                 _emit_event(emit, {"stage": "pair_start", "pair": i})
                 try:
-                    result = analyze(paths, _scoped_emit(emit, {"pair": i}), user_sub)
+                    result = analyze(paths, _scoped_emit(emit, {"pair": i}), user_sub, token)
                 except Exception as exc:   # one bad pair must not sink the rest
                     error = f"{type(exc).__name__}: {exc}"
                     updates[i] = {"error": error}
-                    _merge_outcomes(case_id, baseline, updates, "analyzing")
-                    _audit(service_scope, token, "case.analyze", resource=label,
-                           metadata={"input": analyze_input, "output": {"error": error}})
+                    _merge_outcomes(case_id, baseline, updates, "analyzing", audit=dict(
+                        service=service_scope, token=token, action="case.analyze", resource=label,
+                        metadata={"input": analyze_input, "output": {"error": error}},
+                    ))
                     _emit_event(emit, {"stage": "pair_error", "pair": i, "error": error})
                     continue
                 updates[i] = {"result": result}
                 # Persist as each pair finishes, so reloading mid-run shows the
-                # pairs already done rather than nothing.
-                _merge_outcomes(case_id, baseline, updates, "analyzing")
+                # pairs already done rather than nothing. Audit is enqueued in
+                # the same transaction as this outcome write (see
+                # _merge_outcomes) rather than as a separate call after it.
                 audit_output = to_audit_output(result) if to_audit_output else result
-                _audit(service_scope, token, "case.analyze", resource=label,
-                       metadata={"input": analyze_input, "output": audit_output})
+                _merge_outcomes(case_id, baseline, updates, "analyzing", audit=dict(
+                    service=service_scope, token=token, action="case.analyze", resource=label,
+                    metadata={"input": analyze_input, "output": audit_output},
+                ))
                 _emit_event(emit, {"stage": "pair_result", "pair": i, "result": result})
 
             # Status reflects the whole case, not just this request's pairs.
             outcomes = _merge_outcomes(case_id, baseline, updates, None)
             failed = bool(outcomes) and all(o.get("result") is None for o in outcomes)
             _merge_outcomes(case_id, baseline, updates, "failed" if failed else "done")
+            # The run is over; anything still in the registry would have a
+            # reloaded page showing a stage that finished.
+            _RUN_PROGRESS.pop(case_id, None)
             if failed:
                 # Every pair failed — surface it the way a single-case failure
                 # always was, as an SSE error rather than a result.
@@ -872,6 +1001,22 @@ def make_case_router(
             return {"pairs": [updates[i] for i in targets if i in updates]}
 
         return await sse_stream(run)
+
+    @router.get("/{case_id}/progress")
+    def get_progress(
+        case_id: str,
+        user_sub: str = Depends(_require_user),
+        db: Session = Depends(get_db),
+    ) -> dict:
+        """How far a run on this case has got, for a page that isn't streaming it.
+
+        `progress` is null when nothing is running, and also when the run was
+        started by a process that has since restarted — the status still says
+        `analyzing` there, so the caller should trust `status` for whether to
+        keep asking and treat a null `progress` as "no detail available".
+        """
+        case = get_owned_case(db, case_id, user_sub)
+        return {"status": case.status, "progress": _RUN_PROGRESS.get(case_id)}
 
     @router.get("/{case_id}/result")
     def get_result(case_id: str, user_sub: str = Depends(_require_user), db: Session = Depends(get_db)) -> dict:

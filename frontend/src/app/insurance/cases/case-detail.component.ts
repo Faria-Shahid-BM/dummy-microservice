@@ -1,13 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CaseDetail } from '../../shared/case.service';
-import { CasePairsComponent } from '../../shared/case-pairs.component';
+import { CasePairsComponent } from '../../shared/case-pairs/case-pairs.component';
 import { PairRun } from '../../shared/pair-run';
+import { CaseWatch } from '../../shared/case-watch';
 import { BankPolicyStatus, InsuranceService } from '../insurance.service';
 import { StageDef, StageProgressComponent } from '../../stage-progress/stage-progress.component';
-import { JsonViewComponent } from '../../json-view/json-view.component';
+import { SectionReportComponent } from '../../shared/section-report/section-report.component';
+import { INSURANCE_REPORT } from '../report/insurance-report.config';
 
 // Stage keys/order come straight from engines/insurance.py's _emit_event()
 // calls — a stage's "event" arriving means every earlier stage here is
@@ -23,11 +25,12 @@ const INSURANCE_STAGES: StageDef[] = [
 @Component({
   selector: 'app-insurance-case-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, CasePairsComponent, StageProgressComponent, JsonViewComponent],
+  imports: [CommonModule, RouterLink, CasePairsComponent, StageProgressComponent, SectionReportComponent],
   templateUrl: './case-detail.component.html'
 })
-export class CaseDetailComponent implements OnInit {
+export class CaseDetailComponent implements OnInit, OnDestroy {
   readonly insuranceStages = INSURANCE_STAGES;
+  readonly reportSpec = INSURANCE_REPORT;
 
   caseId = '';
   case: CaseDetail<unknown> | null = null;
@@ -39,6 +42,8 @@ export class CaseDetailComponent implements OnInit {
   analyzeError = '';
   /** Which pair is running, how far along, and which tab is on screen. */
   readonly run = new PairRun();
+  /** Follows a review still running on the server when this page isn't the one streaming it. */
+  private readonly watch = new CaseWatch();
 
   // The bank policy this account's reviews are graded against — standing
   // configuration shared by every case, not part of this one (see
@@ -99,6 +104,15 @@ export class CaseDetailComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    this.watch.stop();
+  }
+
+  /** A review is running that this page didn't start (we left and came back). */
+  get serverBusy(): boolean {
+    return this.case?.status === 'analyzing' && !this.analyzing;
+  }
+
   loadCase(): void {
     if (!this.caseId) return;
     this.error = '';
@@ -107,6 +121,11 @@ export class CaseDetailComponent implements OnInit {
       next: (c) => {
         this.case = c;
         this.loading = false;
+        this.watch.sync(c.status, this.analyzing, () => this.loadCase());
+        // A run this page didn't start has no stream here, so the stage
+        // checklist comes from the server's own snapshot instead of frames.
+        if (this.serverBusy) this.watch.followProgress(this.insurance, this.caseId, this.run, c.pairs?.length ?? 1);
+        else if (!this.analyzing) this.run.stopAdopted();
       },
       error: (err: HttpErrorResponse) => {
         this.error = err.error?.detail ?? 'failed to load case';
@@ -123,7 +142,7 @@ export class CaseDetailComponent implements OnInit {
 
   /** Says what pressing it will actually do, so "Review" never means a re-run. */
   get analyzeLabel(): string {
-    if (this.analyzing) return 'Reviewing…';
+    if (this.analyzing || this.serverBusy) return 'Reviewing…';
     const pending = this.pendingPairs;
     if (!pending) return 'Review everything again';
     if (this.case && this.case.pairs.length > 1) {
@@ -148,6 +167,17 @@ export class CaseDetailComponent implements OnInit {
     this.analyzing = true;
     // One tab per pair on the case; the server analyzes them in the same order.
     this.run.start(this.case.pairs.length);
+    // A re-run replaces whichever pairs are in scope — clear their old
+    // result/error from the UI now rather than leaving it on screen (looking
+    // current) until the new one streams in. Mirrors the server's own
+    // "pending" selection: a pair with no result yet (including one that only
+    // has a stored error from a failed attempt) is already about to run.
+    for (const pair of this.case.pairs) {
+      if (scope === 'all' || scope === pair.index || (scope === 'pending' && pair.result == null)) {
+        pair.result = null;
+        pair.error = null;
+      }
+    }
 
     this.insurance
       .analyzeCase(this.caseId, (eventType, data) => {

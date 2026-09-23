@@ -38,7 +38,7 @@ from app.control.profile_config import (
     prompt_override,
 )
 from app.core.db import db_session, session_scope
-from app.engines.valuation import review_valuation
+from engines.valuation import review_valuation
 from app.llm.registry import get_provider
 from app.modules.reviews_base import EmitFn, make_review_router
 
@@ -82,15 +82,16 @@ def _write_panel_meta(profile_id: str, raw: dict) -> None:
 # ------------------------------------------------------------------- analysis
 
 
-def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn) -> dict:
+def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn,
+             token: str | None) -> dict:
     # Per-profile config resolved at run time (this runs inside the job), so
     # the review always uses the profile's CURRENT overrides.
     with session_scope() as jdb:
         cushion_pct = effective_float(jdb, profile_id, "valuation.cushion_pct")
         expiry_years = effective_int(jdb, profile_id, "valuation.expiry_years")
         models = {
-            "extraction": effective_model(jdb, profile_id, "extraction"),
-            "vision": effective_model(jdb, profile_id, "vision"),
+            "extraction": effective_model(jdb, profile_id, "extraction", token),
+            "vision": effective_model(jdb, profile_id, "vision", token),
         }
         extraction_prompt = prompt_override(
             jdb, profile_id, "valuation.extraction.prompt")

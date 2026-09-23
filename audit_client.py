@@ -1,32 +1,17 @@
 """Shared client for audit-service, used by every service that records
 audit events (see audit-service/main.py). Centralized so each service
 doesn't hand-roll its own httpx.post + attachment-upload plumbing.
+
+The direct, fire-and-forget ``audit()`` call that used to live here is gone —
+every producer now goes through outbox.py's transactional outbox instead
+(same delivery target, AUDIT_BASE, just durable against audit-service being
+briefly unreachable instead of silently dropping the event).
 """
+import os
+
 import httpx
 
-AUDIT_BASE = "http://audit-service:8000"
-
-
-def audit(service: str, action: str, token: str | None, resource: str | None = None,
-          metadata: dict | None = None) -> None:
-    """``token`` is the caller's own already-Kong-verified bearer token,
-    forwarded so audit-service can derive `user_id` from a re-verified
-    signature instead of trusting a plain string a compromised producer
-    could send on anyone's behalf."""
-    try:
-        httpx.post(
-            f"{AUDIT_BASE}/audit",
-            json={
-                "service": service,
-                "action": action,
-                "resource": resource,
-                "metadata": metadata,
-            },
-            headers={"Authorization": f"Bearer {token}"} if token else {},
-            timeout=1.0,
-        )
-    except Exception:
-        pass  # audit failure must never break the actual request
+AUDIT_BASE = os.environ.get("AUDIT_SERVICE_URL", "http://audit-service:8000")
 
 
 def strip_keys(value, keys: set[str]):

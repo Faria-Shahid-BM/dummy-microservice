@@ -41,7 +41,7 @@ from docx.document import Document as DocumentObject
 from docx.table import _Cell
 from docx.text.paragraph import Paragraph
 
-from app.engines.util import parse_json_response
+from engines.util import parse_json_response
 
 if TYPE_CHECKING:
     from app.llm.base import LLMProvider

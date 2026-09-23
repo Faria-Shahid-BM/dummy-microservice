@@ -100,9 +100,19 @@ export abstract class CaseService<TResult = unknown> {
   }
 
   /** The raw bytes of whatever's in a slot right now — for previewing a
-   * document before deciding what to compare it against. */
-  downloadSlot(caseId: string, slot: string): Observable<Blob> {
-    return this.http.get(`${this.apiBase}/cases/${caseId}/uploads/${slot}`, { responseType: 'blob' });
+   * document before deciding what to compare it against.
+   *
+   * `/cases/{id}/uploads/{slot}` only ever reaches pair 0, so anything past it
+   * has to go through the pair route or it silently reads pair 1's file. Pair 0
+   * keeps using the original route even though /pairs/0/ aliases it, so a
+   * frontend running against a backend without that alias still previews the
+   * common case. */
+  downloadSlot(caseId: string, slot: string, pairIndex = 0): Observable<Blob> {
+    const url =
+      pairIndex === 0
+        ? `${this.apiBase}/cases/${caseId}/uploads/${slot}`
+        : `${this.apiBase}/cases/${caseId}/pairs/${pairIndex}/uploads/${slot}`;
+    return this.http.get(url, { responseType: 'blob' });
   }
 
   // The analyze endpoint IS the SSE stream (see case_store.py) — same
@@ -130,6 +140,15 @@ export abstract class CaseService<TResult = unknown> {
     return this.http.post<CaseDetail<TResult>>(`${this.apiBase}/cases/${caseId}/pairs`, {});
   }
 
+  /**
+   * How far a run on this case has got, for a page that is not streaming it.
+   * `progress` is null when nothing is running — and also when the service
+   * restarted mid-run, so `status` is what says whether to keep asking.
+   */
+  progress(caseId: string): Observable<CaseProgress> {
+    return this.http.get<CaseProgress>(`${this.apiBase}/cases/${caseId}/progress`);
+  }
+
   removePair(caseId: string, index: number): Observable<CaseDetail<TResult>> {
     return this.http.delete<CaseDetail<TResult>>(`${this.apiBase}/cases/${caseId}/pairs/${index}`);
   }
@@ -140,6 +159,13 @@ export abstract class CaseService<TResult = unknown> {
     return this.http.post<CaseDetail<TResult>>(
       `${this.apiBase}/cases/${caseId}/pairs/${index}/uploads/${slot}`, form);
   }
+}
+
+/** Reply from GET /cases/{id}/progress. */
+export interface CaseProgress {
+  status: string;
+  /** The last stage frame the run emitted, or null if there is nothing to say. */
+  progress: Record<string, unknown> | null;
 }
 
 export const CASE_SERVICE = new InjectionToken<CaseService>('CASE_SERVICE');

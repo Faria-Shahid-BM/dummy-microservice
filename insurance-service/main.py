@@ -1,18 +1,28 @@
 # insurance-service/main.py
 import json, os, re, tempfile
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from engines import extraction
 from engines.insurance import review_insurance
+import config_client
 from provider import Provider
 from security import require_scope
-from case_store import init_db, make_case_router
+from case_store import init_db, make_case_router, start_outbox_relay
 
-app = FastAPI()
 _provider = Provider()
 init_db()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_outbox_relay()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Bank policy: the rulebook a review is graded against
@@ -137,18 +147,30 @@ def delete_policy(user_sub: str = Depends(_require_user)) -> dict:
 # Cases
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None], user_sub: str) -> dict:
-    return review_insurance(
+# Fallback for when config-service can't answer — the values this service used
+# to read directly. See config_client.models_for.
+def _default_models() -> dict:
+    return {
+        "extraction": os.environ["MODEL_EXTRACTION"],  # analysis-grade model
+        "vision":     os.environ["MODEL_VISION"],
+    }
+
+
+def _analyze(paths: dict[str, Path], emit: Callable[[str, str], None],
+             user_sub: str, token: str | None) -> dict:
+    models = config_client.models_for("insurance", token, _default_models())
+    result = review_insurance(
         paths["policy"],
         _provider,
-        models={
-            "extraction": os.environ["MODEL_EXTRACTION"],  # analysis-grade model
-            "vision":     os.environ["MODEL_VISION"],
-        },
+        models=models,
         # This account's own bank policy, or None for the engine's bundled one.
         policy_rules_text=_policy_text(user_sub),
         emit=emit,
     )
+    # Which models produced this, so the stored result stays traceable when a
+    # user later changes their choice.
+    result["models"] = models
+    return result
 
 
 app.include_router(make_case_router(          # Kong exposes this as /api/insurance/cases...

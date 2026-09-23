@@ -97,6 +97,21 @@ services:
           - /api/auth
         strip_path: true
 
+  # Settings for every service, in one place (config-service). Scope is
+  # checked inside the service per reviewer — a caller sees and edits only the
+  # reviewers their token already entitles them to — so there's nothing
+  # narrower to enforce here than "a valid token".
+  - name: config-service
+    url: http://config-service:8000
+    routes:
+      - name: config
+        paths: ["/api/config"]
+        # Not stripped, so the service's own paths read the same as the public
+        # ones — same choice docgen's routes make.
+        strip_path: false
+    plugins:
+      - name: jwt
+
   - name: audit-service
     url: http://audit-service:8000
     routes:
@@ -166,11 +181,11 @@ consumers:
         algorithm: RS256
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr+28YpPyoYk0VPYY+FkU
-          8KEXto0Q7XLfOdwc+2d+T0i72BgRYg/r/uw/AYcSxdEY8t5nQb7wIs5Cp3F8ORHo
-          m+tPZOKfZk3c4+YIDEGOy+dhdR1nfmB9GV1lzMPTOlSqT3q9pt6YytarCEVZ9qOY
-          1wR7OQbyttA/uedpFaKKvt0/SyIpj9wktCVxGcmny19XavJH4jeIlv1XO8aY6QNA
-          rubWDNe4dPiLFJnRTRjGMlqij3CcvlM5CBFBKvWM1Gd9doA1YrZPhP2gL+BiBabZ
-          u4ELe1yP+6oA6F6JEKLUFjCxIJfvc7BmSzfczBSolwj/TJwsMnIg3DA3MVFEVLmU
-          JwIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuT2c4LeWO0cdRXU4VKCr
+          OpPoiCY33aXBL74lQ6NYibp+2OxCi4Ipcar4PAETQAhGLfD44dlCBfxS+uAG3u5D
+          hUn9QWxdW5PiIp1Kor3PGgU/FPgYt2SvE7UHN0U4ZkJa3ODrsVZHXHZTDJKZILPi
+          RxvF6tbUyu1WLkbYAI8uMS+asCmJuYoLAbLYH3c+Q3+al1UkFEuHQUZFJt2ybMUZ
+          bE9djqqxbrM/q5PFqtqKWnZIf/TZagnY5xcN7JIx2WkUy2gndk1cQs9ON7dMIpWl
+          HQXpqM3PHl4vCKsgBiG0+FcHRgxQwsDohurhRvFmot1hRkg9+2J6BJU6ljuJfpUc
+          IwIDAQAB
           -----END PUBLIC KEY-----

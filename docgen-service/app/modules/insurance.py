@@ -16,19 +16,20 @@ from pathlib import Path
 
 from app.control.profile_config import effective_model, prompt_override
 from app.core.db import session_scope
-from app.engines.insurance import review_insurance
+from engines.insurance import review_insurance
 from app.llm.registry import get_provider
 from app.modules.reviews_base import EmitFn, make_review_router
 
 
-def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn) -> dict:
+def _analyze(profile_id: str, review_id: str, paths: dict[str, Path], emit: EmitFn,
+             token: str | None) -> dict:
     # Per-profile config resolved at run time (this runs inside the job).
     with session_scope() as jdb:
         models = {
             # "extraction" intentionally maps to the ANALYSIS model role — the
             # engine uses it for structuring AND compliance analysis.
-            "extraction": effective_model(jdb, profile_id, "analysis"),
-            "vision": effective_model(jdb, profile_id, "vision"),
+            "extraction": effective_model(jdb, profile_id, "analysis", token),
+            "vision": effective_model(jdb, profile_id, "vision", token),
         }
         prompts = {
             key: value

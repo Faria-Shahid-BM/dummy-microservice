@@ -128,7 +128,11 @@ export function applyStageEvent(progress: ReviewProgress, rawData: string): void
     return;
   }
   progress.stageKey = stage;
-  const rest = Object.entries(payload).filter(([k]) => k !== 'stage' && k !== 'status');
+  // `pair` tags which tab the frame belongs to (added by case_store's
+  // _scoped_emit) — the tab strip already says that, so it isn't detail.
+  const rest = Object.entries(payload).filter(
+    ([k]) => k !== 'stage' && k !== 'status' && k !== 'pair'
+  );
   progress.detail = rest.length ? rest.map(([k, v]) => `${k}: ${v}`).join(', ') : null;
 }
 

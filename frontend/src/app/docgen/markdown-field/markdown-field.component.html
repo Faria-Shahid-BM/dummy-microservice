@@ -1,0 +1,12 @@
+<div class="markdown-field">
+  <div class="markdown-preview" *ngIf="!editing" [innerHTML]="renderedHtml"></div>
+
+  <div class="field" *ngIf="editing">
+    <textarea
+      [rows]="rows"
+      [ngModel]="value"
+      (ngModelChange)="onModelChange($event)"
+      [disabled]="disabled"
+    ></textarea>
+  </div>
+</div>

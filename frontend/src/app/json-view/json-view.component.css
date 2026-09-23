@@ -1,0 +1,53 @@
+/* These tables nest one per JSON level and hold arbitrary backend strings (a
+   fill provenance's find/replace text runs to hundreds of characters), so the
+   default `auto` layout — which sizes columns to their content — let one deep
+   row widen every ancestor table. `fixed` makes each table take exactly the
+   width it is given and wrap inside it. */
+.json-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin: 0.25rem 0;
+}
+
+.json-table th {
+  /* Percentage rather than a fixed width so it keeps shrinking as levels nest. */
+  width: 18%;
+  text-align: left;
+  vertical-align: top;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  padding: 0.4rem 0.75rem 0.4rem 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  /* Keys are identifiers like TOTAL_ECONOMIC_GROUP_PROPOSED_WORDS — they must
+     wrap, not run past the column. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.json-table td {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  color: var(--color-text);
+  vertical-align: top;
+  /* Required, not redundant: a json-view rendered inside a result table is also
+     matched by the descendant rule `.audit-table td`, which sets nowrap. Left
+     unset, these cells inherit that, report a huge min-content width, and widen
+     every ancestor table. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Block, so a nested viewer fills its cell and is bounded by it instead of
+   sizing as inline content. */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.json-list {
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}

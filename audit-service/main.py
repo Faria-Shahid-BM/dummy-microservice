@@ -2,23 +2,27 @@ import os
 import re
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import JSON, DateTime, Integer, String, create_engine, select
+from sqlalchemy import JSON, DateTime, Integer, String, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from security import require_any_token
+from security import require_any_token, require_any_token_allow_expired
 
 app = FastAPI()
-os.makedirs("logs", exist_ok=True)
 
-ATTACHMENTS_DIR = "logs/attachments"
-os.makedirs(ATTACHMENTS_DIR, exist_ok=True)
+DATA_DIR = Path(os.environ.get("DATA_DIR", "logs"))
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR}/audit.db")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+ATTACHMENTS_DIR = DATA_DIR / "attachments"
+ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
 _ATTACHMENT_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
-_engine = create_engine("sqlite:///logs/audit.db", connect_args={"check_same_thread": False})
+_engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
 SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
 
 class Base(DeclarativeBase):
@@ -38,9 +42,40 @@ class AuditRow(Base):
     # complete, untouched record. Named `detail` (not `metadata`) because
     # that name collides with SQLAlchemy's own Base.metadata.
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Below: promoted from docgen-service's own local audit trail when it was
+    # folded into this one (see POC_TO_PRODUCTION.md #14) — every producer can
+    # now carry them, not just docgen.
+    subject_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    subject_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    profile_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # A producer-generated id (outbox.py's row id), so at-least-once delivery
+    # from an outbox relay can be de-duplicated safely (see log_event).
+    # Nullable: a hand-sent event with no outbox behind it just skips dedupe.
+    event_id: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
 
 
 Base.metadata.create_all(_engine)
+
+# create_all() only creates missing TABLES, never new columns on one that
+# already exists — same cheap stand-in for real migration tooling as
+# case_store.py's _ADDED_COLUMNS (see POC_TO_PRODUCTION.md #13).
+_ADDED_COLUMNS = (
+    ("subject_type", "VARCHAR(40)"),
+    ("subject_id", "VARCHAR(64)"),
+    ("profile_id", "VARCHAR(64)"),
+    ("event_id", "VARCHAR(32)"),
+)
+_existing_columns = {c["name"] for c in inspect(_engine).get_columns("audit_entries")}
+with _engine.begin() as _conn:
+    for _name, _ddl_type in _ADDED_COLUMNS:
+        if _name not in _existing_columns:
+            _conn.execute(text(f"ALTER TABLE audit_entries ADD COLUMN {_name} {_ddl_type}"))
+    # SQLite allows any number of NULLs in a unique index — only two equal,
+    # non-null event_ids collide — which is exactly "dedupe retried
+    # deliveries, don't require one on every row".
+    _conn.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_audit_entries_event_id ON audit_entries (event_id)"
+    ))
 
 
 def get_db():
@@ -61,6 +96,13 @@ class AuditEvent(BaseModel):
     action: str
     resource: str | None = None
     metadata: dict | None = None
+    subject_type: str | None = None
+    subject_id: str | None = None
+    profile_id: str | None = None
+    # outbox.py's row id, when this arrived via a service's outbox relay
+    # rather than a one-off direct call — lets log_event de-duplicate a
+    # retried delivery instead of logging the same event twice.
+    event_id: str | None = None
 
 
 # ── Display shaping ──────────────────────────────────────────────────────
@@ -139,31 +181,74 @@ def _serialize(row: AuditRow) -> dict:
         "service": row.service,
         "action": row.action,
         "resource": row.resource,
+        "subject_type": row.subject_type,
+        "subject_id": row.subject_id,
+        "profile_id": row.profile_id,
         "attachments": attachments,
         "sections": sections,
     }
 
 
 @app.post("/audit")
-def log_event(event: AuditEvent, db: Session = Depends(get_db), token: dict = Depends(require_any_token)):
+def log_event(
+    event: AuditEvent,
+    db: Session = Depends(get_db),
+    # Delivery can legitimately arrive after the token that authorized it has
+    # expired (a service's outbox relay retries until audit-service is
+    # reachable again — see outbox.py) — signature+issuer are still verified,
+    # only the expiry check is skipped.
+    token: dict = Depends(require_any_token_allow_expired),
+):
     sub = token.get("sub")
     if not sub:
         raise HTTPException(status_code=401, detail="Token has no subject")
+    if event.event_id is not None:
+        existing = db.execute(
+            select(AuditRow).where(AuditRow.event_id == event.event_id)
+        ).scalar_one_or_none()
+        if existing is not None:
+            return {"status": "already_logged", "id": existing.id}
     row = AuditRow(
         user_id=sub,
         service=event.service,
         action=event.action,
         resource=event.resource,
         detail=event.metadata,
+        subject_type=event.subject_type,
+        subject_id=event.subject_id,
+        profile_id=event.profile_id,
+        event_id=event.event_id,
     )
     db.add(row)
     db.commit()
-    return {"status": "logged"}
+    return {"status": "logged", "id": row.id}
 
 
 @app.get("/audit")
-def get_logs(db: Session = Depends(get_db), token: dict = Depends(require_any_token)):
-    rows = db.execute(select(AuditRow).order_by(AuditRow.id.asc())).scalars().all()
+def get_logs(
+    service: str | None = None,
+    action: str | None = None,
+    profile_id: str | None = None,
+    subject_type: str | None = None,
+    subject_id: str | None = None,
+    db: Session = Depends(get_db),
+    token: dict = Depends(require_any_token),
+):
+    # Filters are all optional and additive — an unfiltered call keeps
+    # returning exactly what it always has (the admin UI at
+    # frontend/src/app/admin/audit relies on that shape).
+    q = select(AuditRow).order_by(AuditRow.id.asc())
+    if service:
+        q = q.where(AuditRow.service == service)
+    if action:
+        q = q.where(AuditRow.action == action)
+    if profile_id:
+        q = q.where(AuditRow.profile_id == profile_id)
+    if subject_type:
+        q = q.where(AuditRow.subject_type == subject_type)
+    if subject_id:
+        q = q.where(AuditRow.subject_id == subject_id)
+    rows = db.execute(q).scalars().all()
     return [_serialize(r) for r in rows]
 
 

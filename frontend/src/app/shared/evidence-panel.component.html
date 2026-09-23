@@ -15,7 +15,19 @@
   <p class="hint" *ngIf="view.loading">Loading the document text…</p>
   <p class="error" *ngIf="view.error">{{ view.error }}</p>
 
-  <ng-container *ngIf="!view.loading && !view.error">
+  <!-- Not a failure: the review predates citations being recorded, so the text
+       behind this value was never kept. Say what to do about it. -->
+  <p class="notice" *ngIf="view.stale">
+    <span class="notice-icon" aria-hidden="true">i</span>
+    <span>
+      <strong>The text behind this value wasn’t kept.</strong>
+      This review ran before citations were recorded.
+      <button type="button" class="link" (click)="rerun.emit()">Review this pair again</button>
+      to see where the value came from.
+    </span>
+  </p>
+
+  <ng-container *ngIf="!view.loading && !view.error && !view.stale">
     <p class="evidence-verdict" [ngClass]="'tone-' + verdictTone">{{ verdictText }}</p>
     <!-- Kept on ONE line on purpose: inside <pre>, any newline or indentation
          between these bindings would be rendered as part of the document. -->

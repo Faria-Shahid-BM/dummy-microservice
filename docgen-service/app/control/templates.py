@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit, storage
-from app.auth.deps import current_user, require_profile_maker, require_profile_member
+from app.auth.deps import current_user, raw_token, require_profile_maker, require_profile_member
 from app.control.approvals import (
     APPROVAL_EFFECTS,
     SUBJECT_RESOLVERS,
@@ -308,6 +308,7 @@ def analyze_version(
     role: str = Depends(require_profile_maker),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
+    token: str | None = Depends(raw_token),
 ) -> dict:
     v = db.get(TemplateVersion, version_id)
     t = db.get(Template, template_id)
@@ -326,7 +327,7 @@ def analyze_version(
 
         # Per-profile config resolved at run time (fresh session).
         with session_scope() as jdb:
-            analysis_model = effective_model(jdb, profile_id, "analysis")
+            analysis_model = effective_model(jdb, profile_id, "analysis", token)
             analyzer_prompt = prompt_override(
                 jdb, profile_id, "docgen.meta_analyzer.prompt")
         descriptor = meta_analyzer.analyze_template(

@@ -16,6 +16,17 @@ export interface DiffSegment {
   changeId: number | null;
 }
 
+// Images never reach the comparison: docx_to_html() drops them, because the
+// returned copy is signed and the generated original never is. The counts come
+// back so the view can say an image was set aside rather than let "identical"
+// be read as "the signature was checked". Optional — results stored before
+// this existed have no `media`.
+export interface DiffMedia {
+  original: number;
+  returned: number;
+  compared: boolean;
+}
+
 export interface DocumentDiffResult {
   render: 'html' | 'text';
   identical: boolean;
@@ -25,21 +36,27 @@ export interface DocumentDiffResult {
   segments?: DiffSegment[];
   html?: string;
   missingPages?: number[];
+  media?: DiffMedia;
 }
 
-// What engines/document_diff.py actually returns: no render/html/
-// missingPages, and changes/segments lack the id/changeId linkage the
-// richer DocumentDiffResult shape above has — see linkDocDiffChanges() in
-// case-detail.component.ts, which reconstructs it client-side.
+// What the backend actually returns. Uploads are .docx-only now, so a fresh
+// comparison always comes from engines/document_diff_html.py: `render: 'html'`
+// plus a ready-made `html` redline and `possibleMissingSection` flags, and no
+// `segments`. The `segments`/`text` shape is still handled because results
+// stored before that change (engines/document_diff.py, back when PDFs were
+// accepted) are persisted on their cases and must keep rendering; those carry
+// no id/changeId linkage, which diffFor() in case-detail.component.ts
+// reconstructs client-side.
 export interface RawDocumentDiffResult {
   render?: 'html' | 'text';
   identical: boolean;
   similarity: number;
   summary: { insertions: number; deletions: number; replacements: number; changes: number };
-  changes: { type: string; before: string; after: string }[];
+  changes: { type: string; before: string; after: string; possibleMissingSection?: boolean }[];
   segments?: { op: 'equal' | 'delete' | 'insert'; text: string }[];
   html?: string;
   missingPages?: number[];
+  media?: DiffMedia;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -48,8 +65,10 @@ export class DocdiffService extends CaseService<RawDocumentDiffResult> {
   readonly routeBase = '/docdiff';
   readonly label = 'Document Reviewer';
   readonly slots: SlotDef[] = [
-    { key: 'original', label: 'Original document (.docx or .pdf)', accept: '.docx,.pdf' },
-    { key: 'returned', label: 'Returned document (.docx or .pdf)', accept: '.docx,.pdf' }
+    // .docx only: the comparison is a structural redline of the two documents'
+    // real headings/tables/lists, which a PDF carries no usable version of.
+    { key: 'original', label: 'Original document (.docx)', accept: '.docx' },
+    { key: 'returned', label: 'Returned document (.docx)', accept: '.docx' }
   ];
   // No tab-per-pair UI here (see allowExtraPairs) — 'comparison' reads right
   // in the one remaining place this shows up: "Review this comparison again."

@@ -9,7 +9,8 @@ import { KNOWN_SERVICES, KONG_BASE } from '../../session.service';
   selector: 'app-admin-add-user',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './admin-add-user.component.html'
+  templateUrl: './admin-add-user.component.html',
+  styleUrl: './admin-add-user.component.css'
 })
 export class AdminAddUserComponent {
   knownServices = KNOWN_SERVICES;

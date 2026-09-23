@@ -1,0 +1,103 @@
+<!-- One label/value pair per line, used by a section and by each entry of a
+     list section, so a field reads the same wherever it appears. -->
+<ng-template #grid let-fields>
+  <dl class="field-grid">
+    <ng-container *ngFor="let f of fields">
+      <dt>{{ f.label }}</dt>
+      <dd [ngSwitch]="f.chip ? 'chip' : kindOf(f.value)">
+        <span class="tone" *ngSwitchCase="'chip'" [ngClass]="tone(f.value)">{{ f.value }}</span>
+        <span class="empty" *ngSwitchCase="'empty'">&mdash;</span>
+        <ul class="value-list" *ngSwitchCase="'list'">
+          <li *ngFor="let v of f.value">{{ v }}</li>
+        </ul>
+        <app-clamp-text *ngSwitchCase="'long'" [text]="f.value" [lines]="4"></app-clamp-text>
+        <span *ngSwitchCase="'text'">{{ f.value }}</span>
+        <!-- A shape the engine grew that this component doesn't lay out yet. -->
+        <app-json-view *ngSwitchDefault [value]="f.value"></app-json-view>
+      </dd>
+    </ng-container>
+  </dl>
+</ng-template>
+
+<ng-container *ngIf="sections.length; else noReport">
+  <!-- Pills, not underlined tabs: the pair tabs above these are the page's
+       other tab strip, and two identical-looking bars would read as one
+       control. These are a level down, and look it. -->
+  <div class="section-tabs" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      class="section-tab"
+      *ngFor="let s of sections; let i = index"
+      [class.active]="active === i"
+      [attr.aria-selected]="active === i"
+      (click)="active = i"
+    >
+      {{ s.label }}
+      <span class="tab-count" *ngIf="s.count !== undefined">{{ s.count }}</span>
+    </button>
+  </div>
+
+  <div class="section-body" role="tabpanel" *ngIf="current as s" [ngSwitch]="s.kind">
+    <ng-container *ngSwitchCase="'summary'">
+      <p class="verdict">
+        <span class="verdict-label">Overall assessment</span>
+        <span class="tone lg" [ngClass]="tone(s.verdict)">{{ s.verdict || '—' }}</span>
+      </p>
+      <div class="stat-row">
+        <div class="stat-card" *ngFor="let st of s.stats">
+          <div class="n">{{ st.n }}</div>
+          <div class="l">{{ st.label }}</div>
+        </div>
+      </div>
+    </ng-container>
+
+    <p class="assessment" *ngSwitchCase="'text'">{{ s.text || '—' }}</p>
+
+    <ng-container *ngSwitchCase="'fields'">
+      <ng-container *ngTemplateOutlet="grid; context: { $implicit: s.fields }"></ng-container>
+    </ng-container>
+
+    <ng-container *ngSwitchCase="'compliance'">
+      <p class="empty" *ngIf="!s.rows!.length">Nothing was assessed.</p>
+      <div class="table-scroll" *ngIf="s.rows!.length">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Requirement</th>
+              <th>Status</th>
+              <th>Issues</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of s.rows">
+              <td>{{ r.requirement }}</td>
+              <td><span class="tone" [ngClass]="tone(r.status)">{{ r.status || '—' }}</span></td>
+              <td>{{ r.issues || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </ng-container>
+
+    <ng-container *ngSwitchCase="'items'">
+      <!-- An empty list is a finding, not a blank: no issues is the good
+           outcome and the tab should say so rather than look unrendered. -->
+      <p class="empty" *ngIf="!s.items!.length">None.</p>
+      <article class="item" *ngFor="let it of s.items">
+        <header class="item-head">
+          <span class="item-id" *ngIf="it.id">{{ it.id }}</span>
+          <span class="item-title">{{ it.title }}</span>
+          <span class="tone" *ngIf="it.badge" [ngClass]="tone(it.badge)">{{ it.badge }}</span>
+        </header>
+        <ng-container *ngTemplateOutlet="grid; context: { $implicit: it.fields }"></ng-container>
+      </article>
+    </ng-container>
+
+    <app-json-view *ngSwitchDefault [value]="s.raw"></app-json-view>
+  </div>
+</ng-container>
+
+<ng-template #noReport>
+  <p class="empty">No report in this result.</p>
+</ng-template>

@@ -1,0 +1,107 @@
+.stage-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.stage-step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: var(--color-text-faint);
+  transition: color 0.15s ease;
+}
+
+.stage-step.done {
+  color: var(--color-text);
+}
+
+.stage-step.active {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.stage-dot {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: #ffffff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.stage-step.done .stage-dot {
+  background: var(--gradient-primary);
+  border-color: transparent;
+}
+
+/* stage-pulse is defined once in styles.css and shared with case-pairs'
+   tab-dot and job-status's job-dot, which also animate a status dot with it. */
+.stage-step.active .stage-dot {
+  border-color: var(--color-primary);
+  animation: stage-pulse 1.2s ease-in-out infinite;
+}
+
+.stage-detail {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-faint);
+  /* Engine stage payloads include file names and page counts; without these a
+     long one would widen the flex row rather than wrap in it. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Time and token cost, pushed to the far end of the step row so the figures
+   line up in a column and can be scanned against each other. */
+.stage-cost {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.stage-time,
+.stage-tokens {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-faint);
+}
+
+/* Fixed widths so the columns stay aligned however long each figure runs. */
+.stage-time {
+  min-width: 4.5rem;
+  text-align: right;
+}
+
+.stage-tokens {
+  min-width: 6.5rem;
+  text-align: right;
+}
+
+.stage-total {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.stage-total .stage-time,
+.stage-total .stage-tokens {
+  font-weight: 600;
+  color: var(--color-text);
+}

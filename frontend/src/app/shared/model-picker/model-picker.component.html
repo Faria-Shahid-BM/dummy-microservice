@@ -1,0 +1,76 @@
+<div class="picker" [class.is-open]="open">
+  <div class="picker-field">
+    <input
+      #field
+      type="text"
+      class="picker-input"
+      spellcheck="false"
+      autocapitalize="off"
+      autocomplete="off"
+      role="combobox"
+      aria-autocomplete="list"
+      [attr.aria-label]="ariaLabel || null"
+      [attr.aria-expanded]="open"
+      [attr.aria-controls]="pickerId + '-listbox'"
+      [attr.aria-activedescendant]="open && active >= 0 ? optionId(active) : null"
+      [placeholder]="placeholder"
+      [disabled]="disabled"
+      [ngModel]="value"
+      (ngModelChange)="onInput($event)"
+      (keydown)="onKeydown($event)"
+    />
+    <!-- Hidden from the reading order: it opens the same list the field
+         already opens, so a screen reader would only hear it twice. -->
+    <button
+      type="button"
+      class="picker-toggle"
+      tabindex="-1"
+      aria-hidden="true"
+      [disabled]="disabled || !models.length"
+      (click)="toggle()"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 15.5 5.5 9h13L12 15.5z" />
+      </svg>
+    </button>
+  </div>
+
+  <div
+    class="picker-list"
+    role="listbox"
+    [id]="pickerId + '-listbox'"
+    [attr.aria-label]="ariaLabel || null"
+    *ngIf="open"
+  >
+    <button
+      type="button"
+      class="picker-option"
+      role="option"
+      *ngFor="let model of matches; let i = index; trackBy: trackById"
+      [id]="optionId(i)"
+      [class.is-active]="i === active"
+      [attr.aria-selected]="model.id === value"
+      (mouseenter)="active = i"
+      (click)="choose(model)"
+    >
+      <span class="picker-option-head">
+        <span class="picker-id">{{ model.id }}</span>
+        <!-- The one capability that decides whether a model can fill the
+             vision role; worth seeing before picking, not after. -->
+        <span class="picker-tag" *ngIf="model.vision">vision</span>
+      </span>
+      <span class="picker-meta">
+        {{ model.name }}<ng-container *ngIf="model.context_length">
+          · {{ (model.context_length / 1000) | number: '1.0-0' }}k context</ng-container
+        >
+      </span>
+    </button>
+
+    <p class="picker-empty" *ngIf="!matches.length">
+      Nothing in the catalogue matches. You can still type an id your gateway provides.
+    </p>
+    <p class="picker-more" *ngIf="hiddenCount">
+      {{ hiddenCount }} more — keep typing to narrow it down.
+    </p>
+  </div>
+</div>

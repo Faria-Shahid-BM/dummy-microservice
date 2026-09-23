@@ -1,20 +1,18 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { SessionService } from '../session.service';
 import { DocgenNotification, DocgenService } from '../docgen/docgen.service';
-import { SidebarToggleService } from '../shell/sidebar-toggle.service';
 
-// App-wide top bar: profile circle + logout, the notifications bell, and the
-// sidebar collapse toggle. Mounted once in app.component.html (not
-// per-shell) so identity/logout and notifications aren't duplicated across
-// the dashboard/admin/docgen shells — the toggle itself only does anything
-// on /dashboard and /docgen (see AppShellComponent), hence showSidebarToggle.
+// App-wide top bar: profile circle + logout, and the notifications bell.
+// Mounted once in app.component.html (not per-shell) so identity/logout and
+// notifications aren't duplicated across the dashboard/admin/docgen shells.
 @Component({
   selector: 'app-topbar',
   standalone: true,
-  imports: [CommonModule],
-  templateUrl: './topbar.component.html'
+  imports: [CommonModule, RouterLink],
+  templateUrl: './topbar.component.html',
+  styleUrl: './topbar.component.css'
 })
 export class TopbarComponent implements OnInit {
   showNotifications = false;
@@ -25,15 +23,9 @@ export class TopbarComponent implements OnInit {
 
   constructor(
     public session: SessionService,
-    public sidebarToggle: SidebarToggleService,
     private docgen: DocgenService,
     private router: Router
   ) {}
-
-  get showSidebarToggle(): boolean {
-    const url = this.router.url;
-    return url.startsWith('/dashboard') || url.startsWith('/docgen');
-  }
 
   // Notifications currently only exist behind docgen-service — hide the
   // bell entirely for accounts that can't reach it rather than show an

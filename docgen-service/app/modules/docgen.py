@@ -30,12 +30,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import audit, storage
-from app.auth.deps import current_user, require_profile_maker, require_profile_member
+from app.auth.deps import current_user, raw_token, require_profile_maker, require_profile_member
 from app.control.approvals import SUBJECT_RESOLVERS, ensure_approval, submit_approval
 from app.control.profile_config import effective_model, prompt_override
 from app.control.templates import usable_templates
 from app.core.db import db_session, session_scope
-from app.engines.util import EngineParseError
+from engines.util import EngineParseError
 from app.jobs.runner import JobConflict, runner
 from app.llm.registry import get_provider
 from app.models import (
@@ -416,6 +416,7 @@ def start_extract(
     role: str = Depends(require_profile_maker),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
+    token: str | None = Depends(raw_token),
 ) -> dict:
     c = _get_case(db, profile_id, case_id)
     cd = storage.case_dir(profile_id, case_id)
@@ -430,12 +431,12 @@ def start_extract(
     case_text_path = cd / "case_text.md"
 
     def run(emit):
-        from app.engines import extraction
+        from engines import extraction
 
         # Resolve per-profile config at run time (fresh session), so the job
         # always uses the profile's CURRENT model/prompt overrides.
         with session_scope() as jdb:
-            vision_model = effective_model(jdb, profile_id, "vision")
+            vision_model = effective_model(jdb, profile_id, "vision", token)
             transcription_prompt = prompt_override(
                 jdb, profile_id, "extraction.transcription.prompt")
         result = extraction.extract_document(
@@ -518,6 +519,7 @@ def start_analyze(
     role: str = Depends(require_profile_maker),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
+    token: str | None = Depends(raw_token),
 ) -> dict:
     _get_case(db, profile_id, case_id)
     cd = storage.case_dir(profile_id, case_id)
@@ -531,7 +533,7 @@ def start_analyze(
         from app.engines.docgen import credit_analysis
 
         with session_scope() as jdb:
-            analysis_model = effective_model(jdb, profile_id, "analysis")
+            analysis_model = effective_model(jdb, profile_id, "analysis", token)
             analysis_prompt = prompt_override(
                 jdb, profile_id, "docgen.credit_analysis.prompt")
         case_text = case_text_path.read_text(encoding="utf-8")
@@ -610,6 +612,7 @@ def start_select(
     role: str = Depends(require_profile_maker),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
+    token: str | None = Depends(raw_token),
 ) -> dict:
     _get_case(db, profile_id, case_id)
     cd = storage.case_dir(profile_id, case_id)
@@ -636,7 +639,7 @@ def start_select(
         from app.engines.docgen import selector
 
         with session_scope() as jdb:
-            selection_model = effective_model(jdb, profile_id, "selection")
+            selection_model = effective_model(jdb, profile_id, "selection", token)
             selector_prompt = prompt_override(
                 jdb, profile_id, "docgen.selector.prompt")
         case_text = case_text_path.read_text(encoding="utf-8")
@@ -750,6 +753,7 @@ def _make_fill_fn(
     entity_scope: str | None,
     instance_label: str,
     user_id: str,
+    token: str | None,
     missing_reason: str | None,
 ):
     """Bind one fill task's arguments into a job callback (no late binding)."""
@@ -772,7 +776,7 @@ def _make_fill_fn(
             )
         out_dir = storage.case_output_dir(profile_id, case_id)
         with session_scope() as jdb:
-            fill_model = effective_model(jdb, profile_id, "fill")
+            fill_model = effective_model(jdb, profile_id, "fill", token)
             fill_prompt = prompt_override(jdb, profile_id, "docgen.fill_agent.prompt")
         try:
             result = fill_agent.fill_document(
@@ -865,6 +869,7 @@ def start_fill(
     role: str = Depends(require_profile_maker),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
+    token: str | None = Depends(raw_token),
 ) -> dict:
     c = _get_case(db, profile_id, case_id)
     cd = storage.case_dir(profile_id, case_id)
@@ -925,6 +930,7 @@ def start_fill(
             entity_scope=task["entity_scope"],
             instance_label=task["instance_label"],
             user_id=user.id,
+            token=token,
             missing_reason=missing_reason,
         )
         try:

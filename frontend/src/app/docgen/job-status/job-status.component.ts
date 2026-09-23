@@ -12,13 +12,8 @@ const POLL_INTERVAL_MS = 2000;
   selector: 'app-job-status',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <div class="job-status" *ngIf="job as j">
-      <span class="job-dot" [ngClass]="'job-' + j.status"></span>
-      <span class="job-label">{{ label(j.status) }}</span>
-      <span class="error" *ngIf="j.status === 'failed' && j.error">{{ j.error }}</span>
-    </div>
-  `
+  templateUrl: './job-status.component.html',
+  styleUrl: './job-status.component.css'
 })
 export class JobStatusComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) jobId!: string;

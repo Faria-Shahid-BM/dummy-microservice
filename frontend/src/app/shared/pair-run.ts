@@ -143,6 +143,46 @@ export class PairRun {
     applyStageEvent(this.runs[index].progress, data);
   }
 
+  /**
+   * Show where a run this page did NOT start has got to.
+   *
+   * The SSE stream belongs to the request that began the run, so a page that
+   * reloaded mid-run has no frames — only the snapshot the server kept (see
+   * case_store's _RUN_PROGRESS). Replaying that through the same progress
+   * object the live path writes means the checklist renders identically
+   * whether this page started the run or joined it late.
+   */
+  adoptServerProgress(pairCount: number, snapshot: Record<string, unknown> | null): void {
+    if (!snapshot) return;
+    const stage = snapshot['stage'];
+    // A finished pair arrives on the case itself; this is only for movement.
+    if (stage === 'pair_result' || stage === 'pair_error') return;
+    const index = typeof snapshot['pair'] === 'number' ? (snapshot['pair'] as number) : 0;
+    // Size once. Re-creating the slots on every poll would throw away the
+    // progress just written into them.
+    if (this.runs.length < Math.max(pairCount, index + 1)) {
+      this.runs = Array.from({ length: Math.max(1, pairCount, index + 1) }, freshRun);
+    }
+    const run = this.runs[index];
+    if (!run) return;
+    run.running = true;
+    this.current = index;
+    if (!this.pinned) this.active = index;
+    // `pair_start` says which pair, not which step — onFrame treats it the
+    // same way. Applying it would set a stage key no checklist has.
+    if (stage !== 'pair_start') applyStageEvent(run.progress, JSON.stringify(snapshot));
+  }
+
+  /**
+   * Stop showing an adopted run as live, because the case says it is over.
+   * Unlike finish(), this invents no error — the outcome is on the case now,
+   * and this page was never the one that could have failed.
+   */
+  stopAdopted(): void {
+    for (const run of this.runs) run.running = false;
+    this.current = null;
+  }
+
   /** Called when the request settles, so nothing is left spinning. */
   finish(): void {
     for (const run of this.runs) {

@@ -1,19 +1,39 @@
 """Audit trail: every mutating action records who did what, where, to what.
 
-``record()`` adds to the caller's session (committed with the caller's
-transaction, so audit entries never describe work that was rolled back).
+``record()`` enqueues into this service's own local audit_outbox table (see
+outbox.py), in the SAME transaction as the caller's business write — commit
+it together, before ``db.commit()``, not after. A background relay (started
+in app/main.py's lifespan) delivers queued events to the central
+audit-service, the same one collateral/insurance/valuation/doc_rev/policyqa
+report into (see POC_TO_PRODUCTION.md #14 — this used to be a separate,
+local-only trail; now it's the same store everyone else uses).
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+import outbox
+from audit_client import AUDIT_BASE
+
 from app.auth.deps import current_user
-from app.core.db import db_session
-from app.models import AuditEntry, User
+from app.models import AUDIT_OUTBOX, User
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])
+
+SERVICE_NAME = "docgen-service"
+
+
+def _raw_token(request: Request | None) -> str | None:
+    """The caller's bearer token, unparsed — forwarded so audit-service can
+    re-verify identity itself rather than trust a passed-in user_id."""
+    if request is None:
+        return None
+    auth = request.headers.get("authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return None
+    return auth.split(" ", 1)[1].strip()
 
 
 def record(
@@ -27,17 +47,15 @@ def record(
     detail: dict | None = None,
     request: Request | None = None,
 ) -> None:
-    db.add(
-        AuditEntry(
-            user_id=user.id if user else None,
-            username=user.username if user else None,
-            profile_id=profile_id,
-            action=action,
-            subject_type=subject_type,
-            subject_id=subject_id,
-            detail=detail,
-            ip=request.client.host if request and request.client else None,
-        )
+    outbox.enqueue(
+        db, AUDIT_OUTBOX,
+        service=SERVICE_NAME,
+        action=action,
+        token=_raw_token(request),
+        subject_type=subject_type,
+        subject_id=subject_id,
+        profile_id=profile_id,
+        detail=detail,
     )
 
 
@@ -48,30 +66,20 @@ def list_audit(
     limit: int = 200,
     offset: int = 0,
     user: User = Depends(current_user),
-    db: Session = Depends(db_session),
 ) -> dict:
-    """Single organization: any authenticated user may list the trail —
-    it is an internal control surface."""
-    q = select(AuditEntry).order_by(AuditEntry.ts.desc())
+    """Proxy to the central audit-service, scoped to this service's own
+    events — docgen no longer keeps a separate trail (see module docstring).
+    Single organization: any authenticated user may list the trail — it is
+    an internal control surface."""
+    params: dict[str, str] = {"service": SERVICE_NAME}
     if profile_id:
-        q = q.where(AuditEntry.profile_id == profile_id)
+        params["profile_id"] = profile_id
     if action:
-        q = q.where(AuditEntry.action == action)
-    rows = db.execute(q.limit(min(limit, 500)).offset(offset)).scalars().all()
-    return {
-        "entries": [
-            {
-                "id": e.id,
-                "ts": e.ts.isoformat(),
-                "user_id": e.user_id,
-                "username": e.username,
-                "profile_id": e.profile_id,
-                "action": e.action,
-                "subject_type": e.subject_type,
-                "subject_id": e.subject_id,
-                "detail": e.detail,
-                "ip": e.ip,
-            }
-            for e in rows
-        ]
-    }
+        params["action"] = action
+    try:
+        resp = httpx.get(f"{AUDIT_BASE}/audit", params=params, timeout=5.0)
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"audit-service unreachable: {exc}")
+    rows = resp.json()
+    return {"entries": rows[offset: offset + limit]}

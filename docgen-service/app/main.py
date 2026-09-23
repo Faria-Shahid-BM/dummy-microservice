@@ -65,10 +65,16 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)
     _seed_default_profile()
     from app.jobs.runner import runner
+    from app.core.db import SessionLocal
+    from app.models import AUDIT_OUTBOX
+    import asyncio
+    import outbox
 
     runner.start()
+    relay_task = asyncio.create_task(outbox.run_relay(SessionLocal, AUDIT_OUTBOX))
     log.info("%s started (db=%s)", settings.app_name, settings.database_url.split("://")[0])
     yield
+    relay_task.cancel()
     runner.shutdown()
 
 

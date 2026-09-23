@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
+import { Router, NavigationEnd } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { SessionService } from '../session.service';
 
 export type ServiceKind = 'diff' | 'collateral' | 'valuation' | 'insurance' | 'policyqa' | 'docgen';
@@ -75,7 +77,25 @@ export class ServiceCatalogService {
   private readonly selectedSubject = new BehaviorSubject<ServiceMeta | null>(null);
   readonly selected$ = this.selectedSubject.asObservable();
 
-  constructor(private session: SessionService) {}
+  constructor(private session: SessionService, router: Router) {
+    // "Selected" means "which inline panel dashboard.component.html should
+    // show" — meaningful only ON /dashboard (only Policy Q&A still renders
+    // that way; every other service is now a routed page — see
+    // app-shell.component.html). Leaving /dashboard for a routed service
+    // used to leave the old selection sitting here with nothing to clear it,
+    // so returning to /dashboard later (e.g. the topbar brand link) found
+    // `selected` still pointing at whatever was clicked last and rendered
+    // neither the landing view (selected must be null) nor that service's
+    // panel (only policyqa has one) — the page just went blank. Clearing on
+    // every navigation away from /dashboard is what AppShellComponent's
+    // selectKind() (the one caller left that sets this) effectively assumed
+    // was already happening.
+    router.events.pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd)).subscribe((e) => {
+      if (!e.urlAfterRedirects.startsWith('/dashboard')) {
+        this.selectedSubject.next(null);
+      }
+    });
+  }
 
   get selected(): ServiceMeta | null {
     return this.selectedSubject.value;

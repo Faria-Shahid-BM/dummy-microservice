@@ -26,33 +26,8 @@ function formatMs(ms: number): string {
   selector: 'app-stage-progress',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <div class="stage-progress">
-      <div
-        class="stage-step"
-        *ngFor="let step of steps; let i = index"
-        [class.done]="isDone(i)"
-        [class.active]="isActive(i)"
-      >
-        <span class="stage-dot">
-          <ng-container *ngIf="isDone(i)">&#10003;</ng-container>
-        </span>
-        <span class="stage-label">{{ step.label }}</span>
-        <span class="stage-detail" *ngIf="isActive(i) && detail">{{ detail }}</span>
-        <span class="stage-cost" *ngIf="tokensFor(step.key) as tokens">
-          <span class="stage-time" *ngIf="timeFor(step.key) as elapsed">{{ elapsed }}</span>
-          <span class="stage-tokens">{{ tokens }}</span>
-        </span>
-      </div>
-      <div class="stage-total" *ngIf="usageTotal && usageTotal.total > 0">
-        <span class="stage-label">Total</span>
-        <span class="stage-cost">
-          <span class="stage-time" *ngIf="totalTime() as elapsed">{{ elapsed }}</span>
-          <span class="stage-tokens">{{ usageTotal.total | number }} tokens</span>
-        </span>
-      </div>
-    </div>
-  `
+  templateUrl: './stage-progress.component.html',
+  styleUrl: './stage-progress.component.css'
 })
 export class StageProgressComponent {
   @Input() steps: StageDef[] = [];

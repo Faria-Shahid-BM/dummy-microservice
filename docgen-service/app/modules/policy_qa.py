@@ -28,11 +28,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import audit, storage
-from app.auth.deps import current_user, require_profile_maker, require_profile_member
+from app.auth.deps import raw_token, current_user, require_profile_maker, require_profile_member
 from app.control.profile_config import effective_model, prompt_override
 from app.core.db import db_session, session_scope
-from app.engines import extraction
-from app.engines import policy_qa as policy_qa_engine
+from engines import extraction
+from engines import policy_qa as policy_qa_engine
 from app.jobs.runner import JobConflict, runner
 from app.llm import LLMError
 from app.llm.registry import get_provider
@@ -151,6 +151,7 @@ async def ingest_policy(
     role: str = Depends(require_profile_maker),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
+    token: str | None = Depends(raw_token),
 ) -> dict:
     """Upload a policy document and rebuild the profile index (job).
 
@@ -180,8 +181,8 @@ async def ingest_policy(
         try:
             # Per-profile config resolved at run time (fresh session).
             with session_scope() as jdb:
-                vision_model = effective_model(jdb, profile_id, "vision")
-                embed_model = effective_model(jdb, profile_id, "embedding")
+                vision_model = effective_model(jdb, profile_id, "vision", token)
+                embed_model = effective_model(jdb, profile_id, "embedding", token)
                 transcription_prompt = prompt_override(
                     jdb, profile_id, "extraction.transcription.prompt")
             target_dir = storage.policy_qa_dir(profile_id)

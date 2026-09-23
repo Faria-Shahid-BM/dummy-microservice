@@ -12,20 +12,8 @@ import { marked } from 'marked';
   selector: 'app-markdown-field',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  template: `
-    <div class="markdown-field">
-      <div class="markdown-preview" *ngIf="!editing" [innerHTML]="renderedHtml"></div>
-
-      <div class="field" *ngIf="editing">
-        <textarea
-          [rows]="rows"
-          [ngModel]="value"
-          (ngModelChange)="onModelChange($event)"
-          [disabled]="disabled"
-        ></textarea>
-      </div>
-    </div>
-  `
+  templateUrl: './markdown-field.component.html',
+  styleUrl: './markdown-field.component.css'
 })
 export class MarkdownFieldComponent {
   @Input() value = '';

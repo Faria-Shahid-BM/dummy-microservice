@@ -1,0 +1,4 @@
+# Test-only dependencies. Not installed into the service images — the
+# Dockerfiles install requirements.txt only.
+-r requirements.txt
+pytest

@@ -1,0 +1,197 @@
+.subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* --- per-reviewer cards -------------------------------------------------- */
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.usage-card {
+  display: block;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 1.1rem 1.2rem;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.usage-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.usage-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.usage-short {
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.usage-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.usage-numbers {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.usage-n {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.usage-n .n {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.usage-n .l {
+  font-size: 0.72rem;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.usage-total {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+}
+
+/* Sequential magnitude (how much of the allowance is used) — one hue, light
+   to full, never a rainbow. The tone classes only recolour it when the
+   allowance itself is the story (near/at zero remaining). */
+.usage-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-border-soft);
+  overflow: hidden;
+}
+
+.usage-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+  transition: width 0.2s;
+}
+
+.usage-fill.warn {
+  background: var(--color-warning);
+}
+
+.usage-fill.bad {
+  background: var(--color-error);
+}
+
+/* --- allowance chip ------------------------------------------------------ */
+
+.tone {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tone.ok {
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--color-success);
+}
+
+.tone.warn {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.tone.bad {
+  background: color-mix(in srgb, var(--color-error) 11%, transparent);
+  color: var(--color-error);
+}
+
+/* --- "this month, by reviewer" bar chart --------------------------------- */
+
+.bar-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 9rem 1fr 2.25rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bar-row-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-border-soft);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  min-width: 3px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  transition: width 0.2s;
+}
+
+.bar-row-value {
+  text-align: right;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+@media (max-width: 560px) {
+  .bar-row {
+    grid-template-columns: 6.5rem 1fr 2rem;
+  }
+}

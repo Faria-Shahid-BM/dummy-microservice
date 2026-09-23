@@ -5,6 +5,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   selector: 'app-admin-shell',
   standalone: true,
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
-  templateUrl: './admin-shell.component.html'
+  templateUrl: './admin-shell.component.html',
+  styleUrls: ['../shared/shell-layout.css']
 })
 export class AdminShellComponent {}

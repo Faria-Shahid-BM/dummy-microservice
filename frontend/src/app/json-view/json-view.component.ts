@@ -8,24 +8,8 @@ import { Component, Input } from '@angular/core';
   selector: 'app-json-view',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <table class="json-table" *ngIf="kind === 'object'">
-      <tr *ngFor="let entry of entries">
-        <th>{{ entry[0] }}</th>
-        <td><app-json-view [value]="entry[1]"></app-json-view></td>
-      </tr>
-    </table>
-
-    <ul class="json-list" *ngIf="kind === 'array'">
-      <li *ngFor="let item of value">
-        <app-json-view [value]="item"></app-json-view>
-      </li>
-    </ul>
-
-    <span class="empty" *ngIf="kind === 'empty'">&mdash;</span>
-
-    <span *ngIf="kind === 'scalar'">{{ value }}</span>
-  `
+  templateUrl: './json-view.component.html',
+  styleUrl: './json-view.component.css'
 })
 export class JsonViewComponent {
   @Input() value: any;
