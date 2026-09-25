@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 import config_client
 
 from app import audit
+from app.core.timefmt import iso_utc
 from app.auth.deps import (
     current_user,
     get_profile_or_404,
@@ -343,7 +344,7 @@ def config_overview(
             "default": spec.default(),
             "value": row.value if row else spec.default(),
             "is_overridden": row is not None,
-            "updated_at": row.updated_at.isoformat() if row else None,
+            "updated_at": iso_utc(row.updated_at) if row else None,
         }
 
     return {

@@ -41,6 +41,9 @@ function errorDetail(err: HttpErrorResponse, fallback: string): string {
 // "done" is handled separately as a completion signal, not a checklist step.
 const COLLATERAL_STAGES: StageDef[] = [
   { key: 'extract_text', label: 'Extracting documents' },
+  // Confirms each upload is the kind of document its slot claimed, before any
+  // of the expensive steps below run against the wrong file.
+  { key: 'verify_documents', label: 'Verifying documents' },
   { key: 'extract_fields', label: 'Extracting fields' },
   { key: 'compare', label: 'Comparing fields' },
   // Only emitted when the mechanical comparison left something ambiguous; a

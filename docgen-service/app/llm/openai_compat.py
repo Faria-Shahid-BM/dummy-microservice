@@ -24,8 +24,10 @@ from app.llm.base import (
     RETRY_STATUSES,
     LLMError,
     StreamItem,
+    TokenUsage,
     backoff_seconds,
     concurrency_slot,
+    usage_from_body,
 )
 
 
@@ -121,6 +123,19 @@ class OpenAICompatProvider:
         reasoning_effort: str | None = None,
     ) -> str:
         """Non-streaming chat completion; returns the message content string."""
+        content, _ = self.call_usage(
+            model, messages, temperature, max_tokens, reasoning_effort)
+        return content
+
+    def call_usage(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float = 0.2,
+        max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> tuple[str, TokenUsage]:
+        """``call`` plus the token counts the response already carries."""
         payload = self._chat_payload(model, messages, temperature, max_tokens, reasoning_effort, stream=False)
         body = self._post_json(self._chat_url(model), payload)
         try:
@@ -134,7 +149,7 @@ class OpenAICompatProvider:
                 f"(finish_reason={choice.get('finish_reason', 'unknown')}); "
                 "likely a content-filter block"
             )
-        return content
+        return content, usage_from_body(body)
 
     def stream(
         self,
@@ -143,13 +158,20 @@ class OpenAICompatProvider:
         temperature: float = 0.2,
         max_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        usage_sink: TokenUsage | None = None,
     ) -> Iterator[StreamItem]:
         """SSE chat completion; yields {"type": "reasoning"|"content", "text": str}.
+
+        When ``usage_sink`` is given, the final usage-only chunk is copied into
+        it — a streamed response reports its counts only if ``stream_options``
+        asks, and only in a chunk that carries no choices.
 
         Retries transient failures only before the first item is yielded; any
         error after that raises so committed tokens are never duplicated.
         """
         payload = self._chat_payload(model, messages, temperature, max_tokens, reasoning_effort, stream=True)
+        if usage_sink is not None:
+            payload["stream_options"] = {"include_usage": True}
         url = self._chat_url(model)
         headers = {**self._headers(), "Accept": "text/event-stream"}
 
@@ -179,6 +201,8 @@ class OpenAICompatProvider:
                             if not yielded and attempt < MAX_RETRIES:
                                 raise _Retry(backoff_seconds(attempt))
                             raise LLMError(f"LLM stream error: {msg}")
+                        if usage_sink is not None and obj.get("usage"):
+                            usage_sink.update(usage_from_body(obj))
                         for item in _delta_items(obj):
                             yielded = True
                             yield item

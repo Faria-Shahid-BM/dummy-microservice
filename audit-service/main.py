@@ -7,10 +7,11 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import JSON, DateTime, Integer, String, create_engine, inspect, select, text
+from sqlalchemy import (JSON, DateTime, Integer, String, create_engine, func,
+                        inspect, select, text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from security import require_any_token, require_any_token_allow_expired
+from security import require_any_token, require_any_token_allow_expired, require_scope
 
 app = FastAPI()
 
@@ -52,6 +53,18 @@ class AuditRow(Base):
     # from an outbox relay can be de-duplicated safely (see log_event).
     # Nullable: a hand-sent event with no outbox behind it just skips dedupe.
     event_id: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
+    # What this event's LLM work cost. Real columns rather than a reach into
+    # `detail`, so the totals survive a producer changing what it audits, and
+    # so they can be summed in SQL instead of by parsing every row's JSON.
+    # NULL on the events that spend nothing (a login, an upload).
+    #
+    # `usage_model` is recorded per event, not looked up later: a user's
+    # configured model changes, and the question worth answering about a past
+    # run is what it actually ran on.
+    usage_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    usage_prompt: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    usage_completion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    usage_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 Base.metadata.create_all(_engine)
@@ -64,6 +77,10 @@ _ADDED_COLUMNS = (
     ("subject_id", "VARCHAR(64)"),
     ("profile_id", "VARCHAR(64)"),
     ("event_id", "VARCHAR(32)"),
+    ("usage_model", "VARCHAR(128)"),
+    ("usage_prompt", "INTEGER"),
+    ("usage_completion", "INTEGER"),
+    ("usage_total", "INTEGER"),
 )
 _existing_columns = {c["name"] for c in inspect(_engine).get_columns("audit_entries")}
 with _engine.begin() as _conn:
@@ -86,6 +103,20 @@ def get_db():
         db.close()
 
 
+class UsageReport(BaseModel):
+    """What one audited piece of LLM work cost.
+
+    Declared rather than dug out of `metadata`, for the same reason
+    `to_audit_output` exists: a producer's result shape is its own business and
+    changes freely, but the admin usage view reads this and needs it to keep
+    meaning the same thing.
+    """
+    model: str | None = None
+    prompt: int = 0
+    completion: int = 0
+    total: int = 0
+
+
 class AuditEvent(BaseModel):
     # No user_id here: it used to be a plain string the producer sent, so any
     # process reachable on the internal network could write an entry
@@ -103,6 +134,8 @@ class AuditEvent(BaseModel):
     # rather than a one-off direct call — lets log_event de-duplicate a
     # retried delivery instead of logging the same event twice.
     event_id: str | None = None
+    # Omitted by events that spend no tokens.
+    usage: UsageReport | None = None
 
 
 # ── Display shaping ──────────────────────────────────────────────────────
@@ -172,11 +205,26 @@ def _build_sections(detail: dict | None):
     return sections, attachments
 
 
+def _iso_utc(value: datetime | None) -> str | None:
+    """ISO-8601 with an explicit UTC offset.
+
+    SQLite stores no timezone information even on a DateTime(timezone=True)
+    column, so a value read back is naive despite having been written as UTC.
+    Serialised without an offset, a browser reads it as local time and every
+    timestamp silently shifts by the viewer's offset.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
+
+
 def _serialize(row: AuditRow) -> dict:
     sections, attachments = _build_sections(row.detail)
     return {
         "id": row.id,
-        "timestamp": row.timestamp.isoformat(),
+        "timestamp": _iso_utc(row.timestamp),
         "user_id": row.user_id,
         "service": row.service,
         "action": row.action,
@@ -218,10 +266,71 @@ def log_event(
         subject_id=event.subject_id,
         profile_id=event.profile_id,
         event_id=event.event_id,
+        usage_model=event.usage.model if event.usage else None,
+        usage_prompt=event.usage.prompt if event.usage else None,
+        usage_completion=event.usage.completion if event.usage else None,
+        usage_total=event.usage.total if event.usage else None,
     )
     db.add(row)
     db.commit()
     return {"status": "logged", "id": row.id}
+
+
+# Admin-only, and enforced here rather than by hiding the route in the
+# frontend: this reports every user's spend, so a client-side guard would be
+# no protection at all against a direct call.
+@app.get("/audit/usage")
+def get_usage(
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(require_scope("admin")),
+):
+    """Token spend per user per service, and the models each of them ran on.
+
+    Summed in SQL over the rows that carry usage; a service that doesn't report
+    any is simply absent rather than reported as zero, which would read as
+    "free" instead of "not measured yet".
+    """
+    rows = db.execute(
+        select(
+            AuditRow.user_id,
+            AuditRow.service,
+            func.count().label("runs"),
+            func.sum(AuditRow.usage_prompt).label("prompt"),
+            func.sum(AuditRow.usage_completion).label("completion"),
+            func.sum(AuditRow.usage_total).label("total"),
+            func.max(AuditRow.timestamp).label("last_run"),
+        )
+        .where(AuditRow.usage_total.isnot(None))
+        .group_by(AuditRow.user_id, AuditRow.service)
+        .order_by(func.sum(AuditRow.usage_total).desc())
+    ).all()
+
+    # Which models each user actually ran, per service — distinct from whatever
+    # they have configured now, which config-service reports separately.
+    model_rows = db.execute(
+        select(AuditRow.user_id, AuditRow.service, AuditRow.usage_model)
+        .where(AuditRow.usage_model.isnot(None))
+        .distinct()
+    ).all()
+    models: dict[str, list[str]] = {}
+    for user_id, service, model in model_rows:
+        models.setdefault(f"{user_id}\x00{service}", []).append(model)
+
+    return {
+        "by_user_service": [
+            {
+                "user_id": r.user_id,
+                "service": r.service,
+                "runs": r.runs,
+                "prompt": r.prompt or 0,
+                "completion": r.completion or 0,
+                "total": r.total or 0,
+                "last_run": _iso_utc(r.last_run),
+                "models": sorted(models.get(f"{r.user_id}\x00{r.service}", [])),
+            }
+            for r in rows
+        ]
+    }
 
 
 @app.get("/audit")

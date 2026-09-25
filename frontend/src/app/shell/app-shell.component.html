@@ -17,14 +17,6 @@
         No services granted yet — ask an admin.
       </p>
 
-      <!-- Not a reviewer, so it sits with the other non-service links rather
-           than in the entitled-services list above. -->
-      <a routerLink="/configuration" routerLinkActive="active" class="sidebar-item sidebar-item--top">
-        Configuration
-      </a>
-      <a routerLink="/admin" *ngIf="session.isAdmin" class="sidebar-item">
-        Admin dashboard
-      </a>
     </ng-container>
 
     <ng-container *ngIf="sidebarToggle.collapsed">
@@ -48,21 +40,28 @@
         </button>
       </ng-container>
 
+    </ng-container>
+
+    <!-- Admin is not a reviewer, so it sits at the foot of the rail rather than
+         among the services above. margin-top:auto on .sidebar-footer does the
+         pushing, so it stays put however many services a user holds. -->
+    <div class="sidebar-footer" *ngIf="session.isAdmin">
       <a
-        routerLink="/configuration"
+        *ngIf="!sidebarToggle.collapsed"
+        routerLink="/admin"
         routerLinkActive="active"
-        class="sidebar-item-mini sidebar-item-mini--top"
-        title="Configuration"
-        >CF</a
+        class="sidebar-item"
+        >Admin dashboard</a
       >
       <a
+        *ngIf="sidebarToggle.collapsed"
         routerLink="/admin"
-        *ngIf="session.isAdmin"
+        routerLinkActive="active"
         class="sidebar-item-mini"
         title="Admin dashboard"
         >AD</a
       >
-    </ng-container>
+    </div>
   </nav>
 
   <main class="main-content">

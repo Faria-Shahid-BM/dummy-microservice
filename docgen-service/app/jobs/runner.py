@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.core.timefmt import iso_utc
 from app.core.config import settings
 from app.core.db import session_scope
 from app.models import JOB_ACTIVE_STATUSES, Job, utcnow
@@ -252,7 +253,7 @@ def _job_dict(job: Job) -> dict:
 
 
 def _iso(dt: datetime | None) -> str | None:
-    return dt.isoformat() if dt else None
+    return iso_utc(dt)
 
 
 runner = JobRunner()

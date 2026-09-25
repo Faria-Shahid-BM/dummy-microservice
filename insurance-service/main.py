@@ -10,7 +10,7 @@ from engines.insurance import review_insurance
 import config_client
 from provider import Provider
 from security import require_scope
-from case_store import init_db, make_case_router, start_outbox_relay
+from case_store import init_db, make_case_router, start_outbox_relay, usage_from_result
 
 _provider = Provider()
 init_db()
@@ -178,4 +178,5 @@ app.include_router(make_case_router(          # Kong exposes this as /api/insura
     upload_slots={"policy": {".pdf", ".docx"}},
     min_slots_ready=["policy"],
     analyze=_analyze,
+    to_usage=usage_from_result,
 ))

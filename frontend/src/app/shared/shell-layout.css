@@ -21,6 +21,14 @@
 .sidebar {
   width: 230px;
   flex-shrink: 0;
+  /* Pinned to the viewport rather than stretched to the page. Without this the
+     sidebar grows to whatever the case list needs, and anything anchored to its
+     foot (the admin link) slides down out of sight with it. */
+  position: sticky;
+  top: var(--topbar-height);
+  align-self: flex-start;
+  height: calc(100vh - var(--topbar-height));
+  overflow-y: auto;
   background: var(--color-sidebar);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   padding: 1.5rem 1.1rem;

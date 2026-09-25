@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 import docx
 
+from engines.token_usage import new_usage
 from engines.util import strip_fences
 
 if TYPE_CHECKING:
@@ -87,12 +88,22 @@ def _complete(
     model: str,
     messages: list[dict[str, Any]],
     emit: EmitFn | None,
-) -> str:
-    """call() when emit is None; stream() otherwise, forwarding each item."""
+) -> tuple[str, dict[str, int]]:
+    """call() when emit is None; stream() otherwise, forwarding each item.
+
+    Returns the text and what it cost. A backend without ``call_usage``
+    reports zeros rather than failing, so switching provider can never break
+    the pipeline over accounting.
+    """
     if emit is None:
-        return provider.call(model=model, messages=messages, temperature=0.0)
+        call_usage = getattr(provider, "call_usage", None)
+        if callable(call_usage):
+            return call_usage(model=model, messages=messages, temperature=0.0)
+        return provider.call(model=model, messages=messages, temperature=0.0), new_usage()
+    usage = new_usage()
     parts: list[str] = []
-    for item in provider.stream(model=model, messages=messages, temperature=0.0):
+    for item in provider.stream(model=model, messages=messages, temperature=0.0,
+                                usage_sink=usage):
         kind = item.get("type", "")
         text = item.get("text", "")
         if not text:
@@ -101,7 +112,7 @@ def _complete(
             parts.append(text)
         if kind in ("reasoning", "content"):
             emit(kind, text)
-    return "".join(parts)
+    return "".join(parts), usage
 
 
 def analyze_template(
@@ -130,8 +141,8 @@ def analyze_template(
         {"role": "system", "content": prompt if prompt is not None else _system_instruction()},
         {"role": "user", "content": user_message},
     ]
-    descriptor = _complete(provider, model, messages, emit)
+    descriptor, usage = _complete(provider, model, messages, emit)
 
     if descriptor.strip().startswith("```"):
         descriptor = strip_fences(descriptor)
-    return descriptor
+    return descriptor, usage

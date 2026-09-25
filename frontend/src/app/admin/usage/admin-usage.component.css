@@ -1,0 +1,128 @@
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.usage-table th,
+.usage-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-soft);
+  vertical-align: top;
+}
+
+.usage-table th {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+/* Figures are compared down the column, so they align right and share a
+   fixed-width digit. */
+.usage-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage-table .strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.usage-table tfoot td {
+  border-bottom: none;
+  border-top: 1px solid var(--color-border);
+  font-weight: 600;
+}
+
+/* Model slugs are long and a run can use several, so they wrap as chips
+   rather than forcing the column wide. */
+.model-chip {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  margin: 0 0.25rem 0.25rem 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-border-soft);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+/* A user who has chosen their own model is the interesting row — it's why
+   their results or costs may differ from everyone else's. */
+.tag-set {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
+  font-weight: 600;
+}
+
+.user-block {
+  margin-top: 1.25rem;
+}
+
+.user-block h4 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Collapsed by default — most rows are deployment defaults, so the handful a
+   user has actually chosen is what the header summarises. */
+.user-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border-soft);
+  box-shadow: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--color-text);
+}
+
+.user-toggle:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  color: var(--color-primary-dark);
+}
+
+.chev {
+  flex-shrink: 0;
+  transition: transform 0.12s ease;
+  color: var(--color-text-faint);
+}
+
+.chev.open {
+  transform: rotate(90deg);
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.user-meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+}

@@ -14,6 +14,7 @@ from case_store import (
     get_owned_case,
     init_db,
     make_case_router,
+    usage_from_result,
     pair_dir,
     start_outbox_relay,
 )
@@ -98,6 +99,7 @@ app.include_router(make_case_router(          # Kong exposes this as /api/collat
     upload_slots={"legal": {".pdf", ".docx"}, "property": {".pdf", ".docx"}},
     min_slots_ready=["legal", "property"],
     analyze=_analyze,
+    to_usage=usage_from_result,
 ))
 
 

@@ -19,6 +19,9 @@ import { INSURANCE_REPORT } from '../report/insurance-report.config';
 const INSURANCE_STAGES: StageDef[] = [
   { key: 'extract', label: 'Extracting policy' },
   { key: 'structure', label: 'Structuring policy data' },
+  // Confirms enough policy detail was read to treat this as a policy at all,
+  // before the analysis call runs against a document that isn't one.
+  { key: 'verify_document', label: 'Verifying policy' },
   { key: 'analyze', label: 'Analyzing against bank policy' }
 ];
 

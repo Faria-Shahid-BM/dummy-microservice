@@ -46,16 +46,29 @@ def record(
     subject_id: str | None = None,
     detail: dict | None = None,
     request: Request | None = None,
+    token: str | None = None,
+    usage: dict | None = None,
 ) -> None:
+    """Enqueue one audit event.
+
+    ``token`` is for events recorded from a background job, which has no
+    ``request`` to read the caller's bearer token from — the submitting handler
+    captures it and hands it in. audit-service derives user_id from that token,
+    so an event without one cannot be delivered at all.
+
+    ``usage`` is ``{model, prompt, completion, total}`` for work that spent
+    tokens, and feeds the admin usage view.
+    """
     outbox.enqueue(
         db, AUDIT_OUTBOX,
         service=SERVICE_NAME,
         action=action,
-        token=_raw_token(request),
+        token=token if token is not None else _raw_token(request),
         subject_type=subject_type,
         subject_id=subject_id,
         profile_id=profile_id,
         detail=detail,
+        usage=usage,
     )
 
 

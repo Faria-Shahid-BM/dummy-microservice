@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from engines.valuation import review_valuation
 import config_client
 from provider import Provider
-from case_store import init_db, make_case_router, start_outbox_relay
+from case_store import init_db, make_case_router, start_outbox_relay, usage_from_result
 
 _provider = Provider()
 init_db()
@@ -54,4 +54,5 @@ app.include_router(make_case_router(          # Kong exposes this as /api/valuat
     upload_slots={"report": {".pdf", ".docx"}},
     min_slots_ready=["report"],
     analyze=_analyze,
+    to_usage=usage_from_result,
 ))

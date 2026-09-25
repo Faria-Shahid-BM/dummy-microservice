@@ -51,6 +51,9 @@ from typing import TYPE_CHECKING, Any, Callable, Mapping
 # from app.engines.extraction import extract_document
 # from app.engines.field_match import ...
 # from app.engines.util import EngineParseError, parse_json_response
+from engines.document_kind import (LEGAL_OPINION, PROPERTY_DOCUMENT,
+                                   DocumentKindError, check_not_duplicate,
+                                   verify_document_kind)
 from engines.evidence import has_page_markers, locate_value
 from engines.extraction import TranscriptionResult, extract_document
 from engines.field_match import (
@@ -63,7 +66,7 @@ from engines.field_match import (
     canon_text,
     compare_field,
 )
-from engines.token_usage import add_usage, new_usage
+from engines.token_usage import add_usage, call_with_usage, new_usage
 from engines.util import EngineParseError, parse_json_response
 
 if TYPE_CHECKING:  # pragma: no cover — typing only; engines stay import-pure
@@ -164,25 +167,6 @@ def _emit_usage(emit: EmitFn | None, step: str, spent: dict[str, int],
                        "usage": dict(spent), "cumulative": dict(running)})
 
 
-def _call_with_usage(provider: "LLMProvider", model: str,
-                     messages: list[dict[str, Any]], *,
-                     temperature: float = 0.0) -> tuple[str | None, dict[str, int]]:
-    """One non-streaming call, returning its text and what it cost.
-
-    ``(None, zeros)`` on any failure, preserving each caller's existing
-    degrade-gracefully behaviour. A provider without ``call_usage`` (a stub in a
-    caller or test) still works and simply reports zeros.
-    """
-    call_usage = getattr(provider, "call_usage", None)
-    try:
-        if callable(call_usage):
-            return call_usage(model, messages, temperature=temperature)
-        return provider.call(model=model, messages=messages,
-                             temperature=temperature), new_usage()
-    except Exception:
-        return None, new_usage()
-
-
 def _parse_json_array(response: str | None) -> list[Any] | None:
     """Parse a JSON ARRAY out of an LLM response. Slices the first '[' to the
     last ']' and json-loads it (``strict=False`` per the shared tolerant-parser
@@ -275,7 +259,7 @@ def extract_fields(text: str, doc_name: str, provider: "LLMProvider",
     schema = deepcopy(EXTRACTION_SCHEMA[doc_name])
 
     prompt = build_extraction_prompt(text or "", doc_name, prompt=prompt)
-    response, usage = _call_with_usage(
+    response, usage = call_with_usage(
         provider, model, [{"role": "user", "content": prompt}])
     if response is None:
         return schema, usage
@@ -553,7 +537,7 @@ def adjudicate_comparison(comparison: list[dict[str, Any]],
         return comparison, new_usage()
 
     _emit_event(emit, {"stage": "adjudicate", "rows": len(pending)})
-    response, usage = _call_with_usage(
+    response, usage = call_with_usage(
         provider, model,
         [{"role": "user", "content": _build_adjudication_prompt(
             pending, prompt=prompt)}])
@@ -690,7 +674,7 @@ def generate_observations(comparison: list[dict[str, Any]],
         # Non-streaming path (no emit, no stream support, or streaming failed).
         # Reassigning drops any usage a part-finished stream recorded, so a
         # retried call is not counted twice.
-        response, usage = _call_with_usage(provider, model, messages)
+        response, usage = call_with_usage(provider, model, messages)
 
     parsed = _parse_observation_array(response)
 
@@ -819,6 +803,39 @@ def review_collateral(
     _emit_usage(emit, "extract_text", extract_text_usage, total_usage,
                 ms_by_step["extract_text"])
 
+    # Nothing about a file proves which slot it belongs on — the field it was
+    # posted on is the entire claim. Left unchecked, a property deed sent as the
+    # legal opinion is compared against the property document (very often the
+    # same instrument), every field matches, and the review returns the
+    # cleanest report it can produce. A silent false pass.
+    #
+    # Runs here rather than before extraction because this engine has no
+    # partial-read path: the text is already in hand, so the gate is free of
+    # further extraction cost and still spares the four LLM calls below.
+    _start("verify_documents")
+    _emit_event(emit, {"stage": "verify_documents"})
+    verify_usage = new_usage()
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        legal_check = ex.submit(
+            verify_document_kind, legal_text, LEGAL_OPINION, provider,
+            extraction_model)
+        property_check = ex.submit(
+            verify_document_kind, property_text, PROPERTY_DOCUMENT, provider,
+            extraction_model)
+        checks = [legal_check.result(), property_check.result()]
+    # Asks the blunter question the kind check cannot: are these the same file?
+    # Two property documents carry no legal signature, so both reach the model,
+    # which may label one plausibly — identical text cannot be explained away.
+    checks.append(check_not_duplicate(legal_text, property_text))
+    for check in checks:
+        add_usage(verify_usage, check.usage)
+    _record("verify_documents", verify_usage)
+
+    failures = [check.detail for check in checks if not check.ok]
+    if failures:
+        raise DocumentKindError(" ".join(failures))
+    warnings = [check.warning for check in checks if check.warning]
+
     _start("extract_fields")
     _emit_event(emit, {"stage": "extract_fields"})
     with ThreadPoolExecutor(max_workers=2) as ex:
@@ -894,4 +911,7 @@ def review_collateral(
         "observations": observations,
         "summary": summary,
         "token_usage": token_usage,
+        # Set when the document-kind gate could not reach a verdict. The review
+        # ran, and says so, rather than leaving a reader to assume it passed.
+        "warnings": warnings,
     }

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit, storage
+from app.core.timefmt import iso_utc
 from app.auth import deps
 from app.auth.deps import (
     current_user,
@@ -33,7 +34,7 @@ def _profile_payload(p: Profile, role: str | None = None) -> dict:
         "name": p.name,
         "description": p.description,
         "is_default": p.is_default,
-        "created_at": p.created_at.isoformat(),
+        "created_at": iso_utc(p.created_at),
         "role": role,
     }
 

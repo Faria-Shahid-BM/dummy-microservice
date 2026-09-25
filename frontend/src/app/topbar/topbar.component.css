@@ -1,5 +1,7 @@
 .topbar-bar {
   display: flex;
+  min-height: var(--topbar-height);
+  box-sizing: border-box;
   align-items: center;
   justify-content: space-between;
   padding: 0.7rem 1.5rem;
@@ -165,4 +167,17 @@
   margin-top: 0.15rem;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
+}
+
+/* The configuration gear is a link, not a button, so it needs the anchor
+   defaults cleared and an active state the bell doesn't have — the bell
+   toggles a dropdown, this one navigates to a page you can be on. */
+a.icon-button {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.icon-button.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary-darker);
 }

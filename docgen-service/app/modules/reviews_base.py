@@ -32,6 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit, storage
+from app.core.timefmt import iso_utc
 from app.auth.deps import current_user, raw_token, require_profile_maker, require_profile_member
 from app.core.db import db_session, session_scope
 from app.jobs.runner import JobConflict, runner
@@ -78,7 +79,7 @@ def _list_payload(r: Review) -> dict:
         "name": r.name,
         "status": r.status,
         "uploads": r.uploads or {},
-        "created_at": r.created_at.isoformat(),
+        "created_at": iso_utc(r.created_at),
     }
 
 

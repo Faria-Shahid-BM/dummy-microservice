@@ -27,6 +27,19 @@
       </div>
     </div>
 
+    <!-- Configuration moved here from the service rail: it is not a reviewer,
+         and sitting among them read as one. Between the bell and the account
+         menu, so the header runs alerts -> settings -> account. -->
+    <div class="topbar-item">
+      <a routerLink="/configuration" routerLinkActive="active" class="icon-button" title="Configuration" aria-label="Configuration">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M19.14 12.94a7.07 7.07 0 000-1.88l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96a7.03 7.03 0 00-1.62-.94l-.36-2.54a.5.5 0 00-.5-.42h-3.84a.5.5 0 00-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 00-.6.22L2.67 8.84a.5.5 0 00.12.64l2.03 1.58a7.07 7.07 0 000 1.88l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"
+          />
+        </svg>
+      </a>
+    </div>
+
     <div class="topbar-item">
       <button type="button" class="profile-circle" (click)="toggleProfile()" aria-label="Account menu">
         {{ initials }}

@@ -32,6 +32,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
+from engines.token_usage import new_usage
+
 if TYPE_CHECKING:  # runtime-pure: engines never import app.core.config
     from app.llm.base import LLMProvider
 
@@ -370,11 +372,13 @@ def answer(
     messages.append({"role": "user", "content": question})
 
     reply: str | None = None
+    usage = new_usage()
     stream_fn = getattr(provider, "stream", None)
     if emit is not None and callable(stream_fn):
         try:
             chunks: list[str] = []
-            for delta in stream_fn(chat_model, messages, temperature=0.1):
+            for delta in stream_fn(chat_model, messages, temperature=0.1,
+                                   usage_sink=usage):
                 chunks.append(delta)
                 emit("content", delta)
             reply = "".join(chunks)
@@ -382,11 +386,21 @@ def answer(
             reply = None
 
     if reply is None:
-        reply = provider.call(chat_model, messages, temperature=0.1)
+        # Reassigning drops anything a part-finished stream recorded, so a
+        # retried call is not counted twice.
+        call_usage = getattr(provider, "call_usage", None)
+        if callable(call_usage):
+            reply, usage = call_usage(chat_model, messages, temperature=0.1)
+        else:
+            reply = provider.call(chat_model, messages, temperature=0.1)
+            usage = new_usage()
 
     sources: list[str] = []
     for c in retrieved:
         h = (c.get("heading") or "").strip()
         if h and h not in sources:
             sources.append(h)
-    return {"answer": reply, "sources": sources}
+    # Retrieval embeds the query too; that call is not counted, so this is the
+    # chat cost rather than the whole question's cost.
+    return {"answer": reply, "sources": sources,
+            "token_usage": {"total": usage, "models": {"chat": chat_model}}}

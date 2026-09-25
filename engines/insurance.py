@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from engines.extraction import extract_document
+from engines.insurance_completeness import require_insurance_document
+from engines.token_usage import add_usage, call_with_usage_raising, new_usage
 from engines.util import parse_json_response
 
 if TYPE_CHECKING:  # avoid importing app.core.config transitively at runtime
@@ -71,8 +73,9 @@ def extract_insurance_json(
     *,
     prompt: str | None = None,
     emit: EmitFn | None = None,
-) -> dict[str, Any]:
-    """Convert raw policy-document text into the strict extraction schema.
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """Convert raw policy-document text into the strict extraction schema,
+    with the tokens the call cost.
 
     Sends the frozen extraction prompt followed by the document text (tagged
     ``<DOCUMENT_TEXT>``, mirroring the tag convention of the analysis stage)
@@ -87,10 +90,10 @@ def extract_insurance_json(
     user_content = f"{prompt}\n\n<DOCUMENT_TEXT>\n{document_text}\n</DOCUMENT_TEXT>"
     messages: list[dict[str, Any]] = [{"role": "user", "content": user_content}]
     _emit_event(emit, {"stage": "structure", "status": "start"})
-    raw = provider.call(model, messages, temperature=0.0)
+    raw, usage = call_with_usage_raising(provider, model, messages)
     extracted = parse_json_response(raw)
     _emit_event(emit, {"stage": "structure", "status": "done"})
-    return extracted
+    return extracted, usage
 
 
 # ── stage 2: compliance analysis ──────────────────────────────────────────────
@@ -104,9 +107,10 @@ def analyze_against_policy(
     *,
     prompt: str | None = None,
     emit: EmitFn | None = None,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, int]]:
     """Analyze extracted policy JSON against bank policy text + collateral
-    rules; return the compliance report (top-level key ``insurance_report``).
+    rules; return the compliance report (top-level key ``insurance_report``)
+    and the tokens the call cost.
 
     Message composition is identical to the legacy engine: the analysis
     prompt (with ``{COLLATERAL_POLICY_RULES}`` substituted via ``str.replace``
@@ -135,10 +139,10 @@ def analyze_against_policy(
         {"role": "user", "content": user_msg},
     ]
     _emit_event(emit, {"stage": "analyze", "status": "start"})
-    raw = provider.call(model, messages, temperature=0.0)
+    raw, usage = call_with_usage_raising(provider, model, messages)
     report = parse_json_response(raw, required_keys=("insurance_report",))
     _emit_event(emit, {"stage": "analyze", "status": "done"})
-    return report
+    return report, usage
 
 
 # ── orchestration entry point (the module router's job calls this) ───────────
@@ -207,10 +211,27 @@ def review_insurance(
     )
 
     prompts = prompts or {}
-    insurance_json = extract_insurance_json(
+    # Per-step token spend, in pipeline order. Vision is zero whenever the
+    # policy PDF had a usable text layer — no vision call ran.
+    usage_by_step = {"extract": extraction.usage}
+    total_usage = add_usage(new_usage(), extraction.usage)
+
+    insurance_json, structure_usage = extract_insurance_json(
         extraction.text, provider, models["extraction"],
         prompt=prompts.get("extraction"), emit=emit)
-    report = analyze_against_policy(
+    usage_by_step["structure"] = structure_usage
+    add_usage(total_usage, structure_usage)
+
+    # Between the two calls on purpose: every business document has a name, an
+    # address, an amount and a date, so a valuation report posted here extracts
+    # happily and the payload fills. That is a false pass, and a silent one.
+    # Checked here, a document that is not a policy costs the vision read alone
+    # and never reaches the analysis call.
+    _emit_event(emit, {"stage": "verify_document", "status": "start"})
+    require_insurance_document(insurance_json)
+    _emit_event(emit, {"stage": "verify_document", "status": "done"})
+
+    report, analysis_usage = analyze_against_policy(
         insurance_json,
         policy_text,
         collateral_rules,
@@ -219,4 +240,8 @@ def review_insurance(
         prompt=prompts.get("analysis"),
         emit=emit,
     )
+    usage_by_step["analyze"] = analysis_usage
+    add_usage(total_usage, analysis_usage)
+
+    report["token_usage"] = {"by_step": usage_by_step, "total": total_usage}
     return report

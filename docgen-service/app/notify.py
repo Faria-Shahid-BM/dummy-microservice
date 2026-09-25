@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.core.timefmt import iso_utc
 from app.auth.deps import current_user
 from app.core.db import db_session
 from app.models import Notification, User, utcnow
@@ -98,7 +99,7 @@ def list_notifications(
         "notifications": [
             {
                 "id": n.id,
-                "ts": n.ts.isoformat(),
+                "ts": iso_utc(n.ts),
                 "type": n.type,
                 "title": n.title,
                 "body": n.body,

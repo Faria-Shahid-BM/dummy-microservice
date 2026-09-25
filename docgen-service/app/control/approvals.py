@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit
+from app.core.timefmt import iso_utc
 from app.auth.deps import current_user, effective_role, require_profile_member
 from app.core.db import db_session
 from app.models import Approval, ROLE_CHECKER, ROLE_MAKER, User, utcnow
@@ -92,8 +93,8 @@ def _payload(db: Session, a: Approval) -> dict:
         "maker_id": a.maker_id,
         "checker": (checker.display_name or checker.username) if checker else None,
         "comment": a.comment,
-        "submitted_at": a.submitted_at.isoformat() if a.submitted_at else None,
-        "decided_at": a.decided_at.isoformat() if a.decided_at else None,
+        "submitted_at": iso_utc(a.submitted_at),
+        "decided_at": iso_utc(a.decided_at),
     }
 
 

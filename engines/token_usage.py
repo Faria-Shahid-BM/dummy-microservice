@@ -36,3 +36,41 @@ def add_usage(into: dict[str, int], more: dict[str, int] | None) -> dict[str, in
     for key in ("prompt", "completion", "total"):
         into[key] = into.get(key, 0) + (more or {}).get(key, 0)
     return into
+
+
+def call_with_usage(provider, model: str, messages: list, *,
+                    temperature: float = 0.0) -> tuple[str | None, dict[str, int]]:
+    """One non-streaming LLM call, returning its text and what it cost.
+
+    ``(None, zeros)`` on any failure, so callers keep their
+    degrade-gracefully behaviour instead of aborting a review. A provider
+    without ``call_usage`` — a stub in a caller or test — still works and
+    simply reports zeros.
+
+    Takes the provider as an object rather than importing it: ``provider.py``
+    is not copied into every image that ships this package (doc_rev-service
+    ships the engines without it).
+    """
+    call_usage = getattr(provider, "call_usage", None)
+    try:
+        if callable(call_usage):
+            return call_usage(model, messages, temperature=temperature)
+        return provider.call(model=model, messages=messages,
+                             temperature=temperature), new_usage()
+    except Exception:
+        return None, new_usage()
+
+
+def call_with_usage_raising(provider, model: str, messages: list, *,
+                            temperature: float = 0.0) -> tuple[str, dict[str, int]]:
+    """Like :func:`call_with_usage`, but lets failures propagate.
+
+    Two contracts exist in these engines: collateral and valuation degrade to a
+    partial result on a bad call, while insurance lets the error surface. This
+    keeps that difference explicit rather than quietly converting a network
+    failure into a parse failure.
+    """
+    call_usage = getattr(provider, "call_usage", None)
+    if callable(call_usage):
+        return call_usage(model, messages, temperature=temperature)
+    return provider.call(model, messages, temperature=temperature), new_usage()

@@ -1,0 +1,111 @@
+<div class="topbar">
+  <h2>Model usage</h2>
+  <button type="button" class="clear" (click)="load()" [disabled]="loading">Refresh</button>
+</div>
+
+<p class="error" *ngIf="error">{{ error }}</p>
+<p class="empty" *ngIf="loading">Loading…</p>
+
+<ng-container *ngIf="!loading">
+  <section class="card">
+    <h3>Tokens spent</h3>
+    <p class="subtitle">
+      Per user, per reviewer. A reviewer missing from this table has not reported
+      any usage yet — that means "not measured", not "free".
+    </p>
+
+    <p class="empty" *ngIf="!hasUsage">
+      No usage recorded yet. Run a review and it will appear here.
+    </p>
+
+    <table class="usage-table" *ngIf="hasUsage">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Reviewer</th>
+          <th class="num">Runs</th>
+          <th class="num">Prompt</th>
+          <th class="num">Completion</th>
+          <th class="num">Total</th>
+          <th>Models used</th>
+          <th>Last run</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of usage">
+          <td>{{ row.user_id }}</td>
+          <td>{{ serviceLabel(row.service) }}</td>
+          <td class="num">{{ row.runs | number }}</td>
+          <td class="num">{{ row.prompt | number }}</td>
+          <td class="num">{{ row.completion | number }}</td>
+          <td class="num strong">{{ row.total | number }}</td>
+          <td>
+            <span class="model-chip" *ngFor="let model of row.models">{{ model }}</span>
+          </td>
+          <td>{{ row.last_run ? (row.last_run | date: 'short') : '—' }}</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5">Total</td>
+          <td class="num strong">{{ totalTokens | number }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </section>
+
+  <section class="card">
+    <h3>Configured models</h3>
+    <p class="subtitle">
+      What each user's next review will run on — their own choice where they made
+      one, the deployment default otherwise. Only the reviewers they can reach.
+    </p>
+
+    <p class="empty" *ngIf="!userModels.length">No users.</p>
+
+    <div class="user-block" *ngFor="let user of userModels">
+      <button
+        type="button"
+        class="user-toggle"
+        (click)="toggle(user.username)"
+        [attr.aria-expanded]="isExpanded(user.username)"
+      >
+        <span class="chev" [class.open]="isExpanded(user.username)">&#9656;</span>
+        <span class="user-name">{{ user.username }}</span>
+        <span class="user-meta">
+          {{ user.rows.length }} {{ user.rows.length === 1 ? 'setting' : 'settings' }}
+          <span class="tag tag-set" *ngIf="overriddenCount(user)">
+            {{ overriddenCount(user) }} chosen
+          </span>
+        </span>
+      </button>
+
+      <ng-container *ngIf="isExpanded(user.username)">
+      <p class="empty" *ngIf="!user.rows.length">No reviewers granted.</p>
+      <table class="usage-table" *ngIf="user.rows.length">
+        <thead>
+          <tr>
+            <th>Reviewer</th>
+            <th>Role</th>
+            <th>Model</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of user.rows">
+            <td>{{ serviceLabel(row.service) }}</td>
+            <td>{{ row.role }}</td>
+            <td>{{ row.model || '—' }}</td>
+            <td>
+              <span class="tag" [class.tag-set]="row.overridden">
+                {{ row.overridden ? 'chosen by user' : 'default' }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      </ng-container>
+    </div>
+  </section>
+</ng-container>

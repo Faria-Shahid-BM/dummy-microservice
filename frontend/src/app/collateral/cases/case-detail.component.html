@@ -64,6 +64,10 @@
   </section>
 
   <ng-template #pairResult let-result let-pair="pair">
+    <!-- The document-kind gate could not reach a verdict. Shown rather than
+         swallowed: a reader would otherwise assume the check passed. -->
+    <p class="warning" *ngFor="let w of result.warnings || []">{{ w }}</p>
+
     <div class="stat-row">
       <div class="stat-card">
         <div class="n">{{ result.summary.matches }}</div>

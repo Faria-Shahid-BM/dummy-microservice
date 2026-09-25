@@ -43,7 +43,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import DateTime, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from security import get_raw_token, require_any_token
+from security import get_raw_token, require_any_token, require_scope
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
 
@@ -272,6 +272,7 @@ def get_db():
 async def lifespan(app: FastAPI):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(_engine)
+    outbox.ensure_columns(_engine)
     asyncio.create_task(outbox.run_relay(SessionLocal, _OUTBOX))
     yield
 
@@ -317,6 +318,20 @@ def _require_entitled(scope: str, claims: dict) -> ServiceSettings:
     return service
 
 
+def _iso_utc(dt: datetime | None) -> str | None:
+    """ISO-8601 with an explicit UTC offset.
+
+    SQLite keeps no timezone on a DateTime(timezone=True) column, so a value
+    written as UTC reads back naive; without an offset a browser parses it as
+    local time and never converts. Same fix as case_store's.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 def _overrides(db: Session, user_sub: str, scope: str | None = None) -> dict[tuple[str, str], Override]:
     stmt = select(Override).where(Override.user_sub == user_sub)
     if scope is not None:
@@ -333,7 +348,7 @@ def _payload(setting: Setting, row: Override | None) -> dict:
         "default": setting.default(),
         "value": row.value if row else setting.default(),
         "is_overridden": row is not None,
-        "updated_at": row.updated_at.isoformat() if row else None,
+        "updated_at": _iso_utc(row.updated_at) if row else None,
     }
 
 
@@ -399,6 +414,40 @@ def effective(
         if value:
             models[setting.key.removeprefix("model.")] = value
     return {"scope": scope, "models": models}
+
+
+# Admin-only, and enforced server-side rather than by hiding the route in the
+# frontend: this reports every user's configuration, so a client-side guard
+# would be no protection against a direct call.
+@router.get("/admin/overview")
+def admin_overview(
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(require_scope("admin")),
+) -> dict:
+    """Deployment defaults, plus every user's overrides on top of them.
+
+    Overrides are returned rather than each user's fully-resolved settings
+    because only users who have chosen something have rows here — config-service
+    has no user list of its own, and inventing one by calling auth-service would
+    duplicate a list the admin page already holds. The page composes the two.
+    """
+    defaults = {
+        service.scope: {
+            setting.key.removeprefix("model."): setting.default()
+            for setting in service.settings
+            if setting.kind == "model"
+        }
+        for service in REGISTRY
+    }
+
+    overrides: dict[str, dict[str, dict[str, str]]] = {}
+    for row in db.execute(select(Override)).scalars():
+        if not row.key.startswith("model."):
+            continue
+        by_scope = overrides.setdefault(row.user_sub, {})
+        by_scope.setdefault(row.scope, {})[row.key.removeprefix("model.")] = row.value
+
+    return {"defaults": defaults, "overrides": overrides}
 
 
 class ConfigValue(BaseModel):

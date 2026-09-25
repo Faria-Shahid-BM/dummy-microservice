@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit, storage
+from app.core.timefmt import iso_utc
 from app.auth.deps import current_user, raw_token, require_profile_maker, require_profile_member
 from app.control.approvals import (
     APPROVAL_EFFECTS,
@@ -83,7 +84,7 @@ def _version_payload(db: Session, v: TemplateVersion) -> dict:
         "has_descriptor": bool(v.descriptor_md),
         "is_current": v.is_current,
         "approval_state": _approval_state(db, v.id),
-        "created_at": v.created_at.isoformat(),
+        "created_at": iso_utc(v.created_at),
     }
 
 
@@ -94,7 +95,7 @@ def _template_payload(db: Session, t: Template, with_versions: bool = False) -> 
         "name": t.name,
         "language": t.language,
         "status": t.status,
-        "created_at": t.created_at.isoformat(),
+        "created_at": iso_utc(t.created_at),
         "current_version_no": current.version_no if current else None,
         "version_count": len(t.versions),
     }
@@ -330,7 +331,7 @@ def analyze_version(
             analysis_model = effective_model(jdb, profile_id, "analysis", token)
             analyzer_prompt = prompt_override(
                 jdb, profile_id, "docgen.meta_analyzer.prompt")
-        descriptor = meta_analyzer.analyze_template(
+        descriptor, usage = meta_analyzer.analyze_template(
             path,
             get_provider(),
             analysis_model,
@@ -342,7 +343,10 @@ def analyze_version(
             row = jdb.get(TemplateVersion, version_id)
             if row is not None:
                 row.descriptor_md = descriptor
-        return {"descriptor_chars": len(descriptor)}
+            audit.record(jdb, user, "template.analyze.done", profile_id=profile_id,
+                         subject_type="template_version", subject_id=version_id,
+                         token=token, usage={"model": analysis_model, **usage})
+        return {"descriptor_chars": len(descriptor), "token_usage": usage}
 
     try:
         job = runner.submit(

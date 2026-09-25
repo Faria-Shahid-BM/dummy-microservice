@@ -30,6 +30,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import audit, storage
+from app.core.timefmt import iso_utc
 from app.auth.deps import current_user, raw_token, require_profile_maker, require_profile_member
 from app.control.approvals import SUBJECT_RESOLVERS, ensure_approval, submit_approval
 from app.control.profile_config import effective_model, prompt_override
@@ -130,7 +131,7 @@ def _case_payload(db: Session, case: Case) -> dict:
         "name": case.name,
         "status": case.status,
         "input_file_name": case.input_file_name,
-        "created_at": case.created_at.isoformat(),
+        "created_at": iso_utc(case.created_at),
         "has_input": has_input,
         "has_case_text": (cd / "case_text.md").is_file(),
         "has_analysis": (cd / "analysis.md").is_file(),
@@ -537,7 +538,7 @@ def start_analyze(
             analysis_prompt = prompt_override(
                 jdb, profile_id, "docgen.credit_analysis.prompt")
         case_text = case_text_path.read_text(encoding="utf-8")
-        analysis = credit_analysis.analyze_case(
+        analysis, usage = credit_analysis.analyze_case(
             case_text,
             get_provider(),
             analysis_model,
@@ -550,7 +551,13 @@ def start_analyze(
             row = jdb.get(Case, case_id)
             if row is not None:
                 _advance_status(row, "analyzed")
-        return {"analysis_chars": len(analysis)}
+            # Recorded here rather than at submit, because that is the earliest
+            # the token cost exists. A distinct action keeps it from being
+            # counted as a second run of case.analyze.
+            audit.record(jdb, user, "case.analyze.done", profile_id=profile_id,
+                         subject_type="case", subject_id=case_id,
+                         token=token, usage={"model": analysis_model, **usage})
+        return {"analysis_chars": len(analysis), "token_usage": usage}
 
     try:
         job = runner.submit(
@@ -644,7 +651,7 @@ def start_select(
                 jdb, profile_id, "docgen.selector.prompt")
         case_text = case_text_path.read_text(encoding="utf-8")
         try:
-            result = selector.select_documents(
+            result, usage = selector.select_documents(
                 case_text,
                 descriptors,
                 get_provider(),
@@ -666,9 +673,13 @@ def start_select(
             row = jdb.get(Case, case_id)
             if row is not None:
                 _advance_status(row, "selected")
+            audit.record(jdb, user, "case.select.done", profile_id=profile_id,
+                         subject_type="case", subject_id=case_id,
+                         token=token, usage={"model": selection_model, **usage})
         return {
             "selected": len(result.get("selected_documents") or []),
             "ambiguous": len(result.get("ambiguous_documents") or []),
+            "token_usage": usage,
         }
 
     try:
@@ -828,6 +839,12 @@ def _make_fill_fn(
                     unfilled_fields=len(result.unfilled_fields),
                 )
             )
+            # None for `user`: this runs in a job factory that is given only
+            # user_id, and audit.record ignores the argument anyway — identity
+            # is derived from the verified token by audit-service.
+            audit.record(jdb, None, "case.fill.done", profile_id=profile_id,
+                         subject_type="case", subject_id=case_id,
+                         token=token, usage={"model": fill_model, **result.usage})
             # Approval record starts (and stays) draft until the maker submits.
             ensure_approval(
                 jdb,
@@ -1010,7 +1027,7 @@ def list_documents(
                 "approval_state": a.state if a else "draft",
                 "approval_id": a.id if a else None,
                 "approval_comment": a.comment if a else "",
-                "created_at": d.created_at.isoformat(),
+                "created_at": iso_utc(d.created_at),
             }
         )
     # Fill jobs still queued/running for this case (runner-submitted).
@@ -1029,7 +1046,7 @@ def list_documents(
             "job_id": j.id,
             "task_key": j.key[len(prefix):] if j.key.startswith(prefix) else j.key,
             "status": j.status,
-            "created_at": j.created_at.isoformat(),
+            "created_at": iso_utc(j.created_at),
         }
         for j in active
     ]
@@ -1086,7 +1103,7 @@ def list_my_documents(
             "template_name": d.template_name,
             "instance_label": d.instance_label,
             "file_name": d.file_name,
-            "created_at": d.created_at.isoformat(),
+            "created_at": iso_utc(d.created_at),
         }
         for d, case_name in latest.values()
     ]

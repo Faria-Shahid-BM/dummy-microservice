@@ -43,6 +43,7 @@ class _OutboxBase(DeclarativeBase):
 
 _OUTBOX = outbox.outbox_table(_OutboxBase.metadata)
 _OutboxBase.metadata.create_all(_outbox_engine)
+outbox.ensure_columns(_outbox_engine)
 
 
 @asynccontextmanager
@@ -54,14 +55,32 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-def audit(token, action, resource=None, metadata=None):
+def audit(token, action, resource=None, metadata=None, usage=None):
     db = _OutboxSessionLocal()
     try:
         outbox.enqueue(db, _OUTBOX, service="policyqa-service", action=action, token=token,
-                        resource=resource, detail=metadata)
+                        resource=resource, detail=metadata, usage=usage)
         db.commit()
     finally:
         db.close()
+
+
+def _usage_of(result: dict) -> dict | None:
+    """What one answered question cost, for the admin usage view.
+
+    Mirrors case_store.usage_from_result, kept separate because policy Q&A is
+    not a case reviewer and shares none of that router.
+    """
+    spent = (result.get("token_usage") or {}).get("total")
+    if not spent or not spent.get("total"):
+        return None
+    models = (result.get("token_usage") or {}).get("models") or {}
+    return {
+        "model": ", ".join(sorted(set(models.values()))) or None,
+        "prompt": spent.get("prompt", 0),
+        "completion": spent.get("completion", 0),
+        "total": spent.get("total", 0),
+    }
 
 def _user_index_dir(username: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", username) or "user"   # safe folder name
@@ -110,7 +129,7 @@ def chat(body: ChatBody, user=Depends(require_scope("policy_qa")), token: str | 
     audit(token, "chat", metadata={
         "input": {"query": body.query, "history_turns": len(body.history)},
         "output": result,
-    })
+    }, usage=_usage_of(result))
     return result
 
 # ── chat/stream: same answer, but the reply streams live as SSE ─────
@@ -139,7 +158,7 @@ async def chat_stream(
         audit(token, "chat_stream", metadata={
             "input": {"query": body.query, "history_turns": len(body.history)},
             "output": result,
-        })
+        }, usage=_usage_of(result))
         return result
 
     return await sse_stream(run)

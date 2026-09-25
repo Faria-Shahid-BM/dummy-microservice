@@ -120,6 +120,7 @@ def init_db() -> None:
         for name, ddl_type in _ADDED_COLUMNS:
             if name not in existing:
                 conn.execute(text(f"ALTER TABLE cases ADD COLUMN {name} {ddl_type}"))
+    outbox.ensure_columns(_engine)
 
 
 def get_db():
@@ -270,7 +271,7 @@ def write_slot_file(
 
 
 def _audit(db: Session, service: str, token: str | None, action: str, resource: str | None = None,
-           metadata: dict | None = None) -> None:
+           metadata: dict | None = None, usage: dict | None = None) -> None:
     """Enqueue an audit event in ``db``'s own transaction — call this
     BEFORE db.commit(), never after, so the business write and "this must
     be audited" are atomic (see outbox.py). A background relay (started in
@@ -278,7 +279,32 @@ def _audit(db: Session, service: str, token: str | None, action: str, resource: 
     best-effort/retried, but it can never silently vanish because the
     committed action succeeded — this insert already happened with it."""
     outbox.enqueue(db, _OUTBOX, service=service, action=action, token=token,
-                    resource=resource, detail=metadata)
+                    resource=resource, detail=metadata, usage=usage)
+
+
+def usage_from_result(result: dict) -> dict | None:
+    """The standard `to_usage` for a reviewer that reports its own spend.
+
+    Reads the convention the LLM engines share — `token_usage.total` for the
+    figures and `models` for what produced them — so the three reviewers don't
+    each carry a copy of the same six lines. A service whose engine reports
+    neither gets None, which the admin view reads as "not measured" rather than
+    as "free".
+
+    Both models are reported because a review spends on both and they are
+    configured independently; attributing the whole cost to one of them would
+    misread which choice is expensive.
+    """
+    spent = (result.get("token_usage") or {}).get("total")
+    if not spent:
+        return None
+    models = result.get("models") or {}
+    return {
+        "model": ", ".join(sorted(set(models.values()))) or None,
+        "prompt": spent.get("prompt", 0),
+        "completion": spent.get("completion", 0),
+        "total": spent.get("total", 0),
+    }
 
 
 def _emit_event(emit: EmitFn | None, payload: dict) -> None:
@@ -454,6 +480,7 @@ def make_case_router(
     min_slots_ready: list[str],
     analyze: AnalyzeFn,
     to_audit_output: Callable[[dict], dict] | None = None,
+    to_usage: Callable[[dict], dict | None] | None = None,
     before_list: Callable[[str, str | None, Session], None] | None = None,
     allow_extra_pairs: bool = True,
 ) -> APIRouter:
@@ -472,6 +499,13 @@ def make_case_router(
     DTO — e.g. doc_rev-service's `CompareAuditOutput.model_validate(result)`
     — so what's audited is declared as real fields, not filtered out of the
     full result by key name.
+
+    `to_usage`: the same idea for what the review COST — returns
+    `{model, prompt, completion, total}` for the admin usage view, or None from
+    a service that doesn't measure it yet (which reads as "not measured",
+    never as "free"). Kept out of the audit metadata so the figures survive a
+    service changing what it audits, and so they can be summed in SQL instead
+    of parsed out of every row's JSON.
 
     `before_list`: optional hook run at the top of `GET /cases`, given
     `(user_sub, raw_token, db)` — lets a service mirror an external source
@@ -983,6 +1017,7 @@ def make_case_router(
                 _merge_outcomes(case_id, baseline, updates, "analyzing", audit=dict(
                     service=service_scope, token=token, action="case.analyze", resource=label,
                     metadata={"input": analyze_input, "output": audit_output},
+                    usage=to_usage(result) if to_usage else None,
                 ))
                 _emit_event(emit, {"stage": "pair_result", "pair": i, "result": result})
 

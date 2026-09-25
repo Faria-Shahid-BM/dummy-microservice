@@ -48,7 +48,11 @@ import openpyxl
 from dateutil import parser as _date_parser
 
 from engines.extraction import extract_document              # ✅
-from engines.util import parse_json_response        # ✅
+from engines.token_usage import add_usage, call_with_usage, new_usage
+from engines.valuation_completeness import (check_valuation_document,
+                                            page_count_or_reject,
+                                            require_readable_text)
+from engines.util import EngineParseError, parse_json_response  # ✅
 
 if TYPE_CHECKING:  # pragma: no cover — typing only; engines stay import-pure
     from app.llm.base import LLMProvider
@@ -128,7 +132,7 @@ def _clean_report_text(text: str) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def extract_fields(text: str, provider: "LLMProvider", model: str, *,
-                   prompt: str | None = None) -> dict[str, Any]:
+                   prompt: str | None = None) -> tuple[dict[str, Any], dict[str, int]]:
     """Extract the 13-field set from the valuation report text.
 
     Returns the parsed JSON dict (the raw LLM extraction, possibly with missing
@@ -140,19 +144,15 @@ def extract_fields(text: str, provider: "LLMProvider", model: str, *,
     template = prompt if prompt is not None else _load_prompt("valuation_extraction.md")
     prompt = template.replace(
         "{report_text}", (text or "")[:MAX_PROMPT_CHARS])
-    try:
-        response = provider.call(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-        )
-    except Exception:
-        return {}
+    response, usage = call_with_usage(
+        provider, model, [{"role": "user", "content": prompt}])
+    if response is None:
+        return {}, usage
 
     try:
-        return parse_json_response(response)
+        return parse_json_response(response), usage
     except EngineParseError:
-        return {}
+        return {}, usage
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -456,21 +456,49 @@ def review_valuation(
     effective_panel: Path = (
         Path(panel_path) if panel_path is not None else DEFAULT_PANEL_PATH)
 
+    # Per-step token spend, in pipeline order. Steps that make no LLM call are
+    # still reported, so a zero reads as "free" rather than "not measured".
+    usage_by_step: dict[str, dict[str, int]] = {}
+    total_usage = new_usage()
+
+    def _record(step: str, spent: dict[str, int]) -> None:
+        usage_by_step[step] = spent
+        add_usage(total_usage, spent)
+        _emit_event(emit, {"stage": "usage", "step": step,
+                           "usage": dict(spent), "cumulative": dict(total_usage)})
+
     # STEP 1-2 — report text (shared extractor, OCR fallback) + ported cleanup.
     _emit_event(emit, {"stage": "extract_text", "document": "valuation_report"})
-    text = _clean_report_text(
-        extract_document(Path(report_path), provider, models["vision"], emit=emit).text)
+    transcription = extract_document(
+        Path(report_path), provider, models["vision"], emit=emit)
+    text = _clean_report_text(transcription.text)
+    # Zero when the report had a usable text layer: no vision call ran.
+    _record("extract_text", transcription.usage)
+
+    # CHECK 1 — both the text layer and the transcription came back empty, so
+    # there is nothing to extract from. Before the LLM call, so an unreadable
+    # document costs nothing rather than producing a report of nulls.
+    require_readable_text(
+        text, page_count_or_reject(Path(report_path)), name=Path(report_path).name)
 
     # STEP 3-4 — extract the structured fields from the report text.
     _emit_event(emit, {"stage": "extract_fields"})
     # Pass the override only when set — the None call shape is unchanged
     # (callers/tests may stub extract_fields with the original signature).
     if prompt is None:
-        data = extract_fields(text, provider, models["extraction"])
+        data, extraction_usage = extract_fields(text, provider, models["extraction"])
     else:
-        data = extract_fields(text, provider, models["extraction"], prompt=prompt)
+        data, extraction_usage = extract_fields(
+            text, provider, models["extraction"], prompt=prompt)
+    _record("extract_fields", extraction_usage)
     if not isinstance(data, dict):
         data = {}
+
+    # CHECK 2 — is this a valuation report at all? Every business document has
+    # a name, an address, an amount and a date, so a deed posted here extracts
+    # happily and the report fills. These three record the ACT of valuing, not
+    # the property, which any property document describes.
+    identity_found, identity_missing = check_valuation_document(data)
 
     # STEP 5 — valuator comments (top-level, not under extracted_fields).
     valuator_comments = data.get("valuator_comments") or ""
@@ -540,4 +568,12 @@ def review_valuation(
         "policy_review": policy_review,
         "cushion_calculation": cushion_calculation,
         "lending_limit": lending_limit,
+        "token_usage": {"by_step": usage_by_step, "total": total_usage},
+        # Recorded even on success, so a reader can see how confidently the
+        # upload was identified as a valuation report rather than assuming it.
+        "identity_check": {
+            "found": identity_found,
+            "missing": identity_missing,
+            "score": len(identity_found),
+        },
     }

@@ -290,6 +290,32 @@ def is_scanned_pdf(path: Path) -> bool:
     return pdf_text_density(path) < TEXT_DENSITY_THRESHOLD
 
 
+def pdf_page_count(path: Path) -> int:
+    """Page count alone, for a caller that needs it without the density scan."""
+    return _pdf_stats(path)[0]
+
+
+#: Under this many characters in total, a document is too short to have come
+#: from a real text layer however few pages it has.
+MIN_TOTAL_CHARS: int = 200
+
+
+def text_is_thin(text: str, page_count: int, *, min_total: int = MIN_TOTAL_CHARS,
+                 min_per_page: float = TEXT_DENSITY_THRESHOLD) -> bool:
+    """Is this extracted text too thin to have come from a readable document?
+
+    Judges text the caller ALREADY holds rather than re-reading the file. That
+    matters: two PDF libraries disagreeing about the same document shows up as
+    an OCR bill on a file that had perfectly good text. One reader, one verdict.
+
+    Free — no file access and no model call.
+    """
+    stripped = text.strip()
+    if len(stripped) < min_total:
+        return True
+    return len(stripped) / max(page_count, 1) < min_per_page
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Page-by-page transcription
 # ──────────────────────────────────────────────────────────────────────────────

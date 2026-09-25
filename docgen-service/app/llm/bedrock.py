@@ -21,6 +21,7 @@ from app.llm.base import (
     READ_TIMEOUT,
     LLMError,
     StreamItem,
+    TokenUsage,
     backoff_seconds,
     concurrency_slot,
 )
@@ -98,6 +99,18 @@ def _convert_messages(
         else:
             converted.append({"role": role, "content": blocks})
     return system, converted
+
+
+def _usage_from_converse(reported: dict | None) -> TokenUsage:
+    """Token counts out of a Converse `usage` block (inputTokens/outputTokens)."""
+    reported = reported or {}
+    prompt = reported.get("inputTokens") or 0
+    completion = reported.get("outputTokens") or 0
+    return {
+        "prompt": prompt,
+        "completion": completion,
+        "total": reported.get("totalTokens") or prompt + completion,
+    }
 
 
 class BedrockProvider:
@@ -183,6 +196,40 @@ class BedrockProvider:
             )
         return text
 
+    def call_usage(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float = 0.2,
+        max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> tuple[str, TokenUsage]:
+        """``call`` plus token counts, read from Converse's own `usage` block.
+
+        Bedrock names these differently from the OpenAI shape
+        (inputTokens/outputTokens), so this cannot reuse base.usage_from_body.
+        """
+        kwargs = self._converse_kwargs(model, messages, temperature, max_tokens)
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                with concurrency_slot():
+                    response = self._client.converse(**kwargs)
+                break
+            except (self._ClientError, self._BotoCoreError) as e:
+                code = self._error_code(e)
+                retryable = isinstance(e, self._BotoCoreError) or code in _RETRYABLE_CODES
+                if retryable and attempt < MAX_RETRIES:
+                    time.sleep(backoff_seconds(attempt))
+                    continue
+                raise LLMError(f"bedrock converse failed ({code or type(e).__name__}): {e}") from e
+        blocks = ((response.get("output") or {}).get("message") or {}).get("content") or []
+        text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict))
+        if not text:
+            raise LLMError(
+                f"model returned no text content (stopReason={response.get('stopReason', 'unknown')})"
+            )
+        return text, _usage_from_converse(response.get("usage"))
+
     def stream(
         self,
         model: str,
@@ -190,8 +237,12 @@ class BedrockProvider:
         temperature: float = 0.2,
         max_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        usage_sink: TokenUsage | None = None,
     ) -> Iterator[StreamItem]:
         """ConverseStream; yields {"type": "reasoning"|"content", "text": str}.
+
+        ConverseStream reports its token counts in a trailing ``metadata``
+        event; when ``usage_sink`` is given it is filled in from that.
 
         Retries transient failures only before the first item is yielded; any
         error after that raises so committed tokens are never duplicated.
@@ -207,6 +258,9 @@ class BedrockProvider:
                             if key in event:
                                 msg = (event[key] or {}).get("message", "")
                                 raise LLMError(f"bedrock stream error ({key}): {msg}")
+                        if usage_sink is not None and "metadata" in event:
+                            usage_sink.update(
+                                _usage_from_converse((event["metadata"] or {}).get("usage")))
                         delta = (event.get("contentBlockDelta") or {}).get("delta") or {}
                         reasoning = (delta.get("reasoningContent") or {}).get("text")
                         if reasoning:

@@ -24,6 +24,31 @@ from app.core.config import settings
 # saved/parsed artifact; "reasoning" items are for live display only.
 StreamItem = dict[str, str]
 
+#: Token counts for one call. A plain dict so every backend can fill it without
+#: importing a shared model, and so it serialises straight into the audit event.
+TokenUsage = dict[str, int]
+
+
+def new_usage() -> TokenUsage:
+    return {"prompt": 0, "completion": 0, "total": 0}
+
+
+def usage_from_body(body: dict | None) -> TokenUsage:
+    """Token counts out of an OpenAI-shaped response body.
+
+    ``total_tokens`` is derived when the provider omits it. Backends whose
+    responses are shaped differently (Bedrock) supply their own extraction
+    rather than reusing this.
+    """
+    reported = (body or {}).get("usage") or {}
+    prompt = reported.get("prompt_tokens") or 0
+    completion = reported.get("completion_tokens") or 0
+    return {
+        "prompt": prompt,
+        "completion": completion,
+        "total": reported.get("total_tokens") or prompt + completion,
+    }
+
 MAX_RETRIES = 3
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 CONNECT_TIMEOUT = 30.0
@@ -53,6 +78,22 @@ class LLMProvider(Protocol):
         """Non-streaming chat completion; returns the message content string."""
         ...
 
+    def call_usage(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float = 0.2,
+        max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> tuple[str, TokenUsage]:
+        """``call`` plus the token counts the response already carries.
+
+        Separate from ``call`` so the existing single-value contract is
+        unchanged. A backend that does not report usage returns zeros, which the
+        admin usage view reads as "not measured" rather than as "free".
+        """
+        ...
+
     def stream(
         self,
         model: str,
@@ -60,10 +101,15 @@ class LLMProvider(Protocol):
         temperature: float = 0.2,
         max_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        usage_sink: TokenUsage | None = None,
     ) -> Iterator[StreamItem]:
         """Streaming chat completion; yields StreamItem dicts as they arrive.
 
         Retries are pre-first-item only (see module docstring).
+
+        A streamed response reports its token counts only if asked, and only in
+        a final chunk carrying no choices. When ``usage_sink`` is given it is
+        filled in from that chunk; callers that pass nothing are unaffected.
         """
         ...
 

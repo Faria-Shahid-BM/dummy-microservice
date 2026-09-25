@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from engines.util import parse_json_response
+from engines.token_usage import new_usage
 
 if TYPE_CHECKING:
     from app.llm.base import LLMProvider
@@ -98,12 +99,22 @@ def _complete(
     model: str,
     messages: list[dict[str, Any]],
     emit: EmitFn | None,
-) -> str:
-    """call() when emit is None; stream() otherwise, forwarding each item."""
+) -> tuple[str, dict[str, int]]:
+    """call() when emit is None; stream() otherwise, forwarding each item.
+
+    Returns the text and what it cost. A backend without ``call_usage``
+    reports zeros rather than failing, so switching provider can never break
+    the pipeline over accounting.
+    """
     if emit is None:
-        return provider.call(model=model, messages=messages, temperature=0.0)
+        call_usage = getattr(provider, "call_usage", None)
+        if callable(call_usage):
+            return call_usage(model=model, messages=messages, temperature=0.0)
+        return provider.call(model=model, messages=messages, temperature=0.0), new_usage()
+    usage = new_usage()
     parts: list[str] = []
-    for item in provider.stream(model=model, messages=messages, temperature=0.0):
+    for item in provider.stream(model=model, messages=messages, temperature=0.0,
+                                usage_sink=usage):
         kind = item.get("type", "")
         text = item.get("text", "")
         if not text:
@@ -112,7 +123,7 @@ def _complete(
             parts.append(text)
         if kind in ("reasoning", "content"):
             emit(kind, text)
-    return "".join(parts)
+    return "".join(parts), usage
 
 
 def select_documents(
@@ -139,5 +150,5 @@ def select_documents(
         prompt if prompt is not None else _system_instruction(),
         domain_knowledge, descriptors_text, case_text,
     )
-    response = _complete(provider, model, messages, emit)
-    return parse_json_response(response, required_keys=("selected_documents",))
+    response, usage = _complete(provider, model, messages, emit)
+    return parse_json_response(response, required_keys=("selected_documents",)), usage
