@@ -43,7 +43,7 @@ Every LLM-backed reviewer **verifies the uploaded document is the kind it expect
 Two more services sit alongside: **docgen-service** (`/api/profiles,jobs,templates,approvals,notifications`) for template-driven document generation, and **config-service** (`/api/config`) for per-user model selection. Both are JWT-protected the same way.
 
 - The **frontend** container (Angular, built to static files, served by nginx) is the only container that publishes a host port; it reverse-proxies everything under `/api/*` to Kong over the internal Docker network. Kong itself publishes no host ports.
-- Kong verifies the **RS256 JWT signature** (against a public key in `kong.yml`; only auth-service holds the private key) on every protected route. A Kong `pre-function` copies the JWT out of the httpOnly `access_token` cookie into the `Authorization` header, so the browser never handles the raw token.
+- Kong verifies the **RS256 JWT signature** (against a public key injected into its config at startup by the `keygen` init service; only auth-service holds the private key) on every protected route. A Kong `pre-function` copies the JWT out of the httpOnly `access_token` cookie into the `Authorization` header, so the browser never handles the raw token.
 - **Defence in depth:** each protected service *also* re-verifies the JWT and checks the caller's **scope** (`security.py`) — a validly-signed token still can't reach a service the user isn't authorized for (403).
 - **auth-service** issues tokens and hosts an **admin-only** user-management API backed by SQLite.
 - The business services emit **audit events** to **audit-service** through a **transactional outbox** (`outbox.py`) — the event is written in the same DB transaction as the action it records, then a background relay delivers it, so an event is never silently lost because a service was briefly unreachable. audit-service stores them in SQLite, including each review's **token cost** in dedicated columns.
@@ -64,7 +64,7 @@ Two more services sit alongside: **docgen-service** (`/api/profiles,jobs,templat
 | `docgen-service`        | `docgen-service/`    | `/api/profiles,jobs,templates,approvals,notifications` | JWT | Template-driven document generation: analyse a case, select a template, fill it, maker-checker approval. Background jobs; own Alembic-migrated SQLite. |
 | `config-service`        | `config-service/`    | `/api/config/*`           | JWT  | Per-user model selection for every reviewer; resolves user override → deployment default. Admin overview of all users' models. |
 | `audit-service`         | `audit-service/`     | `/api/audit/*` (GET)      | JWT (edge + service) | Durable audit log in **SQLite** (not a flat file), fed by each service's transactional outbox. Records per-event token cost; `/audit/usage` (admin) aggregates spend per user per reviewer. POST is internal-network only and derives `user_id` from the producer's verified token. |
-| `kong`                  | (image `kong:3`)     | internal only (`http://kong:80`)| —    | API gateway, DB-less declarative config (`kong.yml`). No host port — reached only via the `frontend` container's nginx proxy. |
+| `kong`                  | (image `kong:3`)     | internal only (`http://kong:80`)| —    | API gateway, DB-less declarative config (rendered from `kong.template.yml` at startup). No host port — reached only via the `frontend` container's nginx proxy. |
 | `frontend`              | `frontend/`          | `:80` (public)            | —    | Angular app built to static files and served by nginx; reverse-proxies `/api/*` to Kong. The only container that publishes a host port. |
 
 > **`strip_path: true`** — Kong removes the route prefix before forwarding. So `POST /api/collateral/cases` reaches the service as `POST /cases`, `POST /api/auth/login` → `POST /login`, etc.
@@ -150,7 +150,7 @@ These are only the **seed**. An `admin` can add/remove users and toggle any user
 
 1. The client posts credentials to `auth-service`, which verifies them (argon2id) against the SQLite store and returns an **RS256** JWT — signed with a **private key only auth-service holds**, issuer `poc-issuer`, containing `sub` (username) and `scopes`. The token is set as an **httpOnly `access_token` cookie** (`SameSite=Lax`), so browser JS never sees it.
 2. The browser sends the cookie automatically on subsequent requests.
-3. A Kong **`pre-function`** copies the cookie's value into an `Authorization: Bearer …` header, then **Kong's JWT plugin** verifies the signature against the consumer's **RSA public key** (matched by the `iss` claim) — see [`kong.yml`](kong.yml).
+3. A Kong **`pre-function`** copies the cookie's value into an `Authorization: Bearer …` header, then **Kong's JWT plugin** verifies the signature against the consumer's **RSA public key** (matched by the `iss` claim), which the `keygen` init service injects into Kong's config at startup — see [`kong.template.yml`](kong.template.yml).
 4. The upstream service (`security.py`) independently re-decodes the token, checks `exp`/`iss`, and enforces the required **scope**.
 
 > **Key rotation:** the public key lives inline in `kong.yml` while the private key lives in `keys/` (gitignored). The two must be a matching pair, or every request fails signature verification — `docker compose restart kong` after changing `kong.yml`, since it's mounted, not baked in.
@@ -201,7 +201,7 @@ Every LLM reply already reports its token count; the reviewers now surface it in
 - **Audit → SQLite.** `audit-service` stores events (with per-event token cost) in a SQLite DB on a host-mounted volume ([`audit-logs/`](audit-logs/)). Producers deliver via a **transactional outbox** ([`outbox.py`](outbox.py)) with a background relay, so an event is durable against audit-service being briefly down.
 - **Config → SQLite.** `config-service` stores per-user model overrides on the `config-data` volume; the default for each role comes from the service's environment.
 - **Docgen → SQLite (Alembic).** `docgen-service` uses Alembic migrations on the `docgen-data` volume — the one service with real migrations rather than `create_all` + hand-written `ALTER TABLE`.
-- **Kong → DB-less.** Kong runs in declarative mode from [`kong.yml`](kong.yml); no Kong database.
+- **Kong → DB-less.** Kong runs in declarative mode from a config rendered at startup from [`kong.template.yml`](kong.template.yml) (the `keygen` init service injects the JWT public key); no Kong database.
 
 ---
 
@@ -295,7 +295,7 @@ Key values (hard-coded for the POC — change before any real use):
 
 | Setting                       | Value                              | Where                                     |
 |-------------------------------|------------------------------------|-------------------------------------------|
-| JWT signing                   | **RS256** — private key `keys/jwt-private.pem` (gitignored); public key inline in `kong.yml` | `keys/`, `kong.yml`, `docker-compose.yml` env |
+| JWT signing                   | **RS256** — keypair auto-generated by the `keygen` init service into private/public Docker volumes on first boot (reused after); never in the repo or an image | `scripts/keygen_init.py`, `docker-compose.yml` |
 | JWT issuer (`iss`)            | `poc-issuer`                       | `kong.yml`, `docker-compose.yml` env      |
 | Kong consumer                 | `poc-user`                         | `kong.yml`                                |
 | Token delivery                | httpOnly `access_token` cookie, `SameSite=Lax`, 2 h expiry | `auth-service/main.py`   |

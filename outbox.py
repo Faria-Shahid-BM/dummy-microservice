@@ -41,8 +41,8 @@ import uuid
 from datetime import datetime, timezone
 
 import httpx
-from sqlalchemy import (Column, DateTime, JSON, MetaData, String, Table, Text,
-                        insert, inspect, select, text, update)
+from sqlalchemy import (JSON, Column, DateTime, Integer, MetaData, String, Table,
+                        Text, insert, inspect, select, text, update)
 
 from audit_client import AUDIT_BASE
 
@@ -74,6 +74,12 @@ def outbox_table(metadata: MetaData, name: str = "audit_outbox") -> Table:
         # outside this table.
         Column("token", Text, nullable=True),
         Column("sent_at", DateTime(timezone=True), nullable=True),
+        # Delivery-failure accounting. A row that can never succeed (e.g. its
+        # token no longer verifies after a key rotation) must not block every
+        # later event forever — after MAX_ATTEMPTS it is dead-lettered
+        # (failed_at set) and the relay steps past it.
+        Column("attempts", Integer, nullable=False, default=0),
+        Column("failed_at", DateTime(timezone=True), nullable=True),
     )
 
 
@@ -81,7 +87,7 @@ def outbox_table(metadata: MetaData, name: str = "audit_outbox") -> Table:
 # missing TABLES, never new columns on one that already exists — so a service
 # whose outbox predates a column here would fail every enqueue without this.
 # Same cheap stand-in for migration tooling as case_store's _ADDED_COLUMNS.
-_ADDED_COLUMNS = (("usage", "JSON"),)
+_ADDED_COLUMNS = (("usage", "JSON"), ("attempts", "INTEGER DEFAULT 0"), ("failed_at", "TIMESTAMP"))
 
 
 def ensure_columns(engine, table_name: str = "audit_outbox") -> None:
@@ -144,12 +150,20 @@ async def run_relay(session_factory, table: Table, *, poll_interval: float = 2.0
         await asyncio.sleep(poll_interval)
 
 
+# After this many failed delivery attempts a row is dead-lettered (failed_at
+# set) and the relay stops retrying it, so one undeliverable event can't block
+# every later one forever. ~10 tries at a 2s poll ≈ 20s of transient-failure
+# tolerance before giving up on a single row.
+MAX_ATTEMPTS = 10
+
+
 def _deliver_batch(session_factory, table: Table, *, batch_size: int = 50) -> None:
     db = session_factory()
     try:
         rows = db.execute(
             select(table)
-            .where(table.c.sent_at.is_(None))
+            # Skip both delivered rows and dead-lettered ones.
+            .where(table.c.sent_at.is_(None), table.c.failed_at.is_(None))
             .order_by(table.c.created_at)
             .limit(batch_size)
         ).mappings().all()
@@ -173,11 +187,55 @@ def _deliver_batch(session_factory, table: Table, *, batch_size: int = 50) -> No
                 )
                 resp.raise_for_status()
             except Exception:
-                logger.warning("outbox relay: delivery failed for %s, will retry", row["id"])
-                break  # stop the batch here so delivery order is preserved on retry
+                attempts = (row["attempts"] or 0) + 1
+                if attempts >= MAX_ATTEMPTS:
+                    # Give up on this one row and let the queue advance past it,
+                    # rather than blocking every later event behind it forever.
+                    # Logged at ERROR because a dropped audit event is worth an
+                    # alert — this is where a real deployment would page someone.
+                    logger.error(
+                        "outbox relay: DEAD-LETTERING event %s after %d attempts "
+                        "(service=%s action=%s) — audit event will NOT be delivered",
+                        row["id"], attempts, row["service"], row["action"])
+                    db.execute(update(table).where(table.c.id == row["id"])
+                               .values(attempts=attempts, failed_at=datetime.now(timezone.utc),
+                                       token=None))
+                    db.commit()
+                    continue  # move on to the next row
+                logger.warning("outbox relay: delivery failed for %s (attempt %d), will retry",
+                               row["id"], attempts)
+                db.execute(update(table).where(table.c.id == row["id"]).values(attempts=attempts))
+                db.commit()
+                break  # stop here so delivery order is preserved for the retry
+            # Clear the token on success: it was only needed to authenticate
+            # this delivery, and a delivered row lingering with a live token in
+            # plaintext is a standing credential leak (read the DB file, get
+            # working tokens). Null it the moment it's no longer needed.
             db.execute(
-                update(table).where(table.c.id == row["id"]).values(sent_at=datetime.now(timezone.utc))
+                update(table).where(table.c.id == row["id"])
+                .values(sent_at=datetime.now(timezone.utc), token=None)
             )
             db.commit()
     finally:
         db.close()
+
+
+def apply_sqlite_pragmas(engine) -> None:
+    """WAL + a busy timeout for a SQLite engine.
+
+    Default SQLite locks the whole database file for a write and errors
+    immediately if another connection holds it — which surfaces as random 500s
+    when the outbox relay writes while a request handler commits. WAL lets reads
+    and one writer proceed together; busy_timeout makes a second writer wait
+    briefly instead of failing. No-op for a non-SQLite URL.
+    """
+    from sqlalchemy import event
+    if not str(engine.url).startswith("sqlite"):
+        return
+
+    @event.listens_for(engine, "connect")
+    def _set(dbapi_conn, _record):  # pragma: no cover - trivial
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.close()

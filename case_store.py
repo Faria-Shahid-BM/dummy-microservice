@@ -54,10 +54,34 @@ from sqlalchemy import JSON, DateTime, String, create_engine, inspect, select, t
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from security import get_raw_token, require_scope
-from streaming import sse_stream
+from streaming import safe_error_message, sse_stream
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/app.db")
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
+
+# Cap on a single upload. `await file.read()` otherwise pulls the whole body
+# into memory unbounded, so a 2 GB "PDF" OOMs the single worker. 50 MB matches
+# docgen's own limit. Overridable per deployment.
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "50")) * 1024 * 1024
+
+
+async def _read_capped(file, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
+    """Read an upload in chunks, rejecting (413) once it exceeds the cap —
+    without ever holding more than the cap in memory."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)  # 1 MiB
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File is larger than the {max_bytes // (1024 * 1024)} MB limit.",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 _engine = create_engine(
     DATABASE_URL,
@@ -66,6 +90,7 @@ _engine = create_engine(
 # expire_on_commit=False: several handlers read attributes off a row (e.g.
 # case.name for an audit call) right after commit() — no need to force a
 # re-fetch for a single-process SQLite-backed service this size.
+outbox.apply_sqlite_pragmas(_engine)
 SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
 
 
@@ -121,6 +146,16 @@ def init_db() -> None:
             if name not in existing:
                 conn.execute(text(f"ALTER TABLE cases ADD COLUMN {name} {ddl_type}"))
     outbox.ensure_columns(_engine)
+
+    # Orphan recovery: a case is flipped to "analyzing" before the run starts,
+    # and the in-memory progress is lost on restart. Without this, any case a
+    # restart interrupted stays "analyzing" forever — it can't be deleted,
+    # re-analyzed or re-uploaded (all 409). Flip stale ones to "failed", which
+    # IS recoverable (ANALYZABLE_STATUSES), so the user can simply re-run.
+    with _engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE cases SET status = 'failed' WHERE status = 'analyzing'"
+        ))
 
 
 def get_db():
@@ -673,7 +708,7 @@ def make_case_router(
         if index < 0 or index > len(pairs):
             raise HTTPException(status_code=404, detail=f"No pair {index + 1} on this case")
         suffix = _check_suffix(slot, file.filename or "")
-        content = await file.read()
+        content = await _read_capped(file)
 
         # Pair 0 is the case's own slots, which live in the case directory and in
         # `uploads` directly — /pairs/0/uploads/{slot} is accepted as an alias for
@@ -697,7 +732,11 @@ def make_case_router(
         if index == 0 and all(s in _main_uploads(case) for s in min_slots_ready):
             case.status = "ready"
 
-        attachment_id = audit_client.upload_attachment(filename, content)
+        # Off the event loop: upload_attachment is a blocking httpx POST with a
+        # 10s timeout, and these handlers are async on a single worker — run it
+        # inline and one slow audit-service call freezes every other request.
+        attachment_id = await asyncio.to_thread(
+            audit_client.upload_attachment, filename, content, token)
         attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
         label = f"{case.name}:{slot}" if index == 0 else f"{case.name}:pair{index + 1}:{slot}"
         _audit(db, service_scope, token, "case.upload", resource=label,
@@ -733,11 +772,15 @@ def make_case_router(
                        f"expected one of: {', '.join(sorted(allowed))}",
             )
 
-        content = await file.read()
+        content = await _read_capped(file)
         filename = file.filename or f"{slot}{suffix}"
         write_slot_file(case, slot, suffix, content, filename, min_slots_ready)
 
-        attachment_id = audit_client.upload_attachment(filename, content)
+        # Off the event loop: upload_attachment is a blocking httpx POST with a
+        # 10s timeout, and these handlers are async on a single worker — run it
+        # inline and one slow audit-service call freezes every other request.
+        attachment_id = await asyncio.to_thread(
+            audit_client.upload_attachment, filename, content, token)
         attachments = [{"filename": filename, "attachment_id": attachment_id}] if attachment_id else []
         # `slot` is already part of the Resource field above; the file itself
         # is the only thing worth showing again here.
@@ -853,7 +896,8 @@ def make_case_router(
         return pending
 
     def _prepare_analyze(
-        case: Case, user_sub: str, db: Session, targets: list[int]
+        case: Case, user_sub: str, db: Session, targets: list[int],
+        token: str | None = None,
     ) -> tuple[dict[int, dict[str, Path]], dict[int, dict]]:
         """Flip the case to `analyzing` and build the targeted pairs' paths +
         audit `input`. Only the targets are validated: a half-filled pair you
@@ -893,7 +937,7 @@ def make_case_router(
         for i, paths in pairs.items():
             attachments = []
             for path in paths.values():
-                attachment_id = audit_client.upload_attachment(path.name, path.read_bytes())
+                attachment_id = audit_client.upload_attachment(path.name, path.read_bytes(), token)
                 if attachment_id:
                     attachments.append({"filename": path.name, "attachment_id": attachment_id})
             inputs[i] = {"attachments": attachments}
@@ -976,7 +1020,7 @@ def make_case_router(
         targets = _resolve_targets(case, pairs)
         # Snapshot before _prepare_analyze flips the status (see _outcomes_snapshot).
         baseline = _outcomes_snapshot(case)
-        pair_paths, pair_inputs = _prepare_analyze(case, user_sub, db, targets)
+        pair_paths, pair_inputs = _prepare_analyze(case, user_sub, db, targets, token)
         # _prepare_analyze just cleared the targets on the case, but this
         # snapshot predates that — and _merge_outcomes writes the baseline for
         # every pair that hasn't finished yet, which would put the old results
@@ -1000,13 +1044,18 @@ def make_case_router(
                 try:
                     result = analyze(paths, _scoped_emit(emit, {"pair": i}), user_sub, token)
                 except Exception as exc:   # one bad pair must not sink the rest
-                    error = f"{type(exc).__name__}: {exc}"
-                    updates[i] = {"error": error}
+                    # Full detail into the audit trail (admin-only, server-side)
+                    # for debugging; only a client-safe message goes to the
+                    # caller and the stored result, so internal URLs/paths from
+                    # an httpx or OS error never reach the browser.
+                    full_error = f"{type(exc).__name__}: {exc}"
+                    client_error = safe_error_message(exc)
+                    updates[i] = {"error": client_error}
                     _merge_outcomes(case_id, baseline, updates, "analyzing", audit=dict(
                         service=service_scope, token=token, action="case.analyze", resource=label,
-                        metadata={"input": analyze_input, "output": {"error": error}},
+                        metadata={"input": analyze_input, "output": {"error": full_error}},
                     ))
-                    _emit_event(emit, {"stage": "pair_error", "pair": i, "error": error})
+                    _emit_event(emit, {"stage": "pair_error", "pair": i, "error": client_error})
                     continue
                 updates[i] = {"result": result}
                 # Persist as each pair finishes, so reloading mid-run shows the

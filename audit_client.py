@@ -27,14 +27,20 @@ def strip_keys(value, keys: set[str]):
     return value
 
 
-def upload_attachment(filename: str, content: bytes) -> str | None:
+def upload_attachment(filename: str, content: bytes, token: str | None = None) -> str | None:
     """Copy a file into audit-service's durable storage so it can be opened
     later from the audit trail. Returns the attachment_id, or None if the
-    upload failed (never raises — same never-break-the-request rule)."""
+    upload failed (never raises — same never-break-the-request rule).
+
+    ``token`` is the caller's forwarded bearer token; audit-service now requires
+    it (a valid signature) so a random process on the network can't write into
+    the store. A missing token means the write is rejected there — which is the
+    intended fail-closed behaviour, not a crash here."""
     try:
         r = httpx.post(
             f"{AUDIT_BASE}/audit/attachments",
             files={"file": (filename, content)},
+            headers={"Authorization": f"Bearer {token}"} if token else {},
             timeout=10.0,
         )
         r.raise_for_status()

@@ -7,8 +7,8 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import (JSON, DateTime, Integer, String, create_engine, func,
-                        inspect, select, text)
+from sqlalchemy import (JSON, DateTime, Integer, String, create_engine, event,
+                        func, inspect, select, text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from security import require_any_token, require_any_token_allow_expired, require_scope
@@ -24,6 +24,18 @@ ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
 _ATTACHMENT_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 _engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
+
+# WAL + busy timeout: the outbox relays from every service write here constantly,
+# and default SQLite would lock the file and 500 on a collision. WAL lets reads
+# proceed alongside a writer; busy_timeout makes a second writer wait, not fail.
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(_engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):  # pragma: no cover - trivial
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.close()
+
 SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
 
 class Base(DeclarativeBase):
@@ -341,7 +353,11 @@ def get_logs(
     subject_type: str | None = None,
     subject_id: str | None = None,
     db: Session = Depends(get_db),
-    token: dict = Depends(require_any_token),
+    # Admin-only, and enforced HERE in the service — not just hidden in the UI.
+    # The whole cross-user audit trail (and every attachment id in it) is
+    # returned, so any non-admin token reading it is a full document leak.
+    # `/audit/usage` already required admin; this route was missed.
+    _admin: dict = Depends(require_scope("admin")),
 ):
     # Filters are all optional and additive — an unfiltered call keeps
     # returning exactly what it always has (the admin UI at
@@ -362,7 +378,8 @@ def get_logs(
 
 
 @app.get("/audit/{entry_id}")
-def get_entry(entry_id: int, db: Session = Depends(get_db), token: dict = Depends(require_any_token)):
+def get_entry(entry_id: int, db: Session = Depends(get_db),
+              _admin: dict = Depends(require_scope("admin"))):
     row = db.get(AuditRow, entry_id)
     if row is None:
         raise HTTPException(404)
@@ -370,7 +387,14 @@ def get_entry(entry_id: int, db: Session = Depends(get_db), token: dict = Depend
 
 
 @app.post("/audit/attachments")
-async def upload_attachment(file: UploadFile = File(...)):
+async def upload_attachment(
+    file: UploadFile = File(...),
+    # Same identity check as POST /audit: only a service holding a valid
+    # (signature+issuer) token may write into the attachment store. Not exposed
+    # through Kong, but this closes the "anything on the Docker network can fill
+    # the disk / plant content" hole.
+    _producer: dict = Depends(require_any_token_allow_expired),
+):
     attachment_id = uuid.uuid4().hex
     with open(os.path.join(ATTACHMENTS_DIR, attachment_id), "wb") as f:
         f.write(await file.read())
@@ -378,10 +402,22 @@ async def upload_attachment(file: UploadFile = File(...)):
 
 
 @app.get("/audit/attachments/{attachment_id}")
-def get_attachment(attachment_id: str, filename: str | None = None):
+def get_attachment(attachment_id: str, filename: str | None = None,
+                   _admin: dict = Depends(require_scope("admin"))):
     if not _ATTACHMENT_ID_RE.fullmatch(attachment_id):
         raise HTTPException(404)
     path = os.path.join(ATTACHMENTS_DIR, attachment_id)
     if not os.path.isfile(path):
         raise HTTPException(404)
-    return FileResponse(path, filename=filename or attachment_id, content_disposition_type="inline")
+    # `attachment`, never `inline`: an uploaded file must download, never render
+    # in the browser. Served inline with a caller-chosen filename, a .txt full
+    # of <script> opened as ?filename=x.html would execute on our origin. The
+    # fixed octet-stream type is the second belt — the browser is never told
+    # it's HTML. The real filename still reaches the user via the header value.
+    safe_name = os.path.basename(filename) if filename else attachment_id
+    return FileResponse(
+        path,
+        filename=safe_name,
+        media_type="application/octet-stream",
+        content_disposition_type="attachment",
+    )

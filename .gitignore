@@ -25,3 +25,9 @@ Thumbs.db
 audit-logs/*.log
 audit-logs/*.db
 audit-logs/attachments/
+
+# SQLite WAL-mode sidecar files (created since journal_mode=WAL) — live DB
+# data, never source. The bare *.db rule above doesn't catch these suffixes.
+*.db-wal
+*.db-shm
+*.db-journal

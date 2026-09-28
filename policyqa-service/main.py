@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import os, re, tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -44,6 +45,7 @@ class _OutboxBase(DeclarativeBase):
 _OUTBOX = outbox.outbox_table(_OutboxBase.metadata)
 _OutboxBase.metadata.create_all(_outbox_engine)
 outbox.ensure_columns(_outbox_engine)
+outbox.apply_sqlite_pragmas(_outbox_engine)
 
 
 @asynccontextmanager
@@ -83,8 +85,15 @@ def _usage_of(result: dict) -> dict | None:
     }
 
 def _user_index_dir(username: str) -> Path:
-    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", username) or "user"   # safe folder name
-    return INDEXES_DIR / safe
+    # A per-user folder name derived from the JWT sub. Two guards beyond the
+    # character filter: (1) collapse any run of dots so "." / ".." can never
+    # survive to escape the parent directory; (2) append a short hash of the
+    # RAW sub so two different usernames that sanitize to the same string
+    # (e.g. "a/b" and "a_b") get distinct folders instead of sharing one.
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "_", username)   # note: dots dropped, not kept
+    cleaned = cleaned.strip("_") or "user"
+    suffix = hashlib.sha256((username or "").encode("utf-8")).hexdigest()[:8]
+    return INDEXES_DIR / f"{cleaned}-{suffix}"
 
 # ── status: does this user have their own index? ──────────────────
 @app.get("/status")
@@ -192,7 +201,7 @@ async def ingest(
         info = policy_qa.build_index(source, idx, _provider, models["embedding"])
     finally:
         tmp_path.unlink(missing_ok=True)               # never leave the raw upload behind
-    attachment_id = audit_client.upload_attachment(file.filename or tmp_path.name, raw)
+    attachment_id = audit_client.upload_attachment(file.filename or tmp_path.name, raw, token)
     attachments = [{"filename": file.filename, "attachment_id": attachment_id}] if attachment_id else []
     audit(token, "ingest", resource=file.filename, metadata={
         "input": {"attachments": attachments},

@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
@@ -205,11 +206,18 @@ def build_extraction_prompt(document_text: str, document_name: str, *,
         indent=2
     )
     template = prompt if prompt is not None else _load_prompt("collateral_extraction.md")
+    # A per-call random fence around the untrusted document, so text inside the
+    # document cannot forge the closing marker to "break out" and pose as
+    # instructions — it can't guess this run's random token. Any stray copy of
+    # the token in the document is stripped first, belt and braces.
+    fence = uuid.uuid4().hex
+    safe_text = (document_text or "").replace(fence, "")
     return (
         template
         .replace("{document_name}", document_name)
         .replace("{schema_template}", schema_template)
-        .replace("{document_text}", document_text)
+        .replace("{fence}", fence)
+        .replace("{document_text}", safe_text)
     )
 
 
@@ -835,6 +843,20 @@ def review_collateral(
     if failures:
         raise DocumentKindError(" ".join(failures))
     warnings = [check.warning for check in checks if check.warning]
+
+    # Pages that failed OCR were silently replaced with placeholders — the
+    # review would otherwise reach a verdict on a document with holes in it and
+    # say nothing. Surface it so a reviewer knows the result rests on partial
+    # text and can re-run, rather than trusting a truncated document.
+    for label, src in (("legal opinion", legal_source),
+                       ("property document", property_source)):
+        if src.pages_failed:
+            n = len(src.pages_failed)
+            warnings.append(
+                f"{n} page(s) of the {label} could not be read "
+                f"(pages {', '.join(map(str, src.pages_failed))}) and were skipped. "
+                f"The review is based on the remaining text — re-run with a clearer "
+                f"scan if those pages carry material terms.")
 
     _start("extract_fields")
     _emit_event(emit, {"stage": "extract_fields"})

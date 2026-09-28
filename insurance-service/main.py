@@ -1,5 +1,6 @@
 # insurance-service/main.py
 import json, os, re, tempfile
+import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,8 +42,15 @@ _EXTRACTED = {".pdf", ".docx"}   # these go through text/OCR extraction first
 
 
 def _user_policy_dir(username: str) -> Path:
-    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", username) or "user"   # safe folder name
-    return POLICIES_DIR / safe
+    # A per-user folder name derived from the JWT sub. Two guards beyond the
+    # character filter: (1) collapse any run of dots so "." / ".." can never
+    # survive to escape the parent directory; (2) append a short hash of the
+    # RAW sub so two different usernames that sanitize to the same string
+    # (e.g. "a/b" and "a_b") get distinct folders instead of sharing one.
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "_", username)   # note: dots dropped, not kept
+    cleaned = cleaned.strip("_") or "user"
+    suffix = hashlib.sha256((username or "").encode("utf-8")).hexdigest()[:8]
+    return POLICIES_DIR / f"{cleaned}-{suffix}"
 
 
 def _policy_meta(username: str) -> dict:

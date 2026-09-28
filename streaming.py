@@ -27,9 +27,32 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any, Callable
 
 from fastapi.responses import StreamingResponse
+
+logger = logging.getLogger("streaming")
+
+# Exception types whose message is written FOR the end user and is safe to show
+# (the document-verification rejections, parse errors, explicit HTTP errors).
+# Anything else can leak internals — an httpx error carries the upstream LLM
+# URL, an OSError a container filesystem path — so it is logged server-side and
+# the caller gets a generic message with no internals in it.
+_SAFE_ERROR_NAMES = frozenset({
+    "HTTPException", "EngineParseError",
+    "DocumentKindError", "InsufficientValuationDetailError",
+    "InsufficientPolicyDetailError", "UnreadableReportError",
+})
+
+
+def safe_error_message(exc: Exception) -> str:
+    """A client-safe message for ``exc``: its own text if it's a known
+    user-facing error, otherwise a generic line (with the real detail logged)."""
+    if type(exc).__name__ in _SAFE_ERROR_NAMES:
+        return str(exc)
+    logger.exception("unhandled engine error")
+    return "The review could not be completed due to an internal error."
 
 # emit(type, text): type in {"event", "content", "reasoning"} (engine contract).
 EmitFn = Callable[[str, str], None]
@@ -60,7 +83,7 @@ async def sse_stream(run_blocking: RunFn) -> StreamingResponse:
             loop.call_soon_threadsafe(queue.put_nowait, ("result", json.dumps(result)))
         except Exception as exc:  # surface engine failures to the client
             loop.call_soon_threadsafe(
-                queue.put_nowait, ("error", json.dumps({"error": str(exc)}))
+                queue.put_nowait, ("error", json.dumps({"error": safe_error_message(exc)}))
             )
         finally:
             loop.call_soon_threadsafe(queue.put_nowait, _DONE)

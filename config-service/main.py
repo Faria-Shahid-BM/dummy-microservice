@@ -250,6 +250,7 @@ class Override(Base):
 _engine = create_engine(
     f"sqlite:///{DATA_DIR / 'config.db'}", connect_args={"check_same_thread": False}
 )
+outbox.apply_sqlite_pragmas(_engine)
 SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
 
 # Audit outbox (see outbox.py): the override write and "this must be audited"

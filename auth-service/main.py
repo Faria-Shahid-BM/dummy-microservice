@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import datetime
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Depends, Response
@@ -35,15 +36,23 @@ JWT_PUBLIC_KEY_PATH = os.environ.get("JWT_PUBLIC_KEY_PATH", "/app/keys/jwt-publi
 
 
 def _load_key(path: str, marker: str) -> str:
-    """Read a signing/verification key, failing loudly at startup rather than
-    at the first login."""
-    try:
-        pem = Path(path).read_text(encoding="utf-8")
-    except OSError as exc:
-        raise RuntimeError(
-            f"cannot read the JWT key at {path}: {exc}. "
-            "Generate a keypair with `python scripts/generate_jwt_keys.py` before starting."
-        ) from exc
+    """Read a signing/verification key, waiting briefly for it to appear.
+
+    The keys are generated into a shared volume by the `keygen` init service at
+    startup; poll for the file rather than crashing on a harmless startup race.
+    Still fails loudly (at startup, not at first login) if it never shows up."""
+    deadline = time.time() + 30
+    while True:
+        try:
+            pem = Path(path).read_text(encoding="utf-8")
+            break
+        except OSError as exc:
+            if time.time() >= deadline:
+                raise RuntimeError(
+                    f"cannot read the JWT key at {path} after 30s: {exc}. The keygen "
+                    "init service should have written it to the shared volume first."
+                ) from exc
+            time.sleep(0.5)
     if marker not in pem:
         raise RuntimeError(f"{path} is not a PEM {marker.lower()}")
     return pem
